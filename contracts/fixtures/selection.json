@@ -1,0 +1,57 @@
+{
+  "escapedPath": [
+    "a/b",
+    "~",
+    "\"",
+    "\\",
+    "😀"
+  ],
+  "key": "[\"a/b\",\"~\",\"\\\"\",\"\\\\\",\"😀\"]",
+  "leaves": [
+    {
+      "category": {
+        "id": "[\"Games\",\"a\"]",
+        "path": [
+          "Games",
+          "a"
+        ]
+      },
+      "totalMs": 10
+    },
+    {
+      "category": {
+        "id": "[\"Games\",\"b\"]",
+        "path": [
+          "Games",
+          "b"
+        ]
+      },
+      "totalMs": 20
+    },
+    {
+      "category": {
+        "id": "[\"GamesPlus\"]",
+        "path": [
+          "GamesPlus"
+        ]
+      },
+      "totalMs": 40
+    },
+    {
+      "category": {
+        "id": "uncategorized",
+        "path": null
+      },
+      "totalMs": 5
+    }
+  ],
+  "selectedPaths": [
+    [
+      "Games"
+    ],
+    [
+      "Games",
+      "a"
+    ]
+  ]
+}

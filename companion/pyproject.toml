@@ -7,7 +7,7 @@ name = "aw-telegram-companion"
 version = "0.1.0"
 description = "Windows presentation checkpoint for AW Telegram"
 requires-python = ">=3.12,<3.13"
-dependencies = ["PySide6-Essentials==6.12.0"]
+dependencies = ["PySide6-Essentials==6.12.0", "jsonschema==4.25.1", "tzdata==2025.2"]
 
 [project.optional-dependencies]
 test = ["pytest==9.1.1", "pytest-qt==4.5.0"]
@@ -17,6 +17,9 @@ aw-telegram-presentation = "aw_telegram.manual_presentation:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+aw_telegram = ["schemas/*.schema.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

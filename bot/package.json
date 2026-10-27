@@ -1,0 +1,23 @@
+{
+  "name": "aw-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc && node scripts/bundle-schemas.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "moment-timezone": "0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

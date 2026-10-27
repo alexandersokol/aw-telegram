@@ -1,6 +1,6 @@
 # AW Telegram Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Task 1 presentation code and automated tests are implemented; actual game fullscreen acceptance remains pending. Task 2 is the next implementation checkpoint.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Task 1 presentation code is committed at b69714d; complete fullscreen acceptance remains pending. Task 2 contracts/time policy are implemented and verified, awaiting controller review and commit. Task 3 follows that review.
 
 **Goal:** Build the agreed private-parent Telegram reports, allowance reminders, and Windows companion without changing ActivityWatch.
 
@@ -40,8 +40,8 @@ contracts, settings, and delivery state cross both subsystems. Each task is a
 separately testable checkpoint, not a separate independently deployed product.
 
 ```text
-contracts/v1/{sync,action,settings,day}.schema.json
-contracts/fixtures/{counting,time,reminders,security}.json
+contracts/v1/{shared,sync-request,sync-response,action,settings,day,ack,live,cancellations}.schema.json
+contracts/fixtures/{wire,time,selection,evidence}.json
 companion/pyproject.toml, requirements.lock, aw-telegram.spec
 companion/src/aw_telegram/{main,models,clock,storage,transport,credentials}.py
 companion/src/aw_telegram/{aw_reader,category_settings,counting,policy,scheduler}.py
@@ -60,7 +60,7 @@ docs/{api-contract,setup,windows-validation,operations}.md
 ```
 
 Shared language-domain names in this plan: Settings, Action, DaySummary, SyncRequest,
-SyncResponse, Ack, Evaluation, PresentationResult are defined in Task 2. No
+SyncResponse, Ack, Evaluation are defined in Task 2; PresentationResult reuses Task 1's type. No
 cross-language executable code sharing; JSON fixtures pin equivalent behavior.
 
 ## Task 1: Windows overlay feasibility and presentation shell
@@ -94,8 +94,8 @@ suite after review fixes: 45 passed on Windows/Python 3.12.14, with a nonfatal C
 diagnostic recorded in the validation document. Desktop and Roblox F11 fullscreen
 visual layering were observed at 150% DPI; exclusive renderer mode, native
 click-through/close, monitor changes, and minimize fallback remain manual gates.
-Commit is pending controller integration; the combined manual/commit
-steps above remain unchecked until their complete conditions are met.
+The software checkpoint is committed at b69714d; the combined manual/commit
+steps above remain unchecked because the full manual acceptance conditions remain pending.
 
 ## Task 2: Contracts, shared fixtures, and time policy
 
@@ -106,7 +106,7 @@ bot/tests/contracts.test.ts, docs/api-contract.md.
 
 **Interfaces:** `local_day_bounds(date: str) -> tuple[datetime, datetime]` / TS
 `dayBounds(date: string): {start: string; end: string}`; Settings includes revision,
-selectedPaths, defaultLimitMs, todayOverride, freeUseDate, suppressedDate.
+selectedPaths, selectedUncategorized, defaultLimitMs, todayOverride, freeUseDate, suppressedDate.
 DaySummary includes date, leafTotalsMs, coverage interval/partial flag, sequence,
 rulesRevision. Action includes id, actorId, kind, targetAt, expiresAt, options,
 sequence, settingsRevision; SyncRequest includes sequence, summaries?, live?, acks;
@@ -114,16 +114,27 @@ SyncResponse includes serverNow, nullable collectionStartedAt, settings,
 cancellations, deliveryOffers. Before first parent pairing, do not collect/upload
 activity. Persist collectionStartedAt once assigned; do not reset on restart/re-pairing.
 
-- [ ] Write fixture tests for spring/fall Kyiv DST bounds, seven-calendar-date
+- [x] Write fixture tests for spring/fall Kyiv DST bounds, seven-calendar-date
   retention, category path escaping, negative durations, oversized titles/messages,
   unknown schema versions, and required buttonless duration.
-- [ ] Run `python -m pytest tests/test_contracts.py -q` in companion and
+- [x] Run `python -m pytest tests/test_contracts.py -q` in companion and
   `npm test -- contracts.test.ts` in bot; verify meaningful initial failures.
-- [ ] Implement schemas, Python dataclasses/validation, TypeScript validators, and
+- [x] Implement schemas, Python dataclasses/validation, TypeScript validators, and
   timezone helpers using zoneinfo/tzdata and a Node timezone library with explicit
   Europe/Kyiv. No fixed UTC offset or '168 hours' shortcut.
-- [ ] Run both suites; verify shared fixtures produce identical normalized results.
+- [x] Run both suites; verify shared fixtures produce identical normalized results.
 - [ ] Lock dependencies and commit contracts/time policy.
+
+Checkpoint evidence: [api-contract.md](api-contract.md). Dependencies are locked;
+commit awaits controller review. Shared wire fixtures contain 143 cases plus
+calendar, selection and receipt/context cases. Final native Windows companion
+suite: 52 passed, exit 0, with the existing unsuppressed COM 0x8001010d diagnostic.
+Node full suite: 6 passed; TypeScript build and isolated compiled-schema check pass;
+pip check passes and npm audit reports zero vulnerabilities. Both timezone databases
+are pinned to IANA 2025b. Defensive local dates are 1970–2099 after a year-3000
+probe exposed moment's finite packed-transition horizon; UTC instants remain
+0001–9999. This arithmetic/transport bound does not authorize historical import.
+Authentication, persistence, ActivityWatch and scheduler behavior remain later tasks.
 
 ## Task 3: Real ActivityWatch adapter and summary calculation
 

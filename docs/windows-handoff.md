@@ -15,8 +15,14 @@ fullscreen state. Its borderless/exclusive renderer mode was not established.
 Native click-through/close, exclusive-mode, display-change, and minimize-fallback
 acceptance remain pending. See windows-validation.md for exact evidence and limits.
 
-Task 2 (contracts, fixtures, time policy) is the next implementation checkpoint;
-carry the pending game acceptance gate forward and block release until it passes.
+Task 1's software checkpoint is committed at b69714d. Task 2 contracts, shared
+fixtures and Kyiv time policy are implemented, with controller review/commit
+pending. Final companion suite: 52 passed (including 7 contract tests), exit 0,
+with the existing unsuppressed COM 0x8001010d diagnostic. Node's full suite has
+6 passing tests; TypeScript build and isolated compiled-schema validation pass.
+pip check passes; npm audit reports zero vulnerabilities. Continue with Task 3
+after Task 2 review, carrying pending game acceptance gates forward and blocking
+release until they pass. See api-contract.md for exact wire fields and invariants.
 No working bot, backend, AW integration, packaged executable, or cloud deployment
 exists yet. Do not restart approved requirements discovery. Do not deploy or send
 Telegram messages without the owner's test configuration and authorization, or
@@ -60,7 +66,8 @@ early while proceeding to the next approved implementation checkpoint:
 
 Record observed Windows version, DPI/monitor layout, game names/display modes,
 standard/elevated execution context, and evidence in docs/windows-validation.md
-as actual evidence becomes available. No fullscreen functionality is verified yet.
+as actual evidence becomes available. The observed Roblox F11 visual layering
+does not establish exclusive-mode, native input-capture or fallback acceptance.
 
 ## Toolchain to install/check for implementation
 
@@ -69,8 +76,13 @@ as actual evidence becomes available. No fullscreen functionality is verified ye
   the chosen Firebase emulator release. Verify current emulator prerequisites
   before installing; do not infer them from old examples.
 - Task 1 uses PySide6-Essentials and pytest/pytest-qt in companion/.venv, pinned in
-  requirements.lock. requests, aw-client, tzdata, and keyring are deferred to their
+  requirements.lock. Task 2 adds jsonschema and tzdata; requests, aw-client and keyring remain deferred to their
   implementation tasks; do not install an unbounded global environment.
+- Task 2 pins Node/Ajv/moment-timezone/Vitest dependencies locally in bot. Both
+  timezone databases are IANA 2025b. Supported local calendar dates are 1970–2099;
+  wider dates are explicitly rejected because moment's packed transitions do not
+  extrapolate like zoneinfo. UTC wire instant years remain 0001–9999. Use bot/.npmrc
+  and the lockfile; npm 10.9.2 needs the recorded optional-peer resolver workaround.
 - PyInstaller one-directory packaging is a later task, built on Windows.
 
 Prefer a task branch such as codex/windows-companion. Build/run on the signed-in
@@ -177,11 +189,22 @@ later domain behaviors are not implemented yet. Credentials/project ID/real Tele
 bot are not provided. Do not invent them or mark integration/Windows gates complete
 with mocks.
 
+Task 2 implements strict schemas, model validation and pure invariants only. It
+does not implement authenticated endpoints, persistent first-pairing collection
+start, sync transactions, ActivityWatch counting, action delivery or scheduling.
+The schema cannot establish a sender's authority or prove native visibility.
+The nonfatal COM diagnostic also reproduced in a standalone visible Qt widget
+without app imports or pytest; its underlying cause remains unestablished. See
+windows-validation.md and the preserved diagnostic report; do not suppress it or
+describe the native suite as diagnostic-free.
+
 ## Suggested continuation prompt
 
 > Read docs/windows-handoff.md and its linked specification/plan. Continue the
-> approved implementation plan in this repository, starting with Task 2's contracts,
-> fixtures, and time policy. Carry forward Task 1's pending real-game acceptance.
+> approved implementation plan in this repository. Task 2 contracts/time policy
+> are implemented and verified, awaiting controller review and commit; after that
+> continue with Task 3's ActivityWatch adapter. Carry forward Task 1's pending
+> real-game acceptance and the deferred Task 8 notification scroll reset.
 > Implement inline, preserve all documented product decisions,
 > and use meaningful automated tests plus real Windows fullscreen validation.
 > Record progress and actual evidence so another session can resume. Do not deploy

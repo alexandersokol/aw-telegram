@@ -1,0 +1,841 @@
+{
+  "receipts": [
+    {
+      "name": "accepted offline timer, late timely receipt",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "presented",
+        "at": "2026-10-27T09:05:01.000Z",
+        "acceptedAt": "2026-10-27T09:00:15.000Z",
+        "presentedAt": "2026-10-27T09:05:01.000Z",
+        "reason": null
+      },
+      "arrivedAt": "2026-10-27T10:00:00.000Z",
+      "valid": true
+    },
+    {
+      "name": "stable receipt retry",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "presented",
+        "at": "2026-10-27T09:05:01.000Z",
+        "acceptedAt": "2026-10-27T09:00:15.000Z",
+        "presentedAt": "2026-10-27T09:05:01.000Z",
+        "reason": null
+      },
+      "arrivedAt": "2026-10-27T11:00:00.000Z",
+      "valid": true
+    },
+    {
+      "name": "repeat may occur after original expiry",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 4,
+        "occurrence": 1,
+        "status": "presented",
+        "at": "2026-10-27T10:00:00.000Z",
+        "acceptedAt": "2026-10-27T09:00:15.000Z",
+        "presentedAt": "2026-10-27T10:00:00.000Z",
+        "reason": null
+      },
+      "valid": true
+    },
+    {
+      "name": "initial presentation too late",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "presented",
+        "at": "2026-10-27T09:05:06.000Z",
+        "acceptedAt": "2026-10-27T09:00:15.000Z",
+        "presentedAt": "2026-10-27T09:05:06.000Z",
+        "reason": null
+      },
+      "valid": false
+    },
+    {
+      "name": "acceptance after expiry cannot correct uncertainty",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "presented",
+        "at": "2026-10-27T09:05:01.000Z",
+        "acceptedAt": "2026-10-27T09:05:06.000Z",
+        "presentedAt": "2026-10-27T09:05:01.000Z",
+        "reason": null
+      },
+      "valid": false
+    },
+    {
+      "name": "presenting crash remains unconfirmed",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "unconfirmed",
+        "at": "2026-10-27T09:05:01.000Z",
+        "acceptedAt": "2026-10-27T09:00:15.000Z",
+        "presentedAt": null,
+        "reason": "crash_during_presentation"
+      },
+      "valid": true
+    },
+    {
+      "name": "repeat ends Kyiv midnight",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 1,
+        "status": "presented",
+        "at": "2026-10-27T22:00:00.000Z",
+        "acceptedAt": "2026-10-27T09:00:15.000Z",
+        "presentedAt": "2026-10-27T22:00:00.000Z",
+        "reason": null
+      },
+      "valid": false
+    },
+    {
+      "name": "stale offered action was never accepted",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "expired",
+        "at": "2026-10-27T10:00:00.000Z",
+        "acceptedAt": null,
+        "presentedAt": null,
+        "reason": "missed_deadline"
+      },
+      "valid": true
+    },
+    {
+      "name": "fence rejection before acceptance",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "canceled",
+        "at": "2026-10-27T09:00:00.000Z",
+        "acceptedAt": null,
+        "presentedAt": null,
+        "reason": "canceled"
+      },
+      "valid": true
+    },
+    {
+      "name": "receipt cannot precede command",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 0,
+        "status": "canceled",
+        "at": "2026-10-27T08:59:59.999Z",
+        "acceptedAt": null,
+        "presentedAt": null,
+        "reason": "canceled"
+      },
+      "valid": false
+    },
+    {
+      "name": "never accepted cannot have repeat occurrence",
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "receipt": {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "kind": "action",
+        "actionId": "11111111-1111-4111-8111-111111111111",
+        "eventSequence": 2,
+        "occurrence": 1,
+        "status": "canceled",
+        "at": "2026-10-27T09:05:01.000Z",
+        "acceptedAt": null,
+        "presentedAt": null,
+        "reason": "canceled"
+      },
+      "valid": false
+    }
+  ],
+  "collectionTransitions": [
+    {
+      "cached": null,
+      "received": null,
+      "result": null,
+      "valid": true
+    },
+    {
+      "cached": null,
+      "received": "2026-10-27T08:00:00.000Z",
+      "result": "2026-10-27T08:00:00.000Z",
+      "valid": true
+    },
+    {
+      "cached": "2026-10-27T08:00:00.000Z",
+      "received": "2026-10-27T08:00:00.000Z",
+      "result": "2026-10-27T08:00:00.000Z",
+      "valid": true
+    },
+    {
+      "cached": "2026-10-27T08:00:00.000Z",
+      "received": null,
+      "valid": false
+    },
+    {
+      "cached": "2026-10-27T08:00:00.000Z",
+      "received": "2026-10-27T09:00:00.000Z",
+      "valid": false
+    }
+  ],
+  "gates": [
+    {
+      "request": {
+        "schemaVersion": 1,
+        "sequence": 0,
+        "acks": []
+      },
+      "startedAt": null,
+      "now": "2026-10-27T09:06:00.000Z",
+      "valid": true
+    },
+    {
+      "request": {
+        "schemaVersion": 1,
+        "sequence": 17,
+        "summaries": [
+          {
+            "date": "2026-10-27",
+            "leafTotalsMs": [
+              {
+                "category": {
+                  "id": "[\"Games\",\"a/b~\\\"\\\\😀\"]",
+                  "path": [
+                    "Games",
+                    "a/b~\"\\😀"
+                  ]
+                },
+                "totalMs": 60000
+              }
+            ],
+            "totalActiveMs": 60000,
+            "selectedTotalMs": 60000,
+            "settingsRevision": 3,
+            "rulesRevision": "rules-v1",
+            "availableFrom": "2026-10-27T08:00:00.000Z",
+            "availableThrough": "2026-10-27T09:00:00.000Z",
+            "partial": true,
+            "sequence": 88
+          }
+        ],
+        "live": {
+          "observedAt": "2026-10-27T09:00:00.000Z",
+          "state": "active",
+          "app": "game.exe",
+          "title": "Поточне вікно 😀",
+          "category": {
+            "id": "[\"Games\"]",
+            "path": [
+              "Games"
+            ]
+          },
+          "rulesRevision": "rules-v1",
+          "categoryCatalog": [
+            {
+              "id": "[\"Games\"]",
+              "path": [
+                "Games"
+              ]
+            },
+            {
+              "id": "uncategorized",
+              "path": null
+            }
+          ]
+        },
+        "acks": [
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "action",
+            "actionId": "11111111-1111-4111-8111-111111111111",
+            "eventSequence": 2,
+            "occurrence": 0,
+            "status": "presented",
+            "at": "2026-10-27T09:05:01.000Z",
+            "acceptedAt": "2026-10-27T09:00:15.000Z",
+            "presentedAt": "2026-10-27T09:05:01.000Z",
+            "reason": null
+          }
+        ]
+      },
+      "startedAt": null,
+      "now": "2026-10-27T09:06:00.000Z",
+      "valid": false
+    },
+    {
+      "request": {
+        "schemaVersion": 1,
+        "sequence": 17,
+        "summaries": [
+          {
+            "date": "2026-10-27",
+            "leafTotalsMs": [
+              {
+                "category": {
+                  "id": "[\"Games\",\"a/b~\\\"\\\\😀\"]",
+                  "path": [
+                    "Games",
+                    "a/b~\"\\😀"
+                  ]
+                },
+                "totalMs": 60000
+              }
+            ],
+            "totalActiveMs": 60000,
+            "selectedTotalMs": 60000,
+            "settingsRevision": 3,
+            "rulesRevision": "rules-v1",
+            "availableFrom": "2026-10-27T08:00:00.000Z",
+            "availableThrough": "2026-10-27T09:00:00.000Z",
+            "partial": true,
+            "sequence": 88
+          }
+        ],
+        "live": {
+          "observedAt": "2026-10-27T09:00:00.000Z",
+          "state": "active",
+          "app": "game.exe",
+          "title": "Поточне вікно 😀",
+          "category": {
+            "id": "[\"Games\"]",
+            "path": [
+              "Games"
+            ]
+          },
+          "rulesRevision": "rules-v1",
+          "categoryCatalog": [
+            {
+              "id": "[\"Games\"]",
+              "path": [
+                "Games"
+              ]
+            },
+            {
+              "id": "uncategorized",
+              "path": null
+            }
+          ]
+        },
+        "acks": [
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "action",
+            "actionId": "11111111-1111-4111-8111-111111111111",
+            "eventSequence": 2,
+            "occurrence": 0,
+            "status": "presented",
+            "at": "2026-10-27T09:05:01.000Z",
+            "acceptedAt": "2026-10-27T09:00:15.000Z",
+            "presentedAt": "2026-10-27T09:05:01.000Z",
+            "reason": null
+          }
+        ]
+      },
+      "startedAt": "2026-10-27T08:00:00.000Z",
+      "now": "2026-10-27T09:06:00.000Z",
+      "valid": true
+    },
+    {
+      "request": {
+        "schemaVersion": 1,
+        "sequence": 17,
+        "summaries": [
+          {
+            "date": "2026-10-27",
+            "leafTotalsMs": [
+              {
+                "category": {
+                  "id": "[\"Games\",\"a/b~\\\"\\\\😀\"]",
+                  "path": [
+                    "Games",
+                    "a/b~\"\\😀"
+                  ]
+                },
+                "totalMs": 60000
+              }
+            ],
+            "totalActiveMs": 60000,
+            "selectedTotalMs": 60000,
+            "settingsRevision": 3,
+            "rulesRevision": "rules-v1",
+            "availableFrom": "2026-10-27T08:00:00.000Z",
+            "availableThrough": "2026-10-27T09:00:00.000Z",
+            "partial": true,
+            "sequence": 88
+          }
+        ],
+        "live": {
+          "observedAt": "2026-10-27T09:00:00.000Z",
+          "state": "active",
+          "app": "game.exe",
+          "title": "Поточне вікно 😀",
+          "category": {
+            "id": "[\"Games\"]",
+            "path": [
+              "Games"
+            ]
+          },
+          "rulesRevision": "rules-v1",
+          "categoryCatalog": [
+            {
+              "id": "[\"Games\"]",
+              "path": [
+                "Games"
+              ]
+            },
+            {
+              "id": "uncategorized",
+              "path": null
+            }
+          ]
+        },
+        "acks": [
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "action",
+            "actionId": "11111111-1111-4111-8111-111111111111",
+            "eventSequence": 2,
+            "occurrence": 0,
+            "status": "presented",
+            "at": "2026-10-27T09:05:01.000Z",
+            "acceptedAt": "2026-10-27T09:00:15.000Z",
+            "presentedAt": "2026-10-27T09:05:01.000Z",
+            "reason": null
+          }
+        ]
+      },
+      "startedAt": "2026-10-27T08:30:00.000Z",
+      "now": "2026-10-27T09:06:00.000Z",
+      "valid": false
+    },
+    {
+      "request": {
+        "schemaVersion": 1,
+        "sequence": 17,
+        "summaries": [
+          {
+            "date": "2026-10-27",
+            "leafTotalsMs": [
+              {
+                "category": {
+                  "id": "[\"Games\",\"a/b~\\\"\\\\😀\"]",
+                  "path": [
+                    "Games",
+                    "a/b~\"\\😀"
+                  ]
+                },
+                "totalMs": 60000
+              }
+            ],
+            "totalActiveMs": 60000,
+            "selectedTotalMs": 60000,
+            "settingsRevision": 3,
+            "rulesRevision": "rules-v1",
+            "availableFrom": "2026-10-27T08:00:00.000Z",
+            "availableThrough": "2026-10-27T09:00:00.000Z",
+            "partial": true,
+            "sequence": 88
+          }
+        ],
+        "live": {
+          "observedAt": "2026-10-27T09:00:00.000Z",
+          "state": "active",
+          "app": "game.exe",
+          "title": "Поточне вікно 😀",
+          "category": {
+            "id": "[\"Games\"]",
+            "path": [
+              "Games"
+            ]
+          },
+          "rulesRevision": "rules-v1",
+          "categoryCatalog": [
+            {
+              "id": "[\"Games\"]",
+              "path": [
+                "Games"
+              ]
+            },
+            {
+              "id": "uncategorized",
+              "path": null
+            }
+          ]
+        },
+        "acks": [
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "action",
+            "actionId": "11111111-1111-4111-8111-111111111111",
+            "eventSequence": 2,
+            "occurrence": 0,
+            "status": "presented",
+            "at": "2026-10-27T09:05:01.000Z",
+            "acceptedAt": "2026-10-27T09:00:15.000Z",
+            "presentedAt": "2026-10-27T09:05:01.000Z",
+            "reason": null
+          }
+        ]
+      },
+      "startedAt": "2026-10-27T08:00:00.000Z",
+      "now": "2026-10-27T08:59:59.999Z",
+      "valid": false
+    },
+    {
+      "request": {
+        "schemaVersion": 1,
+        "sequence": 17,
+        "summaries": [
+          {
+            "date": "2026-10-27",
+            "leafTotalsMs": [
+              {
+                "category": {
+                  "id": "[\"Games\",\"a/b~\\\"\\\\😀\"]",
+                  "path": [
+                    "Games",
+                    "a/b~\"\\😀"
+                  ]
+                },
+                "totalMs": 60000
+              }
+            ],
+            "totalActiveMs": 60000,
+            "selectedTotalMs": 60000,
+            "settingsRevision": 3,
+            "rulesRevision": "rules-v1",
+            "availableFrom": "2026-10-27T08:00:00.000Z",
+            "availableThrough": "2026-10-27T09:00:00.000Z",
+            "partial": true,
+            "sequence": 88
+          }
+        ],
+        "live": {
+          "observedAt": "2026-10-27T09:00:00.000Z",
+          "state": "active",
+          "app": "game.exe",
+          "title": "Поточне вікно 😀",
+          "category": {
+            "id": "[\"Games\"]",
+            "path": [
+              "Games"
+            ]
+          },
+          "rulesRevision": "rules-v1",
+          "categoryCatalog": [
+            {
+              "id": "[\"Games\"]",
+              "path": [
+                "Games"
+              ]
+            },
+            {
+              "id": "uncategorized",
+              "path": null
+            }
+          ]
+        },
+        "acks": [
+          {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "kind": "action",
+            "actionId": "11111111-1111-4111-8111-111111111111",
+            "eventSequence": 2,
+            "occurrence": 0,
+            "status": "presented",
+            "at": "2026-10-27T09:05:01.000Z",
+            "acceptedAt": "2026-10-27T09:00:15.000Z",
+            "presentedAt": "2026-10-27T09:05:01.000Z",
+            "reason": null
+          }
+        ]
+      },
+      "startedAt": "2026-10-27T08:00:00.000Z",
+      "now": "2026-11-03T09:06:00.000Z",
+      "valid": false
+    }
+  ],
+  "fences": [
+    {
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "cancellations": {
+        "revision": 4,
+        "throughActionSequence": 8,
+        "canceledIds": []
+      },
+      "canceled": false
+    },
+    {
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "cancellations": {
+        "revision": 4,
+        "throughActionSequence": 9,
+        "canceledIds": []
+      },
+      "canceled": true
+    },
+    {
+      "action": {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "actorId": "12345678901234567890",
+        "kind": "overlay",
+        "createdAt": "2026-10-27T09:00:00.000Z",
+        "targetAt": "2026-10-27T09:05:00.000Z",
+        "expiresAt": "2026-10-27T09:05:05.000Z",
+        "options": {
+          "message": "Пора зробити перерву 😀",
+          "countdown": true,
+          "dismissible": true,
+          "repeatEveryMinutes": 5
+        },
+        "sequence": 9,
+        "settingsRevision": 3
+      },
+      "cancellations": {
+        "revision": 4,
+        "throughActionSequence": 8,
+        "canceledIds": [
+          "11111111-1111-4111-8111-111111111111"
+        ]
+      },
+      "canceled": true
+    }
+  ]
+}

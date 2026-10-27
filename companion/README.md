@@ -3,6 +3,8 @@
 Task 1 implements the Qt presentation shell: primary-monitor dimming overlay,
 notification card, countdown, and conservative Win32 presentation adapter. It has
 no ActivityWatch, backend, tray, autostart, pairing, or scheduler integration yet.
+Task 2 adds strict shared v1 contracts/dataclasses and explicit Kyiv calendar helpers;
+see [API contract](../docs/api-contract.md).
 Actual game fullscreen acceptance is pending; see
 [Windows validation](../docs/windows-validation.md).
 
@@ -18,8 +20,8 @@ python -m venv .venv
 ```
 
 All runtime, test, and editable-build dependencies are pinned in requirements.lock.
-Only PySide6-Essentials is needed at runtime; Qt Addons, AW libraries, and cloud
-libraries are deferred. If sandbox temp storage is unwritable, set TEMP and TMP to
+Runtime dependencies are PySide6-Essentials, jsonschema and tzdata. Qt Addons,
+AW libraries, and cloud libraries are deferred. If sandbox temp storage is unwritable, set TEMP and TMP to
 an existing ignored local directory such as companion/.tmp before creating the venv.
 
 ## Manual harness
