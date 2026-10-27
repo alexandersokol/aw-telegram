@@ -1,0 +1,38 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+secrets/
+*-service-account.json
+service-account*.json
+.firebaserc
+# Runtime state
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.log
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+# Node / Firebase
+node_modules/
+.firebase/
+*-debug.log*
+# Build / coverage
+build/
+dist/
+coverage/
+.coverage
+htmlcov/
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
