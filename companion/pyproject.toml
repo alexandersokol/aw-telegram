@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aw-telegram-companion"
+version = "0.1.0"
+description = "Windows presentation checkpoint for AW Telegram"
+requires-python = ">=3.12,<3.13"
+dependencies = ["PySide6-Essentials==6.12.0"]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1", "pytest-qt==4.5.0"]
+
+[project.scripts]
+aw-telegram-presentation = "aw_telegram.manual_presentation:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+qt_api = "pyside6"

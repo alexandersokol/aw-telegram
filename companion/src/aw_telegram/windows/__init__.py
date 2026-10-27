@@ -1,0 +1,1 @@
+"""Bounded Windows desktop integration."""

@@ -4,19 +4,23 @@ Updated: 2026-10-27. Repository: https://github.com/alexandersokol/aw-telegram.g
 
 ## Current state
 
-Requirements and technical implementation plan have been reviewed and approved
-by the owner in the original discussion. The latest instruction was to make this
-a standalone repository, write this handoff, commit, and push it. No application
-code has been implemented, no dependencies installed, and nothing deployed.
-There is no working bot, executable, Firebase project configuration, or test suite yet.
-The companion/ and bot/ folders contain explanatory README files only.
+Requirements and technical implementation plan are approved. Task 1 now has a
+Windows/Qt presentation shell, locally pinned dependencies, a runnable manual
+harness, and 45 passing companion test assertions after review fix round 1. A
+nonfatal COM diagnostic remains recorded in windows-validation.md. The controller viewed primary-desktop
+captures at 150% DPI: dim background, opaque Ukrainian centered text, and bottom
+«Закрити» were visible. The user authorized Roblox testing, and the controller also
+observed the overlay visibly above Roblox GDK 2.744.1075.0 gameplay in an F11
+fullscreen state. Its borderless/exclusive renderer mode was not established.
+Native click-through/close, exclusive-mode, display-change, and minimize-fallback
+acceptance remain pending. See windows-validation.md for exact evidence and limits.
 
-Resume at Task 1 in implementation-plan.md. Do not restart requirements discovery
-or mistake planned files/commands for files/tools that already exist. Technical
-defaults are documented in technical-design.md. The next implementation session
-should follow the approved plan; do not deploy or send Telegram messages without
-the owner's actual test configuration and authorization. The current repository
-setup request does not authorize unrelated changes to the ActivityWatch repository.
+Task 2 (contracts, fixtures, time policy) is the next implementation checkpoint;
+carry the pending game acceptance gate forward and block release until it passes.
+No working bot, backend, AW integration, packaged executable, or cloud deployment
+exists yet. Do not restart approved requirements discovery. Do not deploy or send
+Telegram messages without the owner's test configuration and authorization, or
+modify the separate ActivityWatch repository.
 
 ## Get the repository on Windows
 
@@ -41,9 +45,9 @@ All these documents are in docs/. They travel with this standalone repository.
 
 ## First implementation checkpoint
 
-Task 1 is the Qt/Windows overlay feasibility and presentation shell. Implement
-only the minimal dependencies and code required by the task before expanding.
-Validate on the real Windows laptop and games early:
+Task 1's Qt/Windows presentation shell is implemented. The local setup and harness
+commands are in companion/README.md. Complete the remaining real-game acceptance
+early while proceeding to the next approved implementation checkpoint:
 
 - Dim only the primary monitor with see-through black at initial 70% opacity.
 - Large opaque white centered/wrapped message; bottom-centered «Закрити» button.
@@ -56,7 +60,7 @@ Validate on the real Windows laptop and games early:
 
 Record observed Windows version, DPI/monitor layout, game names/display modes,
 standard/elevated execution context, and evidence in docs/windows-validation.md
-when implementing that planned file. No fullscreen functionality is verified yet.
+as actual evidence becomes available. No fullscreen functionality is verified yet.
 
 ## Toolchain to install/check for implementation
 
@@ -64,8 +68,9 @@ when implementing that planned file. No fullscreen functionality is verified yet
 - Node.js 22 and npm for the backend, with Java and Firebase CLI as required by
   the chosen Firebase emulator release. Verify current emulator prerequisites
   before installing; do not infer them from old examples.
-- PySide6, requests, aw-client, tzdata, keyring and pytest/pytest-qt will be installed
-  by the task's dependency files; do not install an unbounded global environment.
+- Task 1 uses PySide6-Essentials and pytest/pytest-qt in companion/.venv, pinned in
+  requirements.lock. requests, aw-client, tzdata, and keyring are deferred to their
+  implementation tasks; do not install an unbounded global environment.
 - PyInstaller one-directory packaging is a later task, built on Windows.
 
 Prefer a task branch such as codex/windows-companion. Build/run on the signed-in
@@ -164,17 +169,20 @@ Estimated polls: 1,920/day for 8h online, or 5,760/day continuously. Free allowa
 are not a spending cap, may be shared with other projects, and CPU/database/network
 costs must be measured. Do not use a long-running function waiting for each poll.
 
-Documents had local-link/code-fence checks and a builder review; this is NOT a
-passing application test suite. Builder review resolved presentation-queue expiry,
-offline accepted timer reconciliation, and pairing-vs-enrollment collection start.
-No runtime evidence exists yet. Credentials/project ID/real Telegram bot are not
-provided. Do not invent them or mark integration/Windows gates complete with mocks.
+Task 1 has passing automated presentation/policy tests and primary-desktop visual
+smoke evidence. These do not establish real-game fullscreen acceptance or backend
+integration. Earlier design review resolved presentation-queue expiry, offline
+accepted timer reconciliation, and pairing-vs-enrollment collection start; those
+later domain behaviors are not implemented yet. Credentials/project ID/real Telegram
+bot are not provided. Do not invent them or mark integration/Windows gates complete
+with mocks.
 
 ## Suggested continuation prompt
 
 > Read docs/windows-handoff.md and its linked specification/plan. Continue the
-> approved implementation plan in this repository, starting with Task 1's Windows
-> overlay feasibility. Implement inline, preserve all documented product decisions,
+> approved implementation plan in this repository, starting with Task 2's contracts,
+> fixtures, and time policy. Carry forward Task 1's pending real-game acceptance.
+> Implement inline, preserve all documented product decisions,
 > and use meaningful automated tests plus real Windows fullscreen validation.
 > Record progress and actual evidence so another session can resume. Do not deploy
 > or send Telegram messages until I provide the test configuration and authorize it.

@@ -1,6 +1,6 @@
 # AW Telegram Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Current handoff checkpoint is documentation only; resume at Task 1 when implementation is requested.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Task 1 presentation code and automated tests are implemented; actual game fullscreen acceptance remains pending. Task 2 is the next implementation checkpoint.
 
 **Goal:** Build the agreed private-parent Telegram reports, allowance reminders, and Windows companion without changing ActivityWatch.
 
@@ -74,12 +74,12 @@ docs/windows-validation.md. Add only dependencies needed by this checkpoint.
 Define PresentationResult as visible/unconfirmed/failed with a non-sensitive reason.
 Presentation callbacks emit shown/dismissed/expired IDs; no backend integration yet.
 
-- [ ] Write pytest-qt tests `test_text_opaque_over_dim_background`, `test_primary_monitor_geometry`,
+- [x] Write pytest-qt tests `test_text_opaque_over_dim_background`, `test_primary_monitor_geometry`,
   `test_clicks_do_not_pass_through`, `test_buttonless_requires_duration`,
   `test_dismiss_signal_once`, `test_foreground_failure_is_unconfirmed`.
-- [ ] Run `cd aw-telegram/companion && python -m pytest tests/test_presentation.py -q`;
+- [x] Run `cd aw-telegram/companion && python -m pytest tests/test_presentation.py -q`;
   confirm tests fail for missing presentation implementation.
-- [ ] Implement frameless Qt painting, 70% black layer, centered white text, bottom
+- [x] Implement frameless Qt painting, 70% black layer, centered white text, bottom
   «Закрити», primary monitor/DPI changes, controllable 10s notification card/countdown.
   Implement bounded Win32 topmost/minimization adapter; never inject or bypass anti-cheat.
 - [ ] Re-run tests; then run a documented manual harness on Windows against the actual
@@ -88,6 +88,14 @@ Presentation callbacks emit shown/dismissed/expired IDs; no backend integration 
 - [ ] If Windows access is unavailable, mark gate pending and continue backend/core
   tasks without claiming fullscreen support. Commit this checkpoint after passing
   automated tests; block release pending Windows evidence.
+
+Checkpoint evidence: [windows-validation.md](windows-validation.md). Full companion
+suite after review fixes: 45 passed on Windows/Python 3.12.14, with a nonfatal COM
+diagnostic recorded in the validation document. Desktop and Roblox F11 fullscreen
+visual layering were observed at 150% DPI; exclusive renderer mode, native
+click-through/close, monitor changes, and minimize fallback remain manual gates.
+Commit is pending controller integration; the combined manual/commit
+steps above remain unchecked until their complete conditions are met.
 
 ## Task 2: Contracts, shared fixtures, and time policy
 

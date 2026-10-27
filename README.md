@@ -1,14 +1,16 @@
 # AW Telegram
 
-A planned companion for ActivityWatch that lets two parents review their child's
+A companion in development for ActivityWatch that lets two parents review their child's
 Windows laptop activity and send reminders through Telegram.
 
-Requirements and the implementation plan are approved. No application code has
-been implemented or deployed yet. This is a standalone repository.
+Requirements and the implementation plan are approved. Task 1's Windows/Qt
+presentation shell is implemented with automated tests and desktop visual smoke
+evidence. Actual game fullscreen acceptance remains pending. Backend, ActivityWatch
+integration, and the full companion are not implemented or deployed.
 
 ## Structure
 
-- `docs/`: user requirements and, later, design and setup documentation.
+- `docs/`: approved requirements, design, plan, and validation evidence.
 - `companion/`: Windows companion application.
 - `bot/`: Firebase Cloud Functions backend and Telegram bot.
 
@@ -24,6 +26,9 @@ Start with [the user requirements](docs/user-requirements.md) and the
 
 The owner approved these documents on 2026-10-27. Windows fullscreen validation
 is an explicit release gate.
+
+See [companion setup and the local harness](companion/README.md) and
+[Windows evidence and pending acceptance](docs/windows-validation.md).
 
 ## Continue on Windows
 
