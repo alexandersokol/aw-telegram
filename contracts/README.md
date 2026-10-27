@@ -13,3 +13,8 @@ Fixture values contain synthetic IDs, messages and current titles only.
 
 See `docs/api-contract.md` for field semantics, defensive transport caps and the
 authenticated state transitions that later tasks must implement.
+
+Current v1 daily summaries reject app fields. The pending
+[application-name usage checkpoint](../docs/application-usage-amendment.md) requires
+a reviewed version/compatibility choice and coordinated schema, Python/TS, fixture
+and reader extension before Task 5 sync and Task 7 formatting.

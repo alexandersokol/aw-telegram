@@ -2,6 +2,7 @@
 import math
 
 from PySide6.QtCore import QElapsedTimer, QTimer, Qt
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QLabel, QVBoxLayout
 
 from ._surface import PresentationSurface
@@ -10,9 +11,10 @@ from ._surface import PresentationSurface
 class CountdownWindow(PresentationSurface):
     def __init__(self):
         super().__init__()
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowTitle("Таймер AW Telegram")
         self.setAccessibleName("Таймер AW Telegram")
-        self.setStyleSheet("background: #242424; color: white; font-size: 22px;")
+        self.setStyleSheet("background: transparent; color: white; font-size: 22px;")
         layout = QVBoxLayout(self)
         self.label = QLabel()
         self.label.setTextFormat(Qt.TextFormat.PlainText)
@@ -56,3 +58,7 @@ class CountdownWindow(PresentationSurface):
             rect = self._screen.availableGeometry()
             self.setGeometry(rect.left() + 16, rect.top() + 16,
                              min(300, max(1, rect.width() - 32)), 100)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(36, 36, 36, 179))

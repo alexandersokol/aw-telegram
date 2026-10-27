@@ -1,16 +1,18 @@
 # AW Telegram technical design
 
 Date: 2026-10-27. Status: technical design approved by the owner.
-No application implementation or deployment has occurred. User behavior is defined
+Presentation, contracts and local AW reader checkpoints exist; backend reporting,
+synchronization and deployment remain pending. User behavior is defined
 by user-requirements.md, bot-navigation.md, and companion-navigation.md. This design
 resolves implementation choices; it does not silently replace agreed behavior.
 
 ## Goal and boundaries
 
 One Windows laptop, up to two paired parent accounts, private Telegram chats only.
-Ukrainian built-in text; unchanged English command names. Today/yesterday category
-reports and seven-day daily totals, text only. Keep today plus six previous Kyiv
-calendar dates. No historical import, Android, app breakdowns, graphs, remote shell,
+Ukrainian built-in text; unchanged English command names. Today/yesterday application
+names/durations filtered by selected categories and seven-day daily totals, text only.
+Keep today plus six previous Kyiv calendar dates. No pre-pairing historical import,
+Android, window-title history, graphs, remote shell,
 computer locking, or tamper protection. Allow minimizing a game to reveal overlays.
 
 ## Approaches and chosen direction
@@ -91,8 +93,10 @@ Documents (all scoped under devices/{deviceId} except global lookup collections)
   translated category names or silently applies four hours to everything.
 - devices/{id}/days/{date}: leaf-category totals, selected total, availableFrom,
   availableThrough, partial/coverage flags, rules revision, snapshot sequence.
-  Reports show disjoint leaf totals (no duplicated parent rollups). Week reports
-  include total active time and selected-category time per date and overall.
+  The required extension adds daily app × disjoint leaf-category aggregates;
+  today/yesterday show names/durations from selected intervals only, with complete
+  rows summing to the selected total. Week reports include total active time and
+  selected-category time per date and overall. Missing coverage is partial/unknown.
 - devices/{id}/live/current: latest app/title and observedAt, active/AFK/unknown,
   resolved foreground category, category catalog without rule regexes/URLs.
   Replace this single title in place; never copy titles into snapshots/audit logs.
@@ -121,6 +125,14 @@ Firestore TTL; TTL is billable and may lag. Actual physical deletion can lag dur
 outages; document that limitation. Overwrite live data without retaining revisions,
 disable backups/PITR and request-body logging. Providers may retain infrastructure
 copies under their policies; no claim of cryptographic deletion or Telegram erasure.
+
+The current v1 schemas/models reject app fields in day summaries. Before Task 5
+sync or Task 7 bot formatting, complete and review the version/compatibility,
+schema, Python/TypeScript, fixtures and AW reader extension in
+[application-usage-amendment.md](application-usage-amendment.md). It retains
+daily app names/durations with category attribution under existing date, rules,
+sequence, coverage, recomputation and 128 KiB constraints. This design describes
+the target; this documentation amendment does not implement that extension.
 
 ## Authentication, enrollment, and pairing
 
@@ -171,8 +183,11 @@ category-settings normalization with fixtures, not an entire UI dependency.
 Clip to [collectionStartedAt, now] and Kyiv local day. Intersect foreground events with
 not-AFK intervals, reject invalid durations, sort/union overlaps so each instant
 counts once. Clamp the open tail to real heartbeat freshness; never extend stale
-samples through sleep. Aggregate disjoint leaf category totals and calculate the
-selected sum using ancestor-path prefix matching. AW rules remain authoritative;
+samples through sleep. Aggregate disjoint leaf category totals and, after the
+required extension, application × leaf-category durations from the same intervals.
+Calculate the selected sum and app rows using ancestor-path prefix matching;
+include uncategorized only when explicitly selected and an app's unselected
+intervals never contribute. AW rules remain authoritative;
 our selections select categories, not modify their rules.
 
 Every 30 seconds recompute today; on reconnect recompute retained dates since last
@@ -181,9 +196,11 @@ does not start report collection; collectionStartedAt is immutable across reconn
 and parent replacement. The companion receives it in its first paired sync. Store only summaries locally,
 not title history. Today and backfilled day snapshots overwrite by monotonically
 increasing sequence. Cloud rejects older sequences, wrong dates, invalid totals,
-and stale settings revisions for selected totals; category leaf totals can still
-be retained then selected totals recalculated server-side. Category selection
-edits recalculate today immediately using existing leaf totals and confirm again
+and stale settings revisions for selected totals; category leaf totals and
+unfiltered category-attributed app aggregates can still be retained, then selected
+totals and app rows recalculated server-side. Category selection
+edits recalculate today immediately using those aggregates, not previously filtered
+app totals, and confirm again
 when a fresh companion snapshot arrives. Missing data remains unknown/partial.
 
 Overlay itself must not cause foreground-category oscillation: exclude companion
@@ -303,7 +320,9 @@ Use a small companion-controlled Qt notification card for /notify and advance
 warnings, with a 10-second default lifetime and clearable IDs. This is preferable
 to native toast dependence: primary-monitor targeting and clearing remain under our
 control. It is a desktop notification distinct from the dimming overlay. Show
-countdowns in a separate top-left primary-screen widget. No keyboard hooks.
+countdowns in a separate top-left primary-screen widget with a #242424 background
+at alpha 179 (70% opacity) and fully opaque white text, using per-pixel transparency.
+Preserve its layout, positioning and input/timing lifecycle. No keyboard hooks.
 
 Try topmost presentation, then permitted minimization of a primary-monitor fullscreen
 foreground app using Win32 ShowWindowAsync when required. Do not minimize unrelated

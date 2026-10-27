@@ -198,6 +198,23 @@ def test_notification_all_text_is_accessible_within_primary_screen(qtbot, qapp, 
         assert 0 <= last_line.y() < scroll.viewport().height()
 
 
+def test_countdown_translucent_background_keeps_text_opaque(qtbot):
+    # Opaque backgrounds obscure the app; whole-window opacity also fades text.
+    countdown = CountdownWindow()
+    qtbot.addWidget(countdown)
+    countdown.start_countdown(10000, "MMMM")
+    image = countdown.grab().toImage()
+    for point in (QPoint(2, 2), countdown.label.geometry().topLeft() + QPoint(2, 2)):
+        background = image.pixelColor(point)
+        assert abs(background.red() - 36) <= 1
+        assert abs(background.green() - 36) <= 1
+        assert abs(background.blue() - 36) <= 1
+        assert abs(background.alpha() - 179) <= 1
+    assert any(image.pixelColor(x, y) == QColor(255, 255, 255, 255)
+               for y in range(image.height()) for x in range(image.width()))
+    assert countdown.windowOpacity() == 1.0
+
+
 def test_countdown_ceil_seconds_and_expiry(qtbot):
     countdown = CountdownWindow()
     qtbot.addWidget(countdown)

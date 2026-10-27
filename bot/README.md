@@ -16,3 +16,8 @@ The local `.npmrc` bypasses npm 10.9.2's optional-peer resolver crash with Vites
 No global installation is needed. Build output includes schemas in `dist/schemas`;
 the compiled backend never needs a deployment-time sibling contracts directory.
 See `../docs/api-contract.md` for wire semantics and later-task invariants.
+
+There is no usage formatter yet. Today/yesterday must eventually show application
+names/durations for selected-category intervals. Complete/review the pending
+[contract/reader extension](../docs/application-usage-amendment.md) before Task 5
+sync or Task 7 formatting; current v1 DaySummary rejects app fields.

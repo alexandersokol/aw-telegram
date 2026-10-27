@@ -53,3 +53,7 @@ Wrap long text. Place «Закрити» centered near the bottom with an edge m
 except for explicitly selected buttonless overlays with a mandatory duration.
 Capture clicks across the layer so they cannot reach the app underneath; keep
 the dismiss button clickable. Keyboard blocking and OS locking are not implied.
+
+The top-left countdown uses a #242424 background at 70% opacity (alpha 179)
+with fully opaque white text through per-pixel transparency. Keep its existing
+layout, primary-screen position and timing/input lifecycle.

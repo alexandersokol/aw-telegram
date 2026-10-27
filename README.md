@@ -3,10 +3,20 @@
 A companion in development for ActivityWatch that lets two parents review their child's
 Windows laptop activity and send reminders through Telegram.
 
-Requirements and the implementation plan are approved. Task 1's Windows/Qt
-presentation shell is implemented with automated tests and desktop visual smoke
-evidence. Actual game fullscreen acceptance remains pending. Backend, ActivityWatch
-integration, and the full companion are not implemented or deployed.
+Requirements and the implementation plan are approved. Tasks 1–2 provide the
+Windows/Qt presentation shell, strict contracts and Kyiv calendar helpers. Task 3's
+local ActivityWatch adapter/counting has passed independent scoped review after
+both corrections; included in the reviewed implementation checkpoint. Its focused suite has 74 passing tests;
+the full native companion suite has 127 after the timer amendment. See
+[ActivityWatch validation](docs/activitywatch-validation.md). Actual game
+fullscreen acceptance remains pending. Backend, persistent synchronization, the
+full companion and deployment remain later checkpoints.
+
+Today/yesterday usage is specified as application names/durations from selected
+category intervals; weekly reports remain daily totals. The required
+[contract/reader extension](docs/application-usage-amendment.md) is pending before
+sync and bot formatting: current v1 summaries reject app fields. The countdown
+uses a 70% #242424 background with opaque white text.
 
 ## Structure
 

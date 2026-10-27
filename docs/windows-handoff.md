@@ -15,18 +15,37 @@ fullscreen state. Its borderless/exclusive renderer mode was not established.
 Native click-through/close, exclusive-mode, display-change, and minimize-fallback
 acceptance remain pending. See windows-validation.md for exact evidence and limits.
 
-Task 1's software checkpoint is committed at b69714d. Task 2 contracts, shared
-fixtures and Kyiv time policy are implemented, with controller review/commit
-pending. Final companion suite: 52 passed (including 7 contract tests), exit 0,
-with the existing unsuppressed COM 0x8001010d diagnostic. Node's full suite has
-6 passing tests; TypeScript build and isolated compiled-schema validation pass.
-pip check passes; npm audit reports zero vulnerabilities. Continue with Task 3
-after Task 2 review, carrying pending game acceptance gates forward and blocking
-release until they pass. See api-contract.md for exact wire fields and invariants.
-No working bot, backend, AW integration, packaged executable, or cloud deployment
-exists yet. Do not restart approved requirements discovery. Do not deploy or send
-Telegram messages without the owner's test configuration and authorization, or
-modify the separate ActivityWatch repository.
+Task 1's software checkpoint is committed at b69714d. Task 2 contracts/time
+policy are committed at 138bb66. Task 3's read-only AW adapter/counting is
+implemented and approved by independent scoped review after both corrections;
+included in the reviewed implementation checkpoint. See [ActivityWatch validation](activitywatch-validation.md).
+Its focused suite has 74 passing tests, and the native companion suite has 127
+after the timer amendment (exit 0 with scoped test-only loopback/Qt access,
+no diagnostic emitted in that run; the prior independently reproduced Qt COM
+diagnostic remains unresolved). No offscreen or diagnostic suppression was used.
+
+Installed AW on this laptop now reports v0.14.1. Metadata selection and constant/
+empty no-history query checks pass. Persisted category settings are absent, so
+counting remains explicitly unsupported until the owner saves intentional AW
+categories. No installed history/titles/URLs were queried, no AW settings were
+changed, and collection start remains null. Source MemoryStorage fixtures prove
+counting separately; they do not establish installed matching-rule behavior.
+The earlier LAN/source notes below are historical, not current laptop identity.
+
+Task 5 must supply durable collection-start/sequence storage and reviewed health
+sync behavior. Before Task 5 sync or Task 7 bot formatting, complete/review the
+pending [application-name usage extension](application-usage-amendment.md):
+version/compatibility decision, canonical/packaged schemas, Python/TS contracts and
+fixtures, and reader/counting app × leaf-category aggregates. Current v1 rejects
+app fields; current reader output is category-only and no bot formatter exists.
+Preserve rules/settings revisions, sequences, coverage, recomputation, retained
+dates and 128 KiB bounds. The countdown now uses #242424 alpha 179 background and
+opaque white text; real Qt rendering/lifecycle checks cover it. A fresh device
+contact must never imply fresh AW data, measured
+zero, or power-off. No bot/backend, persistent collection loop, packaged executable,
+or cloud deployment exists yet. Continue with Task 4 after controller integration,
+carrying all pending Windows game acceptance gates forward. Do not deploy, send
+Telegram messages, or modify the separate ActivityWatch source/config/data roots.
 
 ## Get the repository on Windows
 
@@ -121,16 +140,20 @@ bucket IDs, and never expose AW publicly. Do not reset/delete the existing AW da
 
 - One laptop, two parents maximum, private chats only. Ukrainian built-in UI and
   messages; English command identifiers. No language chooser or groups.
-- `/usage` = today; `/usage today`, `/usage yesterday` show sorted categories.
+- `/usage` = today; `/usage today`, `/usage yesterday` show AW app names and
+  durations sorted descending from exactly selected categories/descendants once,
+  uncategorized only by opt-in. An app contributes only selected intervals;
+  complete rows sum to selected total, missing data is partial/unknown.
   `/usage week` is today plus six earlier Kyiv calendar dates, daily breakdown.
-  Formatted text only; no graphs or per-app historical breakdowns. Today includes
+  Formatted text only; no graphs or historical window titles. Today includes
   current/last app and only the latest window title.
 - Start collection at first successful parent pairing, not laptop enrollment or
   earlier AW history. Reconnect fills only missing post-pairing data still retained.
 - Active foreground time, excluding AFK/background activity. Include selected
   category descendants, count overlaps once; uncategorized is opt-in for allowance.
 - Shared four-hour default; selected categories configurable. Category edits
-  recalculate today. Default-limit edits also replace today's override; today-only
+  recalculate today's app rows and total from unfiltered category-attributed app
+  aggregates, not previously filtered app totals. Default-limit edits also replace today's override; today-only
   changes expire at Europe/Kyiv midnight. Seven-calendar-date cloud retention.
 - Both parents get 15/10/5-minute and expiry alerts; optional hourly milestones
   are independent per parent. Hourly updates continue in free use and after clear.
@@ -168,7 +191,9 @@ is authenticated outbound HTTPS. Telegram webhook secret and per-request parent
 private-chat authorization are mandatory, including callbacks and outgoing messages
 after revocation. Do not commit real secrets or include them in logs/test fixtures.
 
-The backend stores summaries, not raw history/URLs/window-title history. Latest
+The backend may retain daily aggregated app names/durations with category
+attribution for retained dates, alongside leaf totals. It stores summaries,
+not raw history/URLs/window-title history. Latest
 app title is overwritten in one live document and excluded from durable outbox
 payloads. Telegram messages and provider infrastructure copies are outside our
 seven-date cloud report deletion guarantee. Bot messages are not end-to-end encrypted.
@@ -201,9 +226,12 @@ describe the native suite as diagnostic-free.
 ## Suggested continuation prompt
 
 > Read docs/windows-handoff.md and its linked specification/plan. Continue the
-> approved implementation plan in this repository. Task 2 contracts/time policy
-> are implemented and verified, awaiting controller review and commit; after that
-> continue with Task 3's ActivityWatch adapter. Carry forward Task 1's pending
+> approved implementation plan in this repository. Task 2 is committed at
+> 138bb66; Task 3 adapter/counting corrections passed independent scoped review,
+> with 74 focused tests and 127 full native tests after the timer amendment;
+> included in the reviewed implementation checkpoint. Read docs/activitywatch-validation.md, then continue
+> with Task 4 after controller integration.
+> Carry forward Task 1's pending
 > real-game acceptance and the deferred Task 8 notification scroll reset.
 > Implement inline, preserve all documented product decisions,
 > and use meaningful automated tests plus real Windows fullscreen validation.

@@ -1,0 +1,18 @@
+{
+  "start": "2026-10-27T08:00:00.000Z",
+  "seconds": 120,
+  "categories": [
+    {"name":["Fun","Games"],"rule":{"type":"regex","regex":"^game\\.exe$","select_keys":["app"],"priority":30}},
+    {"name":["Work","Code"],"rule":{"type":"regex","regex":"python","select_keys":["app"],"ignore_case":true,"priority":20}}
+  ],
+  "windows": [
+    {"start":0,"duration":30,"app":"game.exe","title":"Fixture game"},
+    {"start":32,"duration":28,"app":"game.exe","title":"Fixture game"},
+    {"start":60,"duration":30,"app":"python.exe","title":"Fixture IDE"},
+    {"start":90,"duration":10,"app":"python.exe","title":"Нагадування AW Telegram"},
+    {"start":100,"duration":20,"app":"chrome.exe","title":"Fixture video"}
+  ],
+  "afk": [{"start":0,"duration":100,"status":"not-afk"},{"start":100,"duration":20,"status":"afk"}],
+  "browser": [{"start":100,"duration":20,"url":"https://fixture.invalid/watch","title":"Fixture video","audible":true}],
+  "expected": {"strictTotalMs":88000,"selectedGamesMs":58000,"pairedAt20TotalMs":68000,"uiStrictCanonicalMs":100000,"uiDefaultAudibleMs":120000}
+}

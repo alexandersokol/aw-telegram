@@ -30,9 +30,15 @@ Ukrainian. See user-requirements.md for timing, privacy, pairing, and delivery r
 [ ← Назад ]
 ```
 
-Today/yesterday show category totals sorted by usage as formatted text. The
-seven-day report shows daily usage, with today last. No graphs or app breakdowns.
-Today includes the current/last-known app and latest title. Show freshness and dates.
+Today/yesterday show AW application names and durations sorted by usage as formatted
+text. Count exactly selected allowance categories plus descendants once, with
+uncategorized only by explicit opt-in. An app contributes only selected intervals;
+complete rows sum to the selected total. Missing data is partial/unknown. The
+seven-day report keeps daily totals, with today last; no graphs or historical
+window titles. Today includes the current/last-known app and latest title. Show
+freshness and dates. Category edits recompute app rows from category-attributed
+daily app aggregates. See [application-usage-amendment.md](application-usage-amendment.md)
+for the pending contract/reader prerequisite to this navigation.
 
 ### Laptop status
 

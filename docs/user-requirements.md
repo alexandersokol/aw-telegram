@@ -3,7 +3,8 @@
 Status: user requirements established through discussion on 2026-10-27.
 Later explicit decisions supersede earlier proposals; technical defaults are
 listed separately in technical-design.md for review.
-No application implementation has started.
+Presentation, strict contracts and the local AW reader have implementation
+checkpoints; backend reports and synchronization remain pending.
 
 ## Purpose and initial scope
 
@@ -29,11 +30,17 @@ currently expected. Prefer Firebase and free hosting.
 
 ### Reports
 
-- REPORT-01: Show time per category, sorted by time spent, highest first.
-- REPORT-02: Per-application usage breakdowns are outside the first version.
-  The current/last-known app remains part of today's report and status.
+- REPORT-01: Today/yesterday show application names (AW `app`) and durations,
+  sorted by time spent, highest first. Count only the selected allowance categories
+  and descendants once; uncategorized requires explicit opt-in. An app contributes
+  only its selected-category intervals, and complete measured app rows sum to the
+  selected total. Missing data remains explicitly partial/unknown.
+- REPORT-02: Application names are not historical window titles. The current/last-known
+  app and single latest title remain part of today's report and status. Required
+  contract/reader work before sync and formatting is tracked in
+  [application-usage-amendment.md](application-usage-amendment.md).
 - REPORT-03: Present reports as readable, formatted Telegram text only.
-  Graphs, generated images, and per-application report options are outside scope.
+  Graphs, generated images, and additional per-application drill-down options are outside scope.
 - REPORT-04: Offer only today (the default), yesterday, and the last seven
   calendar days including today. The week report supports an overall summary
   and a daily breakdown, with today as the final day. Arbitrary dates and other
@@ -105,7 +112,8 @@ currently expected. Prefer Firebase and free hosting.
 - PROPOSE-07: Keep raw events, window titles, and URLs on the laptop. Upload only
   category/app totals, necessary timestamps, current/last app, settings, and action
   status. Retention and latest-title exceptions are specified below; provide
-  deletion and access revocation. Per-application historical totals are not uploaded.
+  deletion and access revocation. Daily aggregated application names/durations with
+  category attribution may be uploaded for retained dates; no event/window-title/URL history.
 - PROPOSE-08: Use an expiring, single-use pairing key and separate laptop credentials.
   Pairing authorizes the intended parent account only. Support revoking
   a parent or the laptop. Do not ship backend administrator credentials
@@ -122,7 +130,7 @@ currently expected. Prefer Firebase and free hosting.
 The main user-facing scope and navigation are sufficiently resolved to begin
 technical design. Earlier questions are resolved by the explicit decisions below.
 The owner approved the technical design and implementation plan on 2026-10-27.
-Implementation has not started.
+Implementation checkpoints and pending work are recorded in the implementation plan.
 
 Technical choices, bounded retry/queue behavior, security contracts, and Windows
 validation gates are now specified in [technical-design.md](technical-design.md).
@@ -343,15 +351,17 @@ These decisions supersede conflicting statements elsewhere in this draft.
 These decisions supersede conflicting report command and enrollment proposals.
 
 - CMD-USAGE-01: `/usage` defaults to `/usage today`.
-- CMD-USAGE-02: `/usage today` shows today's usage by category, sorted by time
-  spent, as formatted text, with the current/last-known app as previously specified.
+- CMD-USAGE-02: `/usage today` shows today's AW application names and durations
+  from selected-category intervals, sorted by time spent, as formatted text, with
+  the current/last-known app as previously specified. REPORT-01 selection and
+  partial/unknown rules apply.
 - CMD-USAGE-03: `/usage week` shows usage for the last seven calendar days broken
   down by day, with today last, as formatted text. No separate `categories` or `days`
   command options are needed.
 - CMD-USAGE-04: `/usage yesterday` shows the previous local calendar day's
-  category usage, sorted by time spent, as formatted text. Per-application
-  breakdowns are removed from scope. These three report periods are the complete
-  usage command set; no graph options are provided.
+  application names and selected-category durations, sorted by time spent, as
+  formatted text. No historical window titles. These three report periods are
+  the complete usage command set; no graph options are provided.
 - PAIR-01: Pairing keys are generated through the companion app. The parent
   chooses to create a key, enters a descriptive name (e.g. a parent's name), and
   receives a generated key for use in the Telegram private-chat pairing flow.
@@ -388,8 +398,9 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
 - LIMIT-08: If changing the allowance crosses several warning thresholds, send
   one current-state warning instead of multiple outdated warnings. Existing
   free-use and automatic-reminder suppression rules still apply.
-- USAGE-03: Show uncategorized activity in reports, but exclude it from the shared
-  allowance unless the parent explicitly selects it as a counted category.
+- USAGE-03: Uncategorized activity contributes to usage app rows, counted totals,
+  allowance and milestones only when the parent explicitly selects it. Daily
+  reports use the exact same selected-category accounting as the shared allowance.
 - DISPLAY-01: Show all overlays, countdowns, and requested laptop notifications
   on the primary monitor only. OS notification placement must be verified on
   Windows; use companion-controlled presentation if necessary to meet this rule.
@@ -433,6 +444,8 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
   usage from all of today's collected activity, not just activity after the edit.
   Active-only filtering, descendant inclusion, and overlap deduplication apply.
   Initial enrollment still excludes activity from before pairing.
+  Recompute displayed app rows from unfiltered app × leaf-category daily aggregates,
+  not previously filtered app totals, using the same selection and deduplication.
 - CATEGORY-03: Evaluate the updated remaining allowance and automatic-overlay
   eligibility after recalculation. Preserve free-use/Clear-all suppression and
   notify the other parent of the category change.
@@ -511,6 +524,9 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
   parent-specified duration. Parents may cancel it earlier through clearing.
 - VISUAL-06: Preserve the previously agreed repeat, activity-gating, free-use,
   clearing, and primary-monitor rules. Verify fullscreen behavior on Windows.
+- VISUAL-07: The top-left countdown has a #242424 background at 70% opacity
+  (alpha 179), with fully opaque white text, using per-pixel transparency.
+  Preserve its existing layout, position, timing and input lifecycle.
 
 ## Fullscreen-game visibility requirement
 

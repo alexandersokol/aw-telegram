@@ -93,7 +93,22 @@ Snapshots replace by a durable sequence independently per date. A stale
 `settingsRevision` does not invalidate useful leaf totals: recompute selected total
 with current settings using `selected_total` / `selectedTotal`, and record the
 revision used. Shape validation cannot verify a selected total without those settings.
-No app, title, message, event or URL fields are accepted in day summaries.
+The current v1 wire rejects all app, title, message, event and URL fields in day
+summaries. This is the implemented contract, not the final reporting requirement:
+today/yesterday application-name usage now requires daily app × leaf-category
+duration aggregates. They are not yet implemented or accepted by these validators.
+
+Before Task 5 sync and Task 7 formatting, complete the reviewed extension checkpoint
+in [application-usage-amendment.md](application-usage-amendment.md): record the
+version/compatibility choice, extend canonical/package schemas, Python models and
+reader/counting, TypeScript types/validators/helpers and shared fixtures together.
+Preserve date retention, rules/settings revisions, per-date sequence, coverage,
+recomputation under current category settings and 128 KiB request bounds. Persist
+unfiltered app × leaf-category aggregates, not previously selected app totals.
+App rows count only selected intervals (descendants once, uncategorized opt-in),
+sum exactly to selected total for complete measured data, and explicitly identify
+partial/unknown data otherwise. Raw events, historical window titles and URLs
+remain prohibited; latest title is current-only. The amendment changes no v1 code.
 
 `LiveState` fields: `observedAt`, `state:active|afk|unknown`, nullable `app`, `title`,
 `category`, `rulesRevision`, plus `categoryCatalog`. Unknown clears all four

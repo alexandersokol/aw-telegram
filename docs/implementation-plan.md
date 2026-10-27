@@ -1,6 +1,6 @@
 # AW Telegram Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Task 1 presentation code is committed at b69714d; complete fullscreen acceptance remains pending. Task 2 contracts/time policy are implemented and verified, awaiting controller review and commit. Task 3 follows that review.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Task 1 presentation code is committed at b69714d; complete fullscreen acceptance remains pending. Task 2 contracts/time policy are committed at 138bb66. Task 3 adapter/counting corrections passed independent scoped review; 74 focused tests and 127 full native tests after the timer amendment pass. Included in the reviewed implementation checkpoint.
 
 **Goal:** Build the agreed private-parent Telegram reports, allowance reminders, and Windows companion without changing ActivityWatch.
 
@@ -13,7 +13,7 @@
 ## Global constraints
 
 - One Windows laptop; two parents maximum; private Telegram chats only.
-- Ukrainian built-in text; English command identifiers; no graphs/app breakdown reports.
+- Ukrainian built-in text; English command identifiers; today/yesterday app names/durations filtered by selected categories; no graphs/window-title history.
 - Europe/Kyiv calendar days; retain today plus six previous dates; no pre-pairing import.
 - Active foreground time only; no audible/always-active AFK exceptions; category descendants deduplicated.
 - Four hours default; 15/10/5-minute warnings; hourly updates independent per parent.
@@ -22,6 +22,8 @@
 - Primary monitor only, click-capturing translucent overlay; default dismissible once for manual actions.
 - Mandatory buttonless duration; repeat after dismissal, end at Kyiv midnight; no OS lock/tamper resistance.
 - No bot token or cloud admin credentials on laptop; cloud reports only, latest title overwritten in place.
+- Daily app names/durations may be retained as category-attributed aggregates for retained dates; app rows sum to selected total for complete data, otherwise explicitly partial/unknown.
+- Complete the reviewed application-usage contract/reader extension below before Task 5 sync or Task 7 formatting; current v1 rejects app fields.
 - Modify only aw-telegram files; no changes to submodule pins/root build without a separate reason.
 - Exact library patches locked during implementation; root runtime pins do not apply.
 
@@ -123,10 +125,10 @@ activity. Persist collectionStartedAt once assigned; do not reset on restart/re-
   timezone helpers using zoneinfo/tzdata and a Node timezone library with explicit
   Europe/Kyiv. No fixed UTC offset or '168 hours' shortcut.
 - [x] Run both suites; verify shared fixtures produce identical normalized results.
-- [ ] Lock dependencies and commit contracts/time policy.
+- [x] Lock dependencies and commit contracts/time policy.
 
 Checkpoint evidence: [api-contract.md](api-contract.md). Dependencies are locked;
-commit awaits controller review. Shared wire fixtures contain 143 cases plus
+commit: `138bb66`. Shared wire fixtures contain 143 cases plus
 calendar, selection and receipt/context cases. Final native Windows companion
 suite: 52 passed, exit 0, with the existing unsuppressed COM 0x8001010d diagnostic.
 Node full suite: 6 passed; TypeScript build and isolated compiled-schema check pass;
@@ -146,19 +148,57 @@ end: datetime, collection_started_at: datetime) -> DaySummary`; `AWReader.live()
 `selected_total(leaf_totals: dict[tuple[str,...], int], paths: list[tuple[str,...]]) -> int`.
 AWCapabilities includes explicit chosen bucket IDs and category-settings support.
 
-- [ ] Write tests for foreground/AFK intersection, overlapping parent selections,
+- [x] Write tests for foreground/AFK intersection, overlapping parent selections,
   malformed events, bucket ambiguity, modern/legacy category settings, audible AFK
   exclusion, enrollment-before-first-pairing exclusion, pre-pairing clipping,
   stale heartbeat after sleep, companion-owned
   foreground, and nondefault AW port (no accidental localhost:5600 fallback).
-- [ ] Run `python -m pytest tests/test_aw_reader.py tests/test_counting.py -q`; verify failures.
-- [ ] Implement explicit client query parameters, effective category resolver,
+- [x] Run `python -m pytest tests/test_aw_reader.py tests/test_counting.py -q`; verify failures.
+- [x] Implement explicit client query parameters, effective category resolver,
   local aggregation and missing-data coverage. Reuse canonical query machinery
   without its implicit default-client settings call or always-active exceptions.
-- [ ] Run tests and a read-only probe against a local development AW server;
+- [x] Run tests and a read-only probe against a local development AW server;
   compare a known window/AFK fixture total against the UI and explain intentional
   active-only differences. Record installed Windows AW compatibility when available.
-- [ ] Commit adapter/counting without modifying AW repositories.
+- [x] Commit adapter/counting without modifying AW repositories.
+
+Checkpoint evidence: [activitywatch-validation.md](activitywatch-validation.md).
+Both Task 3 corrections passed independent scoped review; 74 focused tests and
+127 full native tests after the timer amendment pass (scoped test-only loopback/Qt
+access). The initial 40/92 results are historical evidence. Installed v0.14.1 metadata and
+constant/empty queries pass; real counting uses an isolated MemoryStorage source
+fixture, not installed history. Installed category settings are missing and remain
+an explicit setup requirement. A local audited canonical fragment/stdlib HTTP
+adapter replaces planned aw-client dependency because PyPI 0.5.15 lacks source
+checkout exact-ID/auth/timeout capabilities. Included in the reviewed implementation checkpoint.
+
+## Required amendment checkpoint: application-name usage (Tasks 2–3 extension)
+
+Status: pending, authorized on 2026-10-27. Read the binding
+[application-usage-amendment.md](application-usage-amendment.md) before proceeding.
+The implemented DaySummary/schema/reader remain category-only. Bot source has
+contracts and clock helpers, no report formatter; no report implementation is
+completed by this amendment. Task 4 can proceed independently, but Task 5 and
+Task 7 depend on this reviewed extension:
+
+- [ ] Record the version/compatibility decision for the closed existing v1 schema
+  and category-only persisted summaries; do not silently add wire fields.
+- [ ] Extend canonical/packaged schemas, Python models/validation, TS types and
+  validators/helpers, shared fixtures and AW reader/counting with daily unfiltered
+  app × disjoint leaf-category aggregates alongside existing leaf totals.
+- [ ] Preserve retained dates, immutable pairing start, rules/settings revisions,
+  per-date sequence, coverage/partial semantics, exact selection recomputation and
+  128 KiB requests; review app/category bounds and batch sizing without silent loss.
+- [ ] Verify names/durations descending, app spanning selected/unselected leaves,
+  descendants counted once, opt-in uncategorized, no AFK/background/pre-pairing
+  time, exact complete app-row/selected-total equality, explicit partial/unknown,
+  and category edits recomputed from category-attributed aggregates.
+- [ ] Review cross-language schema/fixture/reader compatibility before Task 5 sync
+  and Task 7 formatting. Keep historical window titles/events/URLs prohibited.
+
+Timer amendment: the top-left countdown now paints #242424 at alpha 179 with
+opaque white text; the real Qt rendering regression and existing lifecycle tests
+cover this change. Fullscreen overlay and manual game acceptance gates are unchanged.
 
 ## Task 4: Secure backend enrollment, parent pairing, and revocation
 
@@ -186,6 +226,11 @@ companion/src/aw_telegram/{credentials,transport}.py, companion/tests/test_enrol
 - [ ] Commit authorization boundary.
 
 ## Task 5: Durable local storage and authenticated synchronization
+
+**Prerequisite:** complete/review the application-name usage checkpoint above.
+Persist unfiltered app × leaf-category daily aggregates and recompute selected app
+rows/totals under current settings, preserving rules/sequence/coverage/retention
+and payload bounds. Do not derive app reports from category-only v1 snapshots.
 
 **Files:** create companion/src/aw_telegram/storage.py, finish transport.py,
 companion/tests/test_sync.py, bot/src/{deviceApi,settings}.ts, bot/tests/sync.test.ts.
@@ -236,6 +281,13 @@ bot/tests/{delivery,alerts,outbox}.test.ts, finish repository.ts.
 - [ ] Commit backend policy/delivery checkpoint.
 
 ## Task 7: Telegram private-chat commands and approved button navigation
+
+**Prerequisite:** complete/review the application-name usage checkpoint above.
+Today/yesterday render AW app names/durations sorted descending, only selected
+category intervals incl descendants once and uncategorized opt-in; complete rows
+sum to selected total, missing data is partial/unknown. Test changed selection,
+app spanning selected/unselected leaves, escaping and pagination. Week remains
+daily totals; latest window title is current-only.
 
 **Files:** create bot/src/telegram/{webhook,commands,menus,sessions,reports,uk}.ts,
 bot/tests/{telegram,reports,menus}.test.ts; finish bot/src/index.ts, bot/scripts/webhook.ts.
