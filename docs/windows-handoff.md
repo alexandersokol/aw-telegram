@@ -1,6 +1,6 @@
 # Windows development handoff
 
-Updated: 2026-10-27. Repository: https://github.com/alexandersokol/aw-telegram.git
+Updated: 2026-10-28. Repository: https://github.com/alexandersokol/aw-telegram.git
 
 ## Current state
 
@@ -42,8 +42,14 @@ Preserve rules/settings revisions, sequences, coverage, recomputation, retained
 dates and 128 KiB bounds. The countdown now uses #242424 alpha 179 background and
 opaque white text; real Qt rendering/lifecycle checks cover it. A fresh device
 contact must never imply fresh AW data, measured
-zero, or power-off. No bot/backend, persistent collection loop, packaged executable,
-or cloud deployment exists yet. Continue with Task 4 after controller integration,
+zero, or power-off. Task 4 enrollment/authentication/private pairing/revocation is
+implemented and tested, with independent review approved. Its focused
+checks passed 22 emulator cases, 29 companion enrollment cases, 6 Node contract
+groups, build/bundle checks and a synthetic native Windows vault write/read/delete.
+See [enrollment security](enrollment-security.md) for owner recovery, IAM, consumer
+guards, retained binding migration limits and development-tool audit findings.
+No persistent collection loop, Telegram webhook/menu/delivery, packaged executable
+or cloud deployment exists yet. Continue after the usage amendment,
 carrying all pending Windows game acceptance gates forward. Do not deploy, send
 Telegram messages, or modify the separate ActivityWatch source/config/data roots.
 
@@ -214,9 +220,10 @@ later domain behaviors are not implemented yet. Credentials/project ID/real Tele
 bot are not provided. Do not invent them or mark integration/Windows gates complete
 with mocks.
 
-Task 2 implements strict schemas, model validation and pure invariants only. It
-does not implement authenticated endpoints, persistent first-pairing collection
-start, sync transactions, ActivityWatch counting, action delivery or scheduling.
+Task 2 implements strict schemas, model validation and pure invariants only.
+Task 3 adds ActivityWatch counting; Task 4 adds authenticated enrollment/access
+endpoints and server first-pairing boundary storage. Durable companion boundary
+storage, sync transactions, action delivery and scheduling remain later tasks.
 The schema cannot establish a sender's authority or prove native visibility.
 The nonfatal COM diagnostic also reproduced in a standalone visible Qt widget
 without app imports or pytest; its underlying cause remains unestablished. See
@@ -229,8 +236,10 @@ describe the native suite as diagnostic-free.
 > approved implementation plan in this repository. Task 2 is committed at
 > 138bb66; Task 3 adapter/counting corrections passed independent scoped review,
 > with 74 focused tests and 127 full native tests after the timer amendment;
-> included in the reviewed implementation checkpoint. Read docs/activitywatch-validation.md, then continue
-> with Task 4 after controller integration.
+> included in the reviewed implementation checkpoint. Task 4 implementation and
+> focused tests are complete with independent review approved. Read
+> docs/enrollment-security.md, complete/review the usage
+> amendment before Task 5 synchronization.
 > Carry forward Task 1's pending
 > real-game acceptance and the deferred Task 8 notification scroll reset.
 > Implement inline, preserve all documented product decisions,

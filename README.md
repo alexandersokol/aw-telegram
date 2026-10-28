@@ -9,8 +9,11 @@ local ActivityWatch adapter/counting has passed independent scoped review after
 both corrections; included in the reviewed implementation checkpoint. Its focused suite has 74 passing tests;
 the full native companion suite has 127 after the timer amendment. See
 [ActivityWatch validation](docs/activitywatch-validation.md). Actual game
-fullscreen acceptance remains pending. Backend, persistent synchronization, the
-full companion and deployment remain later checkpoints.
+fullscreen acceptance remains pending. Task 4 enrollment/authentication/pairing and
+revocation implementation and tests are complete, with independent review approved: 22 emulator checks, 29 enrollment tests and a synthetic native Windows
+vault probe passed. See [enrollment security](docs/enrollment-security.md) for exact
+scope and limits. Persistent synchronization, Telegram delivery, the full companion
+and deployment remain later checkpoints.
 
 Today/yesterday usage is specified as application names/durations from selected
 category intervals; weekly reports remain daily totals. The required

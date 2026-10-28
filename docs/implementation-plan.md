@@ -212,18 +212,23 @@ companion/src/aw_telegram/{credentials,transport}.py, companion/tests/test_enrol
 `pairParent(secret: string, userId: string, chatId: string): Promise<Parent>`.
 `Transport.enroll(bundle: EnrollmentBundle) -> DeviceIdentity` stores secret in vault.
 
-- [ ] Write emulator tests for one-time/15-minute expiry, concurrent consume,
+- [x] Write emulator tests for one-time/15-minute expiry, concurrent consume,
   two-parent cap, numeric IDs, group rejection, guessed/forged device ID,
   revoked access on old callbacks/outbox, and generic throttled invalid-key responses.
   Python tests assert no secret enters SQLite/config/log output.
-- [ ] Run `npm run test:emulator -- auth pairing` and `python -m pytest tests/test_enrollment.py -q`;
+- [x] Run `npm run test:emulator -- auth pairing` and `python -m pytest tests/test_enrollment.py -q`;
   verify failures before implementation.
-- [ ] Implement random key generation/hashing, transactional consumption, device
+- [x] Implement random key generation/hashing, transactional consumption, device
   token checks, access lookup/deletion, deny-all direct database rules, vault storage,
   and local owner-only enrollment CLI. Validate trusted HTTPS URL before exchange.
-- [ ] Run emulator suites with a rules client and Admin repository separately;
+- [x] Run emulator suites with a rules client and Admin repository separately;
   verify unauthorized clients cannot read any document and IAM setup is documented.
-- [ ] Commit authorization boundary.
+- [x] Commit authorization boundary.
+
+Checkpoint: implementation and focused verification complete; independent review approved.
+22 emulator checks (separate Admin transactions and client deny-all rules), 29 Python enrollment tests,
+6 existing Node contract groups, build/bundle checks and native synthetic vault write/read/delete pass.
+See [enrollment-security.md](enrollment-security.md) for interfaces, recovery, IAM, timeout and tooling limits.
 
 ## Task 5: Durable local storage and authenticated synchronization
 
