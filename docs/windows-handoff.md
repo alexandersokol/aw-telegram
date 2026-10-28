@@ -1,8 +1,19 @@
 # Windows development handoff
 
-Updated: 2026-10-28. Repository: https://github.com/alexandersokol/aw-telegram.git
+Updated: 2026-10-29. Repository: https://github.com/alexandersokol/aw-telegram.git
 
-## Current state
+## Current backend checkpoint
+
+Task 5 storage/v2 synchronization and the application-name contract/reader extension
+are reviewed. Task 6 backend lifecycle, alerts, outbox and adapter implementation is
+locally verified, with independent review approved. Read [backend delivery](backend-delivery.md)
+for current authority/operation IDs, transaction hooks, timing and verification.
+Task 7 has not started. Task 8's local offer store/executor remains unimplemented;
+LocalStore deliberately rejects nonempty offers. Task 10 owns deployment/IAM/Scheduler.
+Stop after the Task 6 reviewed checkpoint; this handoff does not authorize next-task
+implementation, production service calls or additional Windows/game work.
+
+## Earlier Windows evidence and integration context
 
 Requirements and technical implementation plan are approved. Task 1 now has a
 Windows/Qt presentation shell, locally pinned dependencies, a runnable manual
@@ -32,17 +43,17 @@ changed, and collection start remains null. Source MemoryStorage fixtures prove
 counting separately; they do not establish installed matching-rule behavior.
 The earlier LAN/source notes below are historical, not current laptop identity.
 
-Task 5 must supply durable collection-start/sequence storage and reviewed health
+Task 5 supplies reviewed durable collection-start/sequence storage and health
 sync behavior. The [application-name usage extension](application-usage-amendment.md)
 now implements active v2 canonical/packaged schemas, Python/TS contracts/helpers and
 fixtures, and reader/counting app × disjoint-category aggregates; independent review
-is pending. Archived v1 remains immutable/category-only; Task 4 enrollment/access
+is approved. Archived v1 remains immutable/category-only; Task 4 enrollment/access
 stays protocol v1. Reader output captures settings/rules, preserves unknown coverage,
 and retains its prior summary on explicit `report_capacity_exceeded`. Pure projections
 recalculate current selection while preserving source revision. No usage formatter
-exists. Task 5 must invalidate/recollect legacy v1 report caches without losing
-pairing/settings/commands/receipts/counters, pack atomic whole dates and sequential
-acks within actual 131072-byte bodies, and enforce per-date sequences. Cardinality
+exists. Task 5 invalidates/recollects legacy v1 report caches without losing
+pairing/settings/commands/receipts/counters, packs atomic whole dates and sequential
+acks within actual 131072-byte bodies, and enforces per-date sequences. Cardinality
 ceilings alone do not guarantee byte fit. The countdown now uses #242424 alpha 179 background and
 opaque white text; real Qt rendering/lifecycle checks cover it. A fresh device
 contact must never imply fresh AW data, measured
@@ -52,9 +63,9 @@ checks passed 22 emulator cases, 29 companion enrollment cases, 6 Node contract
 groups, build/bundle checks and a synthetic native Windows vault write/read/delete.
 See [enrollment security](enrollment-security.md) for owner recovery, IAM, consumer
 guards, retained binding migration limits and development-tool audit findings.
-No persistent collection loop, Telegram webhook/menu/delivery, packaged executable
-or cloud deployment exists yet. Continue after the extension's independent review,
-carrying all pending Windows game acceptance gates forward. Do not deploy, send
+No Telegram webhook/menu, local action executor, packaged executable or cloud deployment
+exists yet. Carry the pending Windows game acceptance gates forward without treating
+the backend checkpoint as installed end-to-end functionality. Do not deploy, send
 Telegram messages, or modify the separate ActivityWatch source/config/data roots.
 
 ## Get the repository on Windows

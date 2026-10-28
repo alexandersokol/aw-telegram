@@ -274,6 +274,17 @@ stale command again. Purge still obeys seven-date retention. Manual expiry/skip/
 failed status comes from the local scheduler when available, not inference from
 silence. Parents see 'Очікуємо підтвердження виконання' for accepted offline timers.
 
+Task6 backend timing is exact: immediate offers are eligible at 0/20/40 seconds
+and only while serverNow<createdAt+60 seconds. Three is a ceiling; 15-second polling
+can yield only two actual offers. Scheduled timers retain their original target
+(createdAt+1..1439minutes), use targetAt+5 seconds as an inclusive initial-presentation
+bound, and throttle delivery offers by 20 seconds until accepted/canceled/window end.
+They do not inherit the immediate 60-second delivery window. Closure is strictly
+after the scheduled grace, except a repeating family always ends at the original
+target date's Kyiv midnight. Historical timely proof can correct uncertainty after
+that midnight, but cannot reopen future occurrences. A correction before midnight
+ensures a durable original-midnight intent without resetting dispatch generation.
+
 Clear commands/settings are durable control changes, not ephemeral reminders.
 A revisioned cancellation fence plus explicit canceled IDs stops current/pending
 manual actions across reconnects; a request acknowledgement is distinct from a
@@ -292,6 +303,9 @@ new edits may emit one current-state update but must not spam identical warnings
 Hourly updates use selected totals, per-parent preferences, independent of suppression.
 Send one latest total after catch-up; enabling starts with the next threshold;
 category edit informs both with current total and preserves delivered high-water marks.
+If hourly updates are enabled without usable current-day measurement, persist a
+pending baseline and establish the floor from the first recovered projection; do
+not invent zero usage or backfill already-crossed milestones.
 
 Use a Firestore transaction for domain mutation + outbox creation, then dispatch
 via Cloud Tasks. One retryable worker processes recipient messages with leases,
@@ -302,6 +316,14 @@ but before saving response may duplicate a Telegram message. Document this hones
 at-least-once limitation; laptop actions still deduplicate separately. Do not claim
 exactly-once Telegram delivery. Treat 403 (parent blocked bot) as undeliverable and
 continue the other parent's delivery without revoking their data accidentally.
+
+Task6's injected backend factory composes the separate OIDC task route, bounded
+post-sync repair and protected sweeper. It performs no network/credential lookup
+on import. Deployment/IAM/daily Scheduler wiring remains Task 10. Parent mutators
+require current ParentIdentity and a stable trusted operationId in the same
+transaction; Task7 will supply Telegram update identities. The local offer store
+and execution receipt producer remain Task 8; until then LocalStore fails closed
+on nonempty offers. Task6 does not claim a complete running companion.
 
 Persist menus/drafts per parent with a 30-minute timeout and nonce. Stale buttons
 ask to reopen menu; duplicate updates/callbacks cannot enqueue duplicate actions.

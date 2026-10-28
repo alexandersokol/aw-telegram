@@ -178,7 +178,7 @@ Status: implemented on 2026-10-28; independent review approved. Read the binding
 [application-usage-amendment.md](application-usage-amendment.md) before proceeding.
 The active v2 DaySummary/schema/reader now carries exact app × disjoint-category
 aggregates; immutable v1 remains category-only. Task 4 enrollment/access keeps
-protocol v1. Storage/sync and the report formatter remain pending. Task 5 and
+protocol v1. Storage/sync is reviewed in Task 5; the Task 7 report formatter remains unstarted. Task 5 and
 Task 7 use this reviewed extension:
 
 - [x] Record the version/compatibility decision for the closed existing v1 schema
@@ -271,28 +271,32 @@ Checkpoint: independent review approved after one correction round. Focused Pyth
 **Files:** create bot/src/{actions,deadlines,alerts,outbox,tasks}.ts,
 bot/tests/{delivery,alerts,outbox}.test.ts, finish repository.ts.
 
-**Interfaces:** `createAction(deviceId: string, actorId: string, draft: ActionDraft): Promise<Action>`;
-`offerActions(deviceId: string, now: string): Promise<Action[]>`;
-`recordAck(deviceId: string, ack: Ack): Promise<void>`;
-`evaluateAlerts(input: AlertInput): AlertEvent[]` (pure);
-`enqueueParentEvent(event: ParentEvent): Promise<void>`;
-`deliverOutbox(eventId: string): Promise<void>`; `expireAction(actionId: string): Promise<void>`.
+**Implemented public interfaces:** `ActionService.createAction(identity: ParentIdentity, draft: ActionDraft, operationId: string, callback?)`;
+`clearActions(identity, scope, operationId, callback?)`;
+`SettingsService.updateSettings(identity, change, operationId, callback?)` and `setHourly(identity, enabled, operationId, callback?)`.
+Device offers/receipts use authenticated `DeviceApi.syncDevice`; internal wrappers accept DeviceIdentity.
+`evaluateAlerts(input)` remains pure; `enqueueParentEvent`, `deliverOutbox` and `expireAction` are trusted worker boundaries.
+See [backend-delivery.md](backend-delivery.md) for transaction plans, adapters and limits.
 
-- [ ] Write tests: exactly three offers >=20s apart before 60s expiry; accepted offline delayed timer
+- [x] Write tests: exactly three offers >=20s apart before 60s expiry; accepted offline delayed timer
   remains execution-unconfirmed until reconciliation, late valid receipt corrects
   cloud uncertainty; no stale
   execution; deadline notice when laptop stays off; duplicate acknowledgements;
   transaction/outbox crash recovery; Task OIDC rejection; revoked recipient; one
   parent's Telegram 403; Telegram 429 retry; uncertain sendMessage outcome;
   catch-up milestone, enabling midday, category decrease/increase, clear/free precedence.
-- [ ] Run `npm test -- delivery alerts outbox`; verify failures.
-- [ ] Implement transactionally versioned actions and cancellation fences,
+- [x] Run `npm test -- delivery alerts outbox`; verify failures.
+- [x] Implement transactionally versioned actions and cancellation fences,
   deterministic domain event IDs, outbox leases/Cloud Tasks, deadline closure,
   per-parent milestone high-water marks and consolidated warnings. No background
   setTimeout used for cloud deadlines. Never store live titles in durable messages.
-- [ ] Run unit/emulator suites; simulate a crash after Telegram accepts a send
+- [x] Run unit/emulator suites; simulate a crash after Telegram accepts a send
   and document the unavoidable possible duplicate cloud message (not laptop action).
-- [ ] Commit backend policy/delivery checkpoint.
+- [x] Commit backend policy/delivery checkpoint.
+
+Implementation is locally verified and approved by independent review. Final checks: 69 Node unit tests, 17 local delivery/sync emulator tests, build and isolated bundle passed; runtime-only audit reported zero vulnerabilities.
+Task 7 is unstarted, and Task 8 LocalStore still rejects nonempty offers. Stop after
+Task 6's reviewed checkpoint; this status update does not start the next task.
 
 ## Task 7: Telegram private-chat commands and approved button navigation
 

@@ -39,24 +39,24 @@ describe('sync Firestore transactions',()=>{
   test('concurrent parent edits and sync preserve latest selected projection and accurate pending state',async()=>{
     await api.syncDevice(identity,{...request(),summaries:[day()]});
     await Promise.all([
-      settings.updateSettings(p1,{kind:'selectCategories',paths:[['Study']],uncategorized:false}),
-      settings.updateSettings(p2,{kind:'setFreeUse',enabled:true}),
+      settings.updateSettings(p1,{kind:'selectCategories',paths:[['Study']],uncategorized:false},'legacy-test:1'),
+      settings.updateSettings(p2,{kind:'setFreeUse',enabled:true},'legacy-test:2'),
       api.syncDevice(identity,{...request(2),summaries:[day(2,2000)]})]);
     const status=await settings.status(p1),doc=(await db.doc(path('days/2026-10-28')).get()).data()!;
     expect(status.settings.revision).toBe(2);expect(status.acknowledgedRevision).toBeNull();
     expect(doc.projection.settingsRevision).toBe(2);expect(doc.projection.selectedTotalMs).toBe(2000);
     await api.syncDevice(identity,{...request(3),acks:[{id:randomUUID(),kind:'settings',revision:2,appliedAt:NOW}]});
     expect((await settings.status(p2)).acknowledgedRevision).toBe(2);
-    const opposite=await Promise.all([settings.updateSettings(p1,{kind:'setFreeUse',enabled:false}),settings.updateSettings(p2,{kind:'setFreeUse',enabled:true})]);
+    const opposite=await Promise.all([settings.updateSettings(p1,{kind:'setFreeUse',enabled:false},'legacy-test:3'),settings.updateSettings(p2,{kind:'setFreeUse',enabled:true},'legacy-test:4')]);
     const last=opposite.reduce((a,b)=>a.settings.revision>b.settings.revision?a:b);
     expect((await settings.status(p1)).settings).toEqual(last.settings);
   });
   test('resolved identities fail after device revocation, parent replacement and callback generation change',async()=>{
     await db.doc(path('sessions/1')).set({pairingId:p1.pairingId,chatId:'1',nonce:'current',version:1,expiresAt:now+60000});
     await repo.revokeAccess(identity,`parent:1:${p1.pairingId}`);
-    await expect(settings.updateSettings(p1,{kind:'setDefaultLimit',ms:1000},{nonce:'current',version:1})).rejects.toThrow('Unauthorized');
+    await expect(settings.updateSettings(p1,{kind:'setDefaultLimit',ms:1000},'legacy-test:5',{nonce:'current',version:1})).rejects.toThrow('Unauthorized');
     const replacement=await repo.createPairKey(identity,'Replacement');await repo.pairParent(replacement.secret,'1','1');
-    await expect(settings.updateSettings(p1,{kind:'setFreeUse',enabled:true})).rejects.toThrow('Unauthorized');
+    await expect(settings.updateSettings(p1,{kind:'setFreeUse',enabled:true},'legacy-test:6')).rejects.toThrow('Unauthorized');
     await repo.revokeDevice(identity.deviceId);
     await expect(api.syncDevice(identity,request())).rejects.toThrow('Unauthorized');
     expect((await db.doc(path('sync/current')).get()).exists).toBe(false);

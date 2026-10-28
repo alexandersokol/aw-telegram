@@ -3,6 +3,9 @@ import {decodeSettings} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,digest,type DeviceIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,
   type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant} from './contracts.js';
+import {applyPlan} from './outbox.js';
+import {readActionSnapshot,planActionSync} from './actions.js';
+import {readAlerts,planAlerts,measurement} from './alertPlans.js';
 import {retainedDates,parseInstant} from './clock.js';
 
 export function canonical(value:unknown):string {
@@ -33,14 +36,14 @@ function observedUpdate(previous:any,value:{observedAt:Instant},sequence:number)
 }
 
 export class DeviceApi {
-  constructor(private readonly repository:FirestoreRepository,private readonly clock:()=>Instant=()=>new Date().toISOString()) {}
+  constructor(private readonly repository:FirestoreRepository,private readonly clock:()=>Instant=()=>new Date().toISOString(),private readonly repair?:()=>Promise<void>) {}
 
   async syncDevice(identity:DeviceIdentity,input:SyncRequest):Promise<SyncResponse> {
     let request:SyncRequest;
     try {request=validateContract('sync-request',input);if(wireBytes(request).length>MAX_BODY_BYTES) throw new Error();}
     catch {throw new BoundaryError('Invalid sync request');}
     const now=this.clock();parseInstant(now);
-    return this.repository.db.runTransaction(async tx=>{
+    const committed=await this.repository.db.runTransaction(async tx=>{
       // Authorization resolved by the router is rechecked against the same mutation snapshot.
       const device=await this.repository.requireDevice(tx,identity);
       const root=this.repository.db.doc(`devices/${identity.deviceId}`);
@@ -59,9 +62,12 @@ export class DeviceApi {
       const receiptDocs=receiptRefs.length?await tx.getAll(...receiptRefs):[];
       const current=syncDoc!.data()??{settingsAckRevision:null,cancellationAckRevision:0,cancellationAckFence:0,maxRequestSequence:0};
       const next={...current};
+      const actions=await readActionSnapshot(this.repository,tx,identity.deviceId,request.acks.filter(a=>a.kind==='action').map(a=>a.actionId));
+      const alertSnapshot=await readAlerts(this.repository,tx,identity.deviceId,now);
       for(let i=0;i<request.acks.length;i++) {
         const ack=request.acks[i]!,previous=receiptDocs[i]!.data();
-        if(ack.kind==='action') throw new BoundaryError('Action receipt hook is not installed',409);
+        if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
+        if(ack.kind==='action') continue;
         if(ack.appliedAt>now) throw new BoundaryError('Invalid receipt');
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='settings') {
@@ -70,6 +76,8 @@ export class DeviceApi {
         } else {
           if(ack.revision>cancellations.revision || ack.throughActionSequence>cancellations.throughActionSequence)
             throw new BoundaryError('Unknown cancellation fence');
+          if(ack.revision===cancellations.revision&&ack.throughActionSequence!==cancellations.throughActionSequence)
+            throw new BoundaryError('Cancellation receipt must acknowledge the complete fence');
           next.cancellationAckRevision=Math.max(next.cancellationAckRevision,ack.revision);
           next.cancellationAckFence=Math.max(next.cancellationAckFence,ack.throughActionSequence);
         }
@@ -97,9 +105,18 @@ export class DeviceApi {
       const response=boundedResponse({schemaVersion:2,requestSequence:request.sequence,serverNow:now,
         collectionStartedAt:startedAt,settings,cancellations,deliveryOffers:[],summaryReceipts,
         acknowledgedAckIds:request.acks.map(a=>a.id)});
+      const changedToday=dayWrites.find(w=>w.value.source.date===retained[0])?.value;
+      const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alertSnapshot,measurement(changedToday)):[];
+      const newReceipts=receiptDocs.filter(doc=>!doc.exists).length;
+      const mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length;
+      const actionWrites=await planActionSync(this.repository,tx,actions,request.acks.filter(a=>a.kind==='action'),settings,cancellations,now,response,450-mandatoryWrites);
+      boundedResponse(response);
+      // Physical cleanup is optional; it cannot displace controls, accepted receipts or source writes.
+      const cleanup=dayDocs.docs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
       // All reads, validation and response capacity checks precede any protected write.
+      applyPlan(tx,[...actionWrites,...alertWrites]);
       for(const write of dayWrites) tx.set(write.ref,write.value);
-      for(const doc of dayDocs.docs) if(!retained.includes(doc.id)) tx.delete(doc.ref);
+      for(const doc of cleanup) tx.delete(doc.ref);
       for(let i=0;i<request.acks.length;i++) if(!receiptDocs[i]!.exists)
         tx.set(receiptRefs[i]!,{digest:digest(canonical(request.acks[i])),receivedAt:now});
       if(live) tx.set(liveRef,live);
@@ -107,5 +124,8 @@ export class DeviceApi {
       tx.set(syncRef,next);
       return response;
     });
+    // Domain changes have committed; queue failures remain repairable on the next sync or sweep.
+    if(this.repair)try{await this.repair();}catch{/* Deliberately omit provider details. */}
+    return committed;
   }
 }

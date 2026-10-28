@@ -7,14 +7,20 @@ import {enroll,envelope} from './enrollment.js';
 import {BoundaryError,type FirestoreRepository} from './repository.js';
 export interface HttpRequest {method:string;path:string;headers:Record<string,string|string[]|undefined>;body:string|Uint8Array;remoteAddress:string}
 export interface HttpResponse {status:number;headers:Record<string,string>;body?:any}
-export function createRouter(repository: FirestoreRepository) {
-  const api=new DeviceApi(repository);
+import {OutboxService,type TelegramSender} from './outbox.js';
+import {TaskService,createTaskHandler,type TaskAdapter} from './tasks.js';
+export function createRouter(repository: FirestoreRepository,options?:{api?:DeviceApi;taskHandler?:ReturnType<typeof createTaskHandler>}) {
+  const api=options?.api??new DeviceApi(repository);
   return async (request: HttpRequest): Promise<HttpResponse> => {
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json','X-Content-Type-Options':'nosniff'};
     try {
       if(!request.path.startsWith('/') || request.path.startsWith('//') || /[\\\x00-\x20#]/.test(request.path)) throw new BoundaryError('Invalid request');
       if(Buffer.byteLength(request.body)>MAX_BODY_BYTES) throw new BoundaryError('Invalid request',413);
       if(request.method==='POST' && request.path==='/v1/enroll') return {status:200,headers,body:await enroll(repository,request.body,request.remoteAddress)};
+      if(request.method==='POST'&&request.path==='/internal/tasks'){
+        if(!options?.taskHandler)return {status:404,headers,body:{error:'Not found'}};
+        return {...await options.taskHandler(request.headers,request.body),headers};
+      }
       const url=new URL(request.path,'https://local.invalid');
       const identity=await authorizeDevice({authorization:request.headers.authorization},repository);
       if(request.method==='POST' && request.path==='/v2/sync') {
@@ -41,8 +47,8 @@ export function createRouter(repository: FirestoreRepository) {
     }
   };
 }
-export function createHttpHandler(repository: FirestoreRepository) {
-  const router=createRouter(repository);
+export function createHttpHandler(repository: FirestoreRepository,options?:Parameters<typeof createRouter>[1]) {
+  const router=createRouter(repository,options);
   return async (request:IncomingMessage,response:ServerResponse):Promise<void>=>{
     let size=0; const chunks:Buffer[]=[];
     try {
@@ -55,4 +61,14 @@ export function createHttpHandler(repository: FirestoreRepository) {
       response.writeHead(result.status,result.headers); response.end(result.body===undefined?undefined:JSON.stringify(result.body));
     } catch {if(!response.headersSent) response.writeHead(400,{'Cache-Control':'no-store'});response.end();}
   };
+}
+
+/** Task 10 supplies deployed adapters/configuration. Construction itself does no external work. */
+export function createBackend(repository:FirestoreRepository,options:{telegram:TelegramSender;taskAdapter:TaskAdapter;oidc:{verify(token:string):Promise<void>};clock?:()=>string}){
+  const clock=options.clock??(()=>new Date().toISOString());
+  const outbox=new OutboxService(repository,options.telegram,clock);
+  const tasks=new TaskService(repository,options.taskAdapter,outbox,clock);
+  const api=new DeviceApi(repository,clock,()=>tasks.repair(2));
+  const taskHandler=createTaskHandler(options.oidc,tasks);
+  return {api,outbox,tasks,router:createRouter(repository,{api,taskHandler}),httpHandler:createHttpHandler(repository,{api,taskHandler})};
 }

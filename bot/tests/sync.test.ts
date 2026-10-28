@@ -1,3 +1,4 @@
+import {MemoryDb} from './delivery-fixture.js';
 import {describe,it,expect,vi} from 'vitest';
 import {existsSync} from 'node:fs';
 import {FirestoreRepository} from '../src/repository.js';
@@ -14,24 +15,6 @@ export const sourceDay=(sequence=1,totalMs=1000)=>({date:'2026-10-28',sequence,s
 export const request=(sequence=1)=>({schemaVersion:2 as const,sequence,health:minimalHealth(NOW),acks:[]});
 
 // Serial, rollback-capable boundary fake. Real concurrency is verified separately in the guarded emulator.
-class MemoryDb {
-  data=new Map<string,any>(); private tail=Promise.resolve();
-  doc(path:string):any {return {path,id:path.split('/').at(-1),collection:(name:string)=>this.collection(path+'/'+name)};}
-  collection(path:string):any {return {path,doc:(name:string)=>this.doc(path+'/'+name),query:true};}
-  async runTransaction<T>(body:(tx:any)=>Promise<T>):Promise<T> {
-    let release!:()=>void; const prior=this.tail; this.tail=new Promise<void>(r=>{release=r;}); await prior;
-    const next=structuredClone(this.data); let wrote=false;
-    const snap=(path:string)=>({id:path.split('/').at(-1),ref:this.doc(path),exists:next.has(path),data:()=>structuredClone(next.get(path))});
-    const tx:any={get:async(ref:any)=>{
-      if(wrote) throw new Error('read after write');
-      return ref.query?{docs:[...next.keys()].filter(k=>k.startsWith(ref.path+'/')&&!k.slice(ref.path.length+1).includes('/')).map(snap)}:snap(ref.path);
-    },getAll:async(...refs:any[])=>{if(wrote)throw new Error('read after write');return refs.map(r=>snap(r.path));},
-      set:(ref:any,value:any)=>{wrote=true;next.set(ref.path,structuredClone(value));},
-      update:(ref:any,value:any)=>{wrote=true;next.set(ref.path,{...next.get(ref.path),...structuredClone(value)});},
-      delete:(ref:any)=>{wrote=true;next.delete(ref.path);}};
-    try {const result=await body(tx);this.data=next;return result;} finally {release();}
-  }
-}
 async function setup() {
   expect(existsSync(new URL('../src/deviceApi.ts',import.meta.url)),'Authenticated sync service is not implemented').toBe(true);
   expect(existsSync(new URL('../src/settings.ts',import.meta.url)),'Transactional settings service is not implemented').toBe(true);
@@ -100,25 +83,25 @@ describe('v2 authenticated sync',()=>{
 describe('revisioned settings',()=>{
   it('serializes opposite parent intents, preserves unrelated fields and reports pending until device Ack',async()=>{
     const {api,settings,db}=await setup();
-    const result=await Promise.all([settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true}),settings.updateSettings(parent('2'),{kind:'setSuppression',enabled:true})]);
+    const result=await Promise.all([settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true},'legacy-test:1'),settings.updateSettings(parent('2'),{kind:'setSuppression',enabled:true},'legacy-test:2')]);
     expect(result.map(x=>x.settings.revision)).toEqual([1,2]);
     expect(result[1]?.acknowledgedRevision).toBeNull();
     const current=db.data.get(root+'/settings/current');expect(current.freeUseDate).toBe('2026-10-28');expect(current.suppressedDate).toBe('2026-10-28');
     await api.syncDevice(identity,{...request(),acks:[{id:'00000000-0000-4000-8000-000000000088',kind:'settings',revision:2,appliedAt:NOW}]});
     expect((await settings.status(parent())).acknowledgedRevision).toBe(2);
-    const restored=await settings.updateSettings(parent(),{kind:'setSuppression',enabled:false});
+    const restored=await settings.updateSettings(parent(),{kind:'setSuppression',enabled:false},'legacy-test:3');
     expect(restored.settings.freeUseDate).toBe('2026-10-28');expect(restored.settings.suppressedDate).toBeNull();
     expect(restored.acknowledgedRevision).toBe(2);
   });
   it('reprojects stale source evidence in the settings transaction and rejects generation/callback races',async()=>{
     const {api,settings,db}=await setup();await api.syncDevice(identity,{...request(),summaries:[sourceDay()]});
-    await settings.updateSettings(parent(),{kind:'selectCategories',paths:[['Study']],uncategorized:false});
+    await settings.updateSettings(parent(),{kind:'selectCategories',paths:[['Study']],uncategorized:false},'legacy-test:4');
     expect(db.data.get(root+'/days/2026-10-28').projection.appTotalsMs).toEqual([{app:'Editor 😀',totalMs:1000}]);
     await api.syncDevice(identity,{...request(2),summaries:[sourceDay(2,2000)]});
     expect(db.data.get(root+'/days/2026-10-28').projection.selectedTotalMs).toBe(2000);
     expect(db.data.get(root+'/days/2026-10-28').source.settingsRevision).toBe(0);
-    await expect(settings.updateSettings({...parent(),pairingId:parent('2').pairingId},{kind:'setDefaultLimit',ms:1})).rejects.toThrow('Unauthorized');
-    await expect(settings.updateSettings(parent(),{kind:'setDefaultLimit',ms:1},{nonce:'stale',version:1})).rejects.toThrow('Unauthorized');
+    await expect(settings.updateSettings({...parent(),pairingId:parent('2').pairingId},{kind:'setDefaultLimit',ms:1},'legacy-test:5')).rejects.toThrow('Unauthorized');
+    await expect(settings.updateSettings(parent(),{kind:'setDefaultLimit',ms:1},'legacy-test:6',{nonce:'stale',version:1})).rejects.toThrow('Unauthorized');
   });
 });
 
@@ -133,7 +116,7 @@ it('emulator guard rejects zero/out-of-range ports before constructing a client'
 it('R5 stores category paths in Firestore maps and returns unchanged wire arrays',async()=>{
   const {settings,db,api}=await setup();
   const paths=[['Study','a/b~"\\😀'],['Other']];
-  const saved=await settings.updateSettings(parent(),{kind:'selectCategories',paths,uncategorized:true});
+  const saved=await settings.updateSettings(parent(),{kind:'selectCategories',paths,uncategorized:true},'legacy-test:7');
   expect(saved.settings.selectedPaths).toEqual(paths);
   expect(db.data.get(root+'/settings/current').selectedPaths).toEqual(paths.map(segments=>({segments})));
   expect((await api.syncDevice(identity,request())).settings.selectedPaths).toEqual(paths);

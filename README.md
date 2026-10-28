@@ -12,14 +12,16 @@ the full native companion suite has 127 after the timer amendment. See
 fullscreen acceptance remains pending. Task 4 enrollment/authentication/pairing and
 revocation implementation and tests are complete, with independent review approved: 22 emulator checks, 29 enrollment tests and a synthetic native Windows
 vault probe passed. See [enrollment security](docs/enrollment-security.md) for exact
-scope and limits. Task 5 durable synchronization is implemented and reviewed. Telegram delivery, the full companion
-and deployment remain later checkpoints.
+scope and limits. Task 5 durable synchronization is implemented and reviewed. Task 6 backend action
+lifecycle, alerts and reliable parent delivery are implemented locally, with independent review approved. See [backend delivery](docs/backend-delivery.md). Task 7 has
+not started; Task 8's local offer store/executor remains fail closed for nonempty
+offers. The full companion and deployment remain later checkpoints.
 
 Today/yesterday usage is specified as application names/durations from selected
 category intervals; weekly reports remain daily totals. The required
 [contract/reader extension](docs/application-usage-amendment.md) now implements active
 v2 app × disjoint-category aggregates and selection helpers; independent review is
-pending. Archived v1 remains immutable and category-only. Durable storage/sync is reviewed; bot
+approved. Archived v1 remains immutable and category-only. Durable storage/sync is reviewed; bot
 formatting remains pending. Task 4 enrollment/access stays protocol v1. The countdown
 uses a 70% #242424 background with opaque white text.
 
