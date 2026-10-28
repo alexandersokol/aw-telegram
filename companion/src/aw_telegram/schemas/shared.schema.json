@@ -343,6 +343,67 @@
       ],
       "additionalProperties": false
     },
+    "Health": {
+      "type": "object",
+      "properties": {
+        "observedAt": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
+        },
+        "awState": {
+          "enum": [
+            "unknown",
+            "ready",
+            "partial",
+            "stale",
+            "unavailable",
+            "unsupported"
+          ]
+        },
+        "lastSuccessAt": {
+          "anyOf": [
+            {
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reportError": {
+          "anyOf": [
+            {
+              "const": "report_capacity_exceeded"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "observedAt",
+        "awState",
+        "lastSuccessAt",
+        "reportError"
+      ],
+      "additionalProperties": false
+    },
+    "SummaryReceipt": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LocalDate"
+        },
+        "sequence": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
+        }
+      },
+      "required": [
+        "date",
+        "sequence"
+      ],
+      "additionalProperties": false
+    },
     "Cancellations": {
       "type": "object",
       "properties": {

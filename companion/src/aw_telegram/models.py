@@ -182,8 +182,23 @@ class ReportCapacityExceeded(ValueError):
         super().__init__('report_capacity_exceeded')
 
 
+def minimal_health(observed_at: str = '1970-01-01T00:00:00.000Z') -> dict:
+    return dict(observedAt=observed_at, awState='unknown', lastSuccessAt=None, reportError=None)
+
+
+def capacity_health() -> dict:
+    """Largest mandatory health representation; reserve future success/error overhead."""
+    return dict(observedAt='1970-01-01T00:00:00.000Z', awState='unavailable',
+                lastSuccessAt='1970-01-01T00:00:00.000Z', reportError='report_capacity_exceeded')
+
+
+def wire_bytes(value: dict) -> bytes:
+    _primitives(value)
+    return json.dumps(value, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')
+
+
 def ensure_report_capacity(day: dict, sequence: int = MAX_SAFE_INTEGER) -> None:
-    """Preflight one atomic day in a minimal active sync body, never truncate it.
+    """Preflight an atomic day with maximum mandatory health overhead, never truncate it.
 
     Task5 must still pack and bound the actual UTF-8 envelope, acks and live data.
     The default reserves the largest possible request sequence's encoded width.
@@ -193,8 +208,8 @@ def ensure_report_capacity(day: dict, sequence: int = MAX_SAFE_INTEGER) -> None:
     if (len(day.get('leafTotalsMs', [])) > 1024 or len(rows) > 4096
             or len({r['app'] for r in rows if isinstance(r, dict) and isinstance(r.get('app'), str)}) > 256):
         raise ReportCapacityExceeded()
-    request = validate_contract('sync-request', {'schemaVersion':2, 'sequence':sequence, 'acks':[], 'summaries':[day]})
-    if len(json.dumps(request, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')) > MAX_BODY_BYTES:
+    request = validate_contract('sync-request', {'schemaVersion':2, 'sequence':sequence, 'acks':[], 'summaries':[day], 'health':capacity_health()})
+    if len(wire_bytes(request)) > MAX_BODY_BYTES:
         raise ReportCapacityExceeded()
 
 
@@ -260,6 +275,9 @@ def _semantics(name: str, v: dict) -> None:
     elif name == 'cancellations':
         _unique(v['canceledIds'], 'canceled ID')
     elif name == 'sync-request':
+        health = v['health']
+        if health['lastSuccessAt'] is not None and health['lastSuccessAt'] > health['observedAt']:
+            raise ValueError('health success after observation')
         summaries = v.get('summaries', [])
         _unique([x['date'] for x in summaries], 'summary date')
         for day in summaries:
@@ -270,6 +288,7 @@ def _semantics(name: str, v: dict) -> None:
         for ack in v['acks']:
             _semantics('ack', ack)
     elif name == 'sync-response':
+        _unique([r['date'] for r in v['summaryReceipts']], 'summary receipt date')
         _semantics('settings', v['settings'])
         _semantics('cancellations', v['cancellations'])
         _unique([x['id'] for x in v['deliveryOffers']], 'offered action ID')
@@ -307,6 +326,10 @@ def collection_start(cached: str | None, received: str | None) -> str | None:
 def validate_activity_context(request: dict, started_at: str | None, now: str) -> None:
     request = validate_contract('sync-request', request)
     current = parse_instant(now)
+    if parse_instant(request['health']['observedAt']) > current:
+        raise ValueError('health observation is in the future')
+    if started_at is None and (request['health']['awState'] != 'unknown' or request['health']['lastSuccessAt'] is not None):
+        raise ValueError('activity health is prohibited before pairing')
     if started_at is None:
         if request.get('summaries') or 'live' in request:
             raise ValueError('activity is prohibited before first pairing')
@@ -474,6 +497,7 @@ class SyncRequest(WireModel):
     schemaVersion: int
     sequence: int
     acks: list[dict]
+    health: dict
     summaries: list[dict] | None = None
     live: dict | None = None
 
@@ -495,6 +519,7 @@ class SyncResponse(WireModel):
     cancellations: dict
     deliveryOffers: list[dict]
     acknowledgedAckIds: list[str]
+    summaryReceipts: list[dict]
 
 
 @dataclass(frozen=True)

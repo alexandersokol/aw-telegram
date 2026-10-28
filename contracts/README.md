@@ -20,8 +20,10 @@ authenticated state transitions that later tasks must implement.
 Active v2 requires exact positive-ms `appLeafTotalsMs` app/category pairs, at most
 256 distinct apps and 4096 pairs, reconciled with every disjoint leaf total.
 Selection helpers derive descending app totals with Unicode scalar ties from
-unfiltered rows. A pure preflight checks one atomic day inside a minimal 131072-byte
-UTF-8 sync body; cardinality limits do not guarantee byte fit. Task 5 must bound
-the actual packed body. Legacy category-only reports must be invalidated/recollected,
-never converted into app reports. Storage/sync and Telegram formatting remain pending.
+unfiltered rows. A pure preflight checks one atomic day with maximum mandatory health
+and request-sequence overhead inside a 131072-byte
+UTF-8 sync body; cardinality limits do not guarantee byte fit. Task 5 bounds
+the actual packed body using the transport serializer. Legacy category-only reports must be invalidated/recollected,
+never converted into app reports. Task 5 storage/sync is implemented and independently reviewed; Telegram formatting remains pending. Required sync health separates activity
+query success from contact; summaryReceipts confirms only submitted date highwaters.
 See the [extension checkpoint](../docs/application-usage-amendment.md) for scope.

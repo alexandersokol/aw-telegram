@@ -42,6 +42,8 @@ defs = {
  'LiveState':obj({'observedAt':ref('Instant'),'state':{'enum':['active','afk','unknown']},
     'app':nullable(string(1,256)),'title':nullable(string(0,1000)),'category':nullable(ref('CategoryRef')),
     'rulesRevision':nullable(string(1,128)),'categoryCatalog':array(ref('CategoryRef'),1024)}),
+ 'Health':obj({'observedAt':ref('Instant'),'awState':{'enum':['unknown','ready','partial','stale','unavailable','unsupported']},'lastSuccessAt':nullable(ref('Instant')),'reportError':nullable(literal('report_capacity_exceeded'))}),
+ 'SummaryReceipt':obj({'date':ref('LocalDate'),'sequence':ref('Counter')}),
  'Cancellations':obj({'revision':ref('Counter'),'throughActionSequence':ref('Counter'),'canceledIds':array(ref('Uuid'),100)}),
 }
 common = {'id':ref('Uuid'),'actorId':ref('TelegramId'),'createdAt':ref('Instant'),
@@ -63,9 +65,9 @@ save('shared', {'$defs':defs})
 for name,definition in [('settings','Settings'),('day','DaySummary'),('action','Action'),('ack','Ack'),('live','LiveState'),('cancellations','Cancellations')]:
     save(name,ref(definition))
 request=obj({'schemaVersion':literal(2),'sequence':ref('Counter'),'summaries':array(ref('DaySummary'),7),
-             'live':ref('LiveState'),'acks':array(ref('Ack'),100)})
-request['required']=['schemaVersion','sequence','acks']
+             'live':ref('LiveState'),'health':ref('Health'),'acks':array(ref('Ack'),100)})
+request['required']=['schemaVersion','sequence','acks','health']
 save('sync-request',request)
 save('sync-response',obj({'schemaVersion':literal(2),'requestSequence':ref('Counter'),'serverNow':ref('Instant'),
     'collectionStartedAt':nullable(ref('Instant')),'settings':ref('Settings'),'cancellations':ref('Cancellations'),
-    'deliveryOffers':array(ref('Action'),100),'acknowledgedAckIds':array(ref('Uuid'),100)}))
+    'summaryReceipts':array(ref('SummaryReceipt'),7),'deliveryOffers':array(ref('Action'),100),'acknowledgedAckIds':array(ref('Uuid'),100)}))

@@ -44,10 +44,11 @@ export interface ActionAck {
 export type Ack = ActionAck | {id: string; kind: 'settings'; revision: Counter; appliedAt: Instant} |
   {id: string; kind: 'cancellation'; revision: Counter; throughActionSequence: Counter; appliedAt: Instant};
 export interface Cancellations {revision: Counter; throughActionSequence: Counter; canceledIds: string[]}
-export interface SyncRequest {schemaVersion: 2; sequence: Counter; summaries?: DaySummary[]; live?: LiveState; acks: Ack[]}
+export interface Health {observedAt: Instant; awState: 'unknown'|'ready'|'partial'|'stale'|'unavailable'|'unsupported'; lastSuccessAt: Instant|null; reportError: null|'report_capacity_exceeded'}
+export interface SyncRequest {health: Health; schemaVersion: 2; sequence: Counter; summaries?: DaySummary[]; live?: LiveState; acks: Ack[]}
 export interface SyncResponse {
   schemaVersion: 2; requestSequence: Counter; serverNow: Instant; collectionStartedAt: Instant | null;
-  settings: Settings; cancellations: Cancellations; deliveryOffers: Action[]; acknowledgedAckIds: string[];
+  summaryReceipts: {date:LocalDate;sequence:Counter}[]; settings: Settings; cancellations: Cancellations; deliveryOffers: Action[]; acknowledgedAckIds: string[];
 }
 export interface Evaluation {
   date: LocalDate; effectiveLimitMs: number; remainingMs: number; freeUse: boolean; suppressed: boolean;
@@ -213,7 +214,7 @@ export function ensureReportCapacity(day: DaySummary, sequence: Counter = Number
   primitives(day);
   if (day.leafTotalsMs.length>1024 || day.appLeafTotalsMs.length>4096 || new Set(day.appLeafTotalsMs.map(r=>r.app)).size>256)
     throw new ReportCapacityExceeded();
-  const request=validateContract('sync-request',{schemaVersion:2,sequence,acks:[],summaries:[day]});
+  const request=validateContract('sync-request',{schemaVersion:2,sequence,acks:[],summaries:[day],health: capacityHealth()});
   if (Buffer.byteLength(JSON.stringify(request),'utf8')>MAX_BODY_BYTES) throw new ReportCapacityExceeded();
 }
 
@@ -277,12 +278,15 @@ function semantics<K extends keyof ContractMap>(name: K, value: ContractMap[K]):
     case 'ack': return ack(value as Ack);
     case 'cancellations': return cancellations(value as Cancellations);
     case 'sync-request': {
+      const health=(value as SyncRequest).health;
+      if(health.lastSuccessAt!==null && health.lastSuccessAt>health.observedAt) throw new Error('health success after observation');
       const v = value as SyncRequest;
       unique((v.summaries ?? []).map(x => x.date), 'summary date'); (v.summaries ?? []).forEach(day);
       if (v.live !== undefined) live(v.live);
       unique(v.acks.map(x => x.id), 'receipt ID'); v.acks.forEach(ack); return;
     }
     case 'sync-response': {
+      unique((value as SyncResponse).summaryReceipts.map(r=>r.date),'summary receipt date');
       const v = value as SyncResponse;
       settings(v.settings); cancellations(v.cancellations);
       unique(v.deliveryOffers.map(x => x.id), 'offered action ID'); unique(v.acknowledgedAckIds, 'acknowledged receipt ID');
@@ -313,6 +317,8 @@ export function collectionStart(cached: Instant | null, received: Instant | null
 
 export function validateActivityContext(input: unknown, startedAt: Instant | null, now: Instant): void {
   const request = validateContract('sync-request', input); parseInstant(now);
+  if(request.health.observedAt>now) throw new Error('health observation is in the future');
+  if(startedAt===null && (request.health.awState!=='unknown' || request.health.lastSuccessAt!==null)) throw new Error('activity health prohibited before pairing');
   if (startedAt === null) {
     if (request.summaries?.length || request.live !== undefined) throw new Error('activity prohibited before first pairing');
     return;
@@ -349,3 +355,9 @@ export function validateActionReceipt(input: unknown, receiptInput: unknown): vo
       throw new Error('repetition outside original Kyiv date');
   }
 }
+
+export const minimalHealth = (observedAt:Instant='1970-01-01T00:00:00.000Z'):Health => ({observedAt,awState:'unknown',lastSuccessAt:null,reportError:null});
+export function wireBytes(value:unknown):Buffer {primitives(value);return Buffer.from(JSON.stringify(value),'utf8');}
+
+/** Largest mandatory health encoding; admitted days remain sendable after health changes. */
+export const capacityHealth=():Health=>({observedAt:'1970-01-01T00:00:00.000Z',awState:'unavailable',lastSuccessAt:'1970-01-01T00:00:00.000Z',reportError:'report_capacity_exceeded'});

@@ -20,6 +20,9 @@
     "live": {
       "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LiveState"
     },
+    "health": {
+      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Health"
+    },
     "acks": {
       "type": "array",
       "items": {
@@ -32,7 +35,8 @@
   "required": [
     "schemaVersion",
     "sequence",
-    "acks"
+    "acks",
+    "health"
   ],
   "additionalProperties": false
 }

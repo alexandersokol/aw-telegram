@@ -1,0 +1,315 @@
+"""IO-thread-owned SQLite aggregate cache. No titles, wire bodies or credentials persist."""
+from contextlib import contextmanager
+from copy import deepcopy
+from datetime import datetime, timezone
+import hashlib
+import json
+import sqlite3
+from uuid import uuid4
+
+from .clock import format_instant, parse_instant, retained_dates
+from .models import (Ack, CancellationAck, DaySummary, Settings, SettingsAck, SyncRequest, SyncResponse,
+    MAX_BODY_BYTES, MAX_SAFE_INTEGER, collection_start, ensure_report_capacity, project_day,
+    validate_activity_context, validate_contract, wire_bytes)
+
+
+def utc_now():
+    now = datetime.now(timezone.utc)
+    return format_instant(now.replace(microsecond=now.microsecond // 1000 * 1000))
+
+
+def _wire(value):
+    return value.to_wire() if hasattr(value, "to_wire") else deepcopy(value)
+
+
+def _json(value):
+    return wire_bytes(value).decode("utf8")
+
+
+def _digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf8")).hexdigest()
+
+
+def _next(value):
+    if type(value) is not int or not 0 <= value < MAX_SAFE_INTEGER:
+        raise ValueError("counter exhausted")
+    return value + 1
+
+
+def pack_request(sequence, health, days, acks, live=None):
+    """Use the transport serializer; dates and receipts are indivisible, never truncated.
+
+    Alternating first priority reserves an opportunity for both today and oldest Ack.
+    Dirty backfill order is supplied by durable least-recently-sent metadata.
+    """
+    body = dict(schemaVersion=2, sequence=sequence, health=_wire(health), acks=[])
+    def fits(candidate):
+        return len(wire_bytes(candidate)) <= MAX_BODY_BYTES
+    if not fits(body):
+        raise ValueError("heartbeat exceeds transport bound")
+    remaining_days, remaining_acks = list(days), list(acks[:100])
+    def add_day(day):
+        candidate = {**body, "summaries": body.get("summaries", []) + [day]}
+        if fits(candidate):
+            body.update(candidate)
+    def add_ack(ack):
+        candidate = {**body, "acks": body["acks"] + [ack]}
+        if fits(candidate):
+            body.update(candidate)
+    if sequence % 2 and remaining_days:
+        add_day(remaining_days.pop(0))
+    if remaining_acks:
+        add_ack(remaining_acks.pop(0))
+    for day in remaining_days[:7]:
+        add_day(day)
+    for ack in remaining_acks:
+        add_ack(ack)
+    if live is not None:
+        candidate = {**body, "live": _wire(live)}
+        if fits(candidate):
+            body.update(candidate)
+    return SyncRequest.from_wire(body)
+
+
+class LocalStore:
+    """Create/use/close on one owning IO thread. Construction starts no worker.
+
+    Schema 1 denotes the known pre-release table layout with incompatible reports;
+    schema 2 invalidates those report bodies while preserving all control state.
+    Unknown layouts fail closed rather than guessing a migration.
+    """
+    def __init__(self, path, *, now=utc_now, identity=None):
+        self.now = now
+        self.connection = sqlite3.connect(path, isolation_level=None, timeout=5)
+        self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA journal_mode=WAL")
+        self.connection.execute("PRAGMA synchronous=FULL")
+        self.connection.execute("PRAGMA foreign_keys=ON")
+        self.connection.execute("PRAGMA busy_timeout=5000")
+        try:
+            self._migrate()
+            if identity is not None:
+                binding = {"deviceId": identity.deviceId, "backendUrl": identity.backendUrl}
+                with self._transaction():
+                    state = self._state()
+                    if state["binding"] is not None and state["binding"] != binding:
+                        raise ValueError("device binding cannot change")
+                    state["binding"] = binding
+                    self._save(state)
+        except BaseException:
+            self.connection.close()
+            raise
+
+    @contextmanager
+    def _transaction(self):
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+            self.connection.execute("COMMIT")
+        except BaseException:
+            self.connection.execute("ROLLBACK")
+            raise
+
+    def _migrate(self):
+        version = self.connection.execute("PRAGMA user_version").fetchone()[0]
+        if version not in (0, 1, 2):
+            raise ValueError("unsupported local schema")
+        with self._transaction():
+            if version == 0:
+                tables = self.connection.execute("select name from sqlite_master where type='table'").fetchall()
+                if tables:
+                    raise ValueError("unknown local schema")
+                statements = [
+                    "CREATE TABLE state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)",
+                    "CREATE TABLE days (date TEXT PRIMARY KEY, sequence INTEGER NOT NULL, schema_version INTEGER NOT NULL, source TEXT, digest TEXT, dirty INTEGER NOT NULL DEFAULT 0, acknowledged INTEGER NOT NULL DEFAULT 0, collected_at TEXT, last_sent INTEGER NOT NULL DEFAULT 0, recollect INTEGER NOT NULL DEFAULT 0)",
+                    "CREATE TABLE acks (id TEXT PRIMARY KEY, body TEXT NOT NULL, created_at TEXT NOT NULL)",
+                    "CREATE TABLE canceled_ids (id TEXT PRIMARY KEY, first_seen_at TEXT NOT NULL)",
+                    "CREATE TABLE requests (sequence INTEGER PRIMARY KEY, created_at TEXT NOT NULL, days TEXT NOT NULL, ack_ids TEXT NOT NULL)",
+                ]
+                for statement in statements:
+                    self.connection.execute(statement)
+                state = dict(binding=None, collectionStartedAt=None, nextSyncSequence=0,
+                    lastAppliedResponseSequence=0, settings=Settings().to_wire(), cancellationRevision=0,
+                    throughActionSequence=0, lastServerNow=None, lastSuccessfulSyncAt=None, lastActivitySuccessAt=None)
+                self.connection.execute("insert into state values(1,?)", (_json(state),))
+            if version == 1:
+                # No conversion of category-only data into fabricated application rows.
+                self.connection.execute("update days set source=NULL,digest=NULL,dirty=0,recollect=1 where schema_version<>2")
+                self.connection.execute("delete from requests")
+            self.connection.execute("PRAGMA user_version=2")
+
+    def _state(self):
+        return json.loads(self.connection.execute("select value from state where id=1").fetchone()[0])
+
+    def _save(self, state):
+        self.connection.execute("update state set value=? where id=1", (_json(state),))
+
+    @property
+    def collection_started_at(self):
+        return self._state()["collectionStartedAt"]
+
+    @property
+    def settings(self):
+        return Settings.from_wire(self._state()["settings"])
+
+    @property
+    def cancellations(self):
+        state = self._state()
+        return dict(revision=state["cancellationRevision"], throughActionSequence=state["throughActionSequence"],
+                    canceledIds=[r[0] for r in self.connection.execute("select id from canceled_ids order by id")])
+
+    @property
+    def last_activity_success_at(self):
+        return self._state().get("lastActivitySuccessAt")
+
+    def record_activity_success(self, instant):
+        """Title-free query-success watermark; metadata/contact must never call this."""
+        parse_instant(instant)
+        if instant > self.now():
+            raise ValueError("future activity success")
+        with self._transaction():
+            state = self._state()
+            if state["collectionStartedAt"] is None or instant < state["collectionStartedAt"]:
+                raise ValueError("activity success outside pairing context")
+            previous = state.get("lastActivitySuccessAt")
+            if previous is None or instant > previous:
+                state["lastActivitySuccessAt"] = instant
+                self._save(state)
+
+    def day(self, date):
+        row = self.connection.execute("select source from days where date=?", (date,)).fetchone()
+        return DaySummary.from_wire(json.loads(row[0])) if row and row[0] is not None else None
+
+    def projection(self, date):
+        day = self.day(date)
+        return None if day is None else project_day(day.to_wire(), self.settings.to_wire())
+
+    def needs_recollection(self, date):
+        row = self.connection.execute("select source,recollect from days where date=?", (date,)).fetchone()
+        return row is None or row[0] is None or bool(row[1])
+
+    def commit_day(self, candidate: DaySummary, collected_at: str) -> DaySummary:
+        candidate = validate_contract("day", _wire(candidate))
+        parse_instant(collected_at)
+        with self._transaction():
+            state = self._state()
+            if candidate["settingsRevision"] > state["settings"]["revision"]:
+                raise ValueError("future settings revision")
+            project_day(candidate, state["settings"])
+            row = self.connection.execute("select sequence,acknowledged from days where date=?", (candidate["date"],)).fetchone()
+            sequence = _next(max(row[0], row[1]) if row else 0)
+            candidate["sequence"] = sequence
+            ensure_report_capacity(candidate)
+            from .models import minimal_health
+            context = dict(schemaVersion=2, sequence=MAX_SAFE_INTEGER, health=minimal_health(self.now()), acks=[], summaries=[candidate])
+            validate_activity_context(context, state["collectionStartedAt"], self.now())
+            if collected_at > self.now():
+                raise ValueError("future collection timestamp")
+            self.connection.execute("""insert into days(date,sequence,schema_version,source,digest,dirty,collected_at)
+                values(?,?,2,?,?,1,?) on conflict(date) do update set sequence=excluded.sequence,schema_version=2,
+                source=excluded.source,digest=excluded.digest,dirty=1,collected_at=excluded.collected_at,recollect=0""",
+                (candidate["date"], sequence, _json(candidate), _digest(candidate), collected_at))
+        return DaySummary.from_wire(candidate)
+
+    def _queue_ack(self, ack, created_at):
+        ack = validate_contract("ack", _wire(ack))
+        row = self.connection.execute("select body from acks where id=?", (ack["id"],)).fetchone()
+        if row is not None and json.loads(row[0]) != ack:
+            raise ValueError("receipt identity conflict")
+        self.connection.execute("insert or ignore into acks values(?,?,?)", (ack["id"], _json(ack), created_at))
+
+    def queue_ack(self, ack):
+        with self._transaction():
+            self._queue_ack(ack, self.now())
+
+    def pending_acks(self) -> list[Ack]:
+        kinds = {"settings": SettingsAck, "cancellation": CancellationAck}
+        from .models import ActionAck
+        kinds["action"] = ActionAck
+        return [kinds[a["kind"]].from_wire(a) for a in
+                (json.loads(r[0]) for r in self.connection.execute("select body from acks order by created_at,rowid"))]
+
+    def prepare_request(self, health, live=None) -> SyncRequest:
+        now = self.now()
+        dates = retained_dates(parse_instant(now))
+        with self._transaction():
+            state = self._state()
+            sequence = _next(state["nextSyncSequence"])
+            days = [json.loads(r["source"]) for r in self.connection.execute(
+                "select * from days where source is not null and dirty=1 order by (date=?) desc,last_sent,date", (dates[0],)) if r["date"] in dates]
+            acks = [json.loads(r[0]) for r in self.connection.execute("select body from acks order by created_at,rowid limit 100")]
+            request = pack_request(sequence, health, days, acks, live)
+            validate_activity_context(request.to_wire(), state["collectionStartedAt"], now)
+            manifest = [dict(date=d["date"], sequence=d["sequence"], digest=_digest(d)) for d in request.summaries or []]
+            self.connection.execute("insert into requests values(?,?,?,?)", (sequence, now, _json(manifest), _json([a["id"] for a in request.acks])))
+            for item in manifest:
+                self.connection.execute("update days set last_sent=? where date=?", (sequence, item["date"]))
+            state["nextSyncSequence"] = sequence
+            self._save(state)
+            # Bounded delayed-response window; never retains request bodies/live/health.
+            self.connection.execute("delete from requests where sequence not in (select sequence from requests order by sequence desc limit 256)")
+        return request
+
+    def apply_sync(self, response: SyncResponse) -> None:
+        response = validate_contract("sync-response", _wire(response))
+        if response["deliveryOffers"]:
+            raise ValueError("action offer store is not installed")
+        with self._transaction():
+            manifest = self.connection.execute("select * from requests where sequence=?", (response["requestSequence"],)).fetchone()
+            if manifest is None:
+                return
+            submitted = {d["date"]: d for d in json.loads(manifest["days"])}
+            ack_ids = set(json.loads(manifest["ack_ids"]))
+            for receipt in response["summaryReceipts"]:
+                if receipt["date"] not in submitted or receipt["sequence"] < submitted[receipt["date"]]["sequence"]:
+                    raise ValueError("summary receipt does not match manifest")
+            if not set(response["acknowledgedAckIds"]).issubset(ack_ids):
+                raise ValueError("receipt acknowledgement does not match manifest")
+            state = self._state()
+            state["collectionStartedAt"] = collection_start(state["collectionStartedAt"], response["collectionStartedAt"])
+            received = response["settings"]
+            current = state["settings"]
+            if received["revision"] == current["revision"] and received != current:
+                raise ValueError("settings revision conflict")
+            # Installing the initial revision is also acknowledged exactly once.
+            initial = state["lastSuccessfulSyncAt"] is None
+            if received["revision"] > current["revision"] or initial:
+                state["settings"] = received
+                self._queue_ack(dict(id=str(uuid4()), kind="settings", revision=received["revision"], appliedAt=self.now()), self.now())
+            fence = response["cancellations"]
+            changed = fence["revision"] > state["cancellationRevision"] or fence["throughActionSequence"] > state["throughActionSequence"]
+            for action_id in fence["canceledIds"]:
+                cursor = self.connection.execute("insert or ignore into canceled_ids values(?,?)", (action_id, self.now()))
+                changed = changed or cursor.rowcount > 0
+            state["cancellationRevision"] = max(state["cancellationRevision"], fence["revision"])
+            state["throughActionSequence"] = max(state["throughActionSequence"], fence["throughActionSequence"])
+            if changed:
+                # With no action executor installed, durable fences finish all local effects.
+                self._queue_ack(dict(id=str(uuid4()), kind="cancellation", revision=state["cancellationRevision"],
+                    throughActionSequence=state["throughActionSequence"], appliedAt=self.now()), self.now())
+            for receipt in response["summaryReceipts"]:
+                row = self.connection.execute("select * from days where date=?", (receipt["date"],)).fetchone()
+                if row is not None:
+                    watermark = max(row["acknowledged"], receipt["sequence"])
+                    source_sequence = json.loads(row["source"])["sequence"] if row["source"] is not None else 0
+                    self.connection.execute("update days set acknowledged=?,sequence=max(sequence,?),dirty=?,recollect=max(recollect,?) where date=?",
+                        (watermark, watermark, int(source_sequence > watermark), int(watermark > source_sequence), receipt["date"]))
+            for ack_id in response["acknowledgedAckIds"]:
+                self.connection.execute("delete from acks where id=?", (ack_id,))
+            if response["requestSequence"] > state["lastAppliedResponseSequence"]:
+                state["lastAppliedResponseSequence"] = response["requestSequence"]
+                state["lastServerNow"] = response["serverNow"]
+                state["lastSuccessfulSyncAt"] = self.now()
+            self._save(state)
+
+    def prune(self, now=None):
+        now = now or self.now()
+        cutoff = retained_dates(parse_instant(now))[-1]
+        with self._transaction():
+            self.connection.execute("update days set source=NULL,digest=NULL,dirty=0,collected_at=NULL,recollect=1 where date<?", (cutoff,))
+            # Keep counters, settings, receipts and unknown cancellation IDs across midnight.
+            from .clock import local_day_bounds
+            self.connection.execute("delete from requests where created_at<?", (format_instant(local_day_bounds(cutoff)[0]),))
+
+    def close(self):
+        self.connection.close()

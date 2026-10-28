@@ -1,7 +1,8 @@
 # Application-name usage amendment
 
 Status: authorized on 2026-10-27; contract/reader extension implemented on
-2026-10-28, independent review approved. Storage/sync and bot formatting remain pending.
+2026-10-28, independent review approved. Task 5 storage/sync is now implemented and reviewed;
+bot formatting remains pending.
 This supersedes earlier category-only report and no-app-breakdown wording.
 Application aggregates and pure projections exist; no user-facing usage formatter exists.
 
@@ -57,9 +58,10 @@ Task 4 enrollment/access endpoints retain their separate protocol v1.
   clipping, races, immutable v1, bounds and oversized dates. A pure minimal-envelope
   capacity preflight reports `report_capacity_exceeded` and retains the last valid
   summary. Cardinality ceilings do not guarantee 131072-byte body fit.
-- [ ] Independent review before Task 5 storage/sync and Task 7 formatting. Whole-date
+- [x] Independent aggregate review before Task 5 completed. Task 5 whole-date
   batching, sequential acknowledgment packing, durable sequence acceptance and
-  legacy cache migration are Task 5 work; presentation/escaping is Task 7 work.
+  legacy cache invalidation/recollection are implemented and independently reviewed;
+  presentation/escaping and formatter review remain Task 7 work.
 
 Task 5 must store and synchronize unfiltered category-attributed app aggregates,
 recompute selected app rows and totals under current settings even for a stale

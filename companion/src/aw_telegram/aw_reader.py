@@ -222,9 +222,9 @@ class AWReader:
         self.capabilities = None
         self._categories = None
 
-    def _health(self, state, reason=None):
+    def _health(self, state, reason=None, *, activity_success=False):
         previous = self.health.last_success_at
-        self.health = AWHealth(state, reason, format_instant(self.now()) if state == 'ready' else previous)
+        self.health = AWHealth(state, reason, format_instant(self.now()) if activity_success else previous)
 
     def probe(self) -> AWCapabilities:
         try:
@@ -310,7 +310,7 @@ class AWReader:
                 raise AWUnsupported('rules_revision_changed') from None
             if current_categories.revision != categories.revision:
                 raise AWUnsupported('rules_revision_changed')
-            self._health('ready')
+            self._health('ready', activity_success=True)
             return result, mapping, categories
         except AWUnavailable as exc:
             self._health('unavailable', str(exc))

@@ -14,7 +14,7 @@ try {
     revision: 0, selectedPaths: [], selectedUncategorized: false, defaultLimitMs: 14400000,
     todayOverride: null, freeUseDate: null, suppressedDate: null,
   });
-  assert.deepEqual(validateContract('sync-request', {schemaVersion:2,sequence:0,acks:[]}), {schemaVersion:2,sequence:0,acks:[]});
+  assert.deepEqual(validateContract('sync-request', {schemaVersion:2,sequence:0,acks:[],health:{observedAt:'1970-01-01T00:00:00.000Z',awState:'unknown',lastSuccessAt:null,reportError:null}}), {schemaVersion:2,sequence:0,acks:[],health:{observedAt:'1970-01-01T00:00:00.000Z',awState:'unknown',lastSuccessAt:null,reportError:null}});
   assert.throws(()=>validateContract('sync-request', {schemaVersion:1,sequence:0,acks:[]}));
   const day={date:'2026-10-27',leafTotalsMs:[{category:{id:'uncategorized',path:null},totalMs:1}],
     appLeafTotalsMs:[{app:'fixture',categoryId:'uncategorized',totalMs:1}],totalActiveMs:1,selectedTotalMs:0,

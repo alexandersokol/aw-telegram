@@ -250,19 +250,21 @@ companion/tests/test_sync.py, bot/src/{deviceApi,settings}.ts, bot/tests/sync.te
 **Interfaces:** `LocalStore.apply_sync(response: SyncResponse) -> None`;
 `LocalStore.pending_acks() -> list[Ack]`; `Transport.sync(request: SyncRequest) -> SyncResponse`;
 `syncDevice(identity: DeviceIdentity, input: SyncRequest): Promise<SyncResponse>`;
-`updateSettings(deviceId: string, change: SettingsChange, actorId: string): Promise<Settings>`.
+`SettingsService.updateSettings(identity: ParentIdentity, change: SettingsChange): Promise<SettingsUpdateResult>` (authority rechecked inside the transaction).
 
-- [ ] Write tests for stale/out-of-order snapshot rejection, reconnect backfill
+- [x] Write tests for stale/out-of-order snapshot rejection, reconnect backfill
   within retained dates, missing-data flags, settings revision races, two parents'
   opposite edits, title replacement only, canceled-ID fences, credential errors,
   and midnight retention without deleting AW source data.
-- [ ] Run `python -m pytest tests/test_sync.py -q` and `npm test -- sync.test.ts`; verify failures.
-- [ ] Implement SQLite migrations/WAL transactions, snapshot queue/coverage,
-  sequence numbers, revisioned cloud settings, sanitized device API, 15s poll/30s
+- [x] Run `python -m pytest tests/test_sync.py -q` and `npm test -- sync.test.ts`; verify failures.
+- [x] Implement SQLite migrations/WAL transactions, snapshot queue/coverage,
+  sequence numbers, revisioned cloud settings, sanitized device API, 10s AW poll/15s sync/30s
   summary cadence and IO worker. Settings update returns accurate acknowledgement state.
-- [ ] Re-run tests with dropped/reordered fake network responses. Assert no raw
+- [x] Re-run tests with dropped/reordered fake network responses. Assert no raw
   title/history appears in daily snapshots, SQLite history, or logs.
-- [ ] Commit sync and storage checkpoint.
+- [x] Commit sync and storage checkpoint.
+
+Checkpoint: independent review approved after one correction round. Focused Python: 182 passed; Node: 19 passed; local Firestore sync emulator: 5 passed; build and isolated bundle passed. See [sync-storage.md](sync-storage.md) for interfaces and remaining integration limits.
 
 ## Task 6: Backend command lifecycle, alert policy, and reliable parent messages
 

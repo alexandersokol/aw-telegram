@@ -2,7 +2,7 @@
 
 This checkpoint defines JSON contracts, Python dataclasses, TypeScript types,
 strict validators and pure time/invariant helpers. The AW adapter produces v2
-daily aggregates. Storage/sync handlers and the scheduler remain pending; Task 4
+daily aggregates. Task 5 adds reviewed durable storage and authenticated sync; command/policy/UI schedulers remain pending. Task 4
 enrollment/access uses its separate protocol v1. Schema validation cannot establish parent identity, private-chat status,
 device scope, durable acceptance, clock honesty or retention enforcement in storage.
 
@@ -18,7 +18,7 @@ only. Runtime semantic checks complement draft-07 JSON Schema shape checks.
 
 | Value | Encoding |
 |---|---|
-| Schema version | Literal integer `1` on HTTP sync envelopes; unsupported versions fail. |
+| Schema version | Literal integer `2` on HTTP sync envelopes (Task 4 enrollment/access remains `1`); unsupported versions fail. |
 | Counter / duration | Integer `0..9007199254740991`; no negative values, booleans, unsafe integers, strings or coercion. Allowances have no smaller product maximum. |
 | Instant | Real Gregorian UTC `YYYY-MM-DDTHH:mm:ss.SSSZ`, years `0001..9999`; exactly milliseconds, no offsets, leap seconds or implicit timezone. |
 | Local date | Real Gregorian `YYYY-MM-DD`, years `1970..2099`, interpreted in `Europe/Kyiv`. |
@@ -67,8 +67,8 @@ uncategorized false, 14400000 ms and null date-scoped settings. Every field is
 explicit on the wire. Empty selection counts nothing. Ancestor selections compare
 segments; overlapping selected ancestors include each disjoint leaf once.
 
-Cloud settings revisions are durable. Later transactional handlers must increment
-with overflow rejection, apply date-scoped values only on their Kyiv date, and clear
+Cloud settings revisions are durable. Task 5 transactional handlers increment
+with overflow rejection, set date-scoped values using the server Kyiv date, and clear
 today's override when changing the recurring allowance. Free use and suppression
 are independent; restore clears suppression only. Older settings must not replace
 newer cached settings. Personal hourly-update preferences are separate parent state.
@@ -114,20 +114,21 @@ The coordinated pre-release cutover preserves immutable `contracts/v1`, rejects
 v1 sync envelopes and category-only days, and never defaults missing app rows.
 Task 5 must invalidate/recollect v1 report caches/outbox days after the immutable
 pairing cutoff while preserving settings, credentials, commands/receipts and
-monotonic counters. No storage migration or runtime compatibility framework exists.
+monotonic counters. Task 5 invalidates incompatible report bodies only; no category-only conversion or
+runtime version-negotiation framework exists.
 `ensure_report_capacity` / `ensureReportCapacity` checks one whole day in a minimal
-v2 envelope (maximum sequence width by default); the reader reports
+v2 envelope with maximum mandatory health overhead and request-sequence width by default; the reader reports
 `report_capacity_exceeded` and keeps its last valid summary on a cardinality or
-byte failure. Cardinality ceilings do not guarantee byte fit. Task 5 must pack
+byte failure. Cardinality ceilings do not guarantee byte fit. Task 5 packs
 whole dates and acknowledgments sequentially within the actual 131072-byte UTF-8
-body, never split/trim day rows. See the [extension checkpoint](application-usage-amendment.md).
+body, without splitting or trimming day rows. See the [extension checkpoint](application-usage-amendment.md).
 
 `LiveState` fields: `observedAt`, `state:active|afk|unknown`, nullable `app`, `title`,
 `category`, `rulesRevision`, plus `categoryCatalog`. Unknown clears all four
 identity/rules fields to null. AFK identity may remain but never counts active.
 Missing `live` means no update. Explicit unknown clears previous identity. Freshness
 uses the original observedAt; upload arrival does not refresh an old observation.
-Later storage writes only live/current and overwrites its title in place; no title
+Cloud sync writes only live/current and overwrites its title in place; no title
 history, audit copy, receipt body or outbox body is permitted.
 
 ## Manual actions, receipts and cancellation
@@ -203,12 +204,12 @@ of a clear request. These state transitions are requirements for Tasks 5/6/8.
 
 ## Sync and immutable collection start
 
-`SyncRequest:{schemaVersion:2,sequence,summaries?,live?,acks}` has no credential,
+`SyncRequest:{schemaVersion:2,sequence,health,summaries?,live?,acks}` has no credential,
 device/recipient ID, settings mutation, cloud path or collectionStartedAt. Authenticate
 the bearer outside JSON. Device scope comes from authentication, never the payload.
 
 `SyncResponse:{schemaVersion:2,requestSequence,serverNow,collectionStartedAt,
-settings,cancellations,deliveryOffers,acknowledgedAckIds}` correlates transport
+settings,cancellations,deliveryOffers,acknowledgedAckIds,summaryReceipts}` correlates transport
 requests independently of each state stream. Acknowledged receipt IDs confirm
 durably committed receipts; a successful HTTP status alone must not clear pending
 receipts. Replay stable IDs idempotently. Older request sequence must not discard a
@@ -225,6 +226,50 @@ the caller must preserve cached state when rejecting inconsistent/stale response
 A newly enrolled device identity is a separate boundary. The helper does not itself
 persist anything or prove pairing happened. Authenticated transactions must enforce
 this invariant. Enrollment time is never a substitute for collection start.
+
+Required `health:{observedAt,awState,lastSuccessAt,reportError}` separates AW evidence
+from device contact. `awState` is unknown/ready/partial/stale/unavailable/unsupported;
+`reportError` is null or report_capacity_exceeded. `lastSuccessAt` is null or the most
+recent successful activity query, never a metadata probe or network contact, and
+cannot exceed observation time. Before pairing use unknown/null without activity.
+Observations use IO completion clocks and reject future context. Failures omit live,
+preserve last success, and leave the remote live value at its original observedAt;
+explicit valid unknown clears identity. Cloud contact, AW health and day coverage
+have independent freshness/sequence guards. No exception text belongs in health.
+
+`summaryReceipts:[{date,sequence}]` contains the durably stored per-date highwater for
+submitted dates only, at most seven unique dates. Older source sequences return the
+stored higher watermark; equal identical canonical content retries idempotently;
+equal sequence/different content conflicts atomically. A receipt for an old request
+cannot clear a newer unsent local source. A 2xx status and requestSequence alone
+acknowledge neither source snapshots nor receipt IDs.
+
+Task 5 exposes bound services rather than trusting raw device/actor strings:
+`DeviceApi(repository,clock).syncDevice(DeviceIdentity,input)` rechecks device
+credentials inside the mutation transaction. `SettingsService(...).updateSettings`
+requires current ParentIdentity and optionally callback nonce/version, rechecked
+inside the same transaction. Closed intents select categories, set default/today
+limits, free use, or suppression. The result is `{settings,acknowledgedRevision}`;
+only a durable device settings Ack advances the applied watermark. Firestore stores
+paths as `[{segments:[...]}]` to avoid nested arrays; every read unwraps and validates
+back to exact wire paths. Task 4's empty default remains compatible.
+
+LocalStore uses SQLite WAL/FULL transactions, unfiltered latest-only day evidence,
+stable Ack IDs, retained report bodies and title-free manifests. It persists pairing,
+counters and cancellation fences before exposing activity. Query-success timestamps
+survive restart; unknown canceled IDs remain fenced conservatively. One IO owner
+runs explicit steps at 10s AW poll / 15s sync / 30s today-summary cadence, prioritizing
+controls before one bounded historical date. Midnight/wake finalizes closed retained
+dates using Kyiv calendar bounds. Actual IO duration can degrade cadence targets.
+Transport uses verified HTTPS without redirects, body limits, socket timeouts and a
+body-read deadline; DNS/headers/end-to-end time do not have a hard 10s guarantee.
+401/403 and vault failures stop authenticated retry until recovery; transient errors
+use bounded backoff. No request body, live title or credential is persisted locally.
+
+Task 5 emits deliveryOffers:[] and rejects action receipts/nonempty local offers
+until later transaction hooks and durable action storage exist. It creates no action,
+outbox task, Telegram message, policy event or GUI operation. See the
+[storage/sync checkpoint](sync-storage.md) for interfaces and verification boundaries.
 
 ## Calendar helpers, packaging and verification
 

@@ -1,12 +1,14 @@
 /** Framework-neutral router plus bounded Node HTTP adapter. No implicit server or credential loading. */
 import type {IncomingMessage,ServerResponse} from 'node:http';
-import {MAX_BODY_BYTES} from './contracts.js';
+import {DeviceApi} from './deviceApi.js';
+import {parseJson,validateContract,MAX_BODY_BYTES} from './contracts.js';
 import {authorizeDevice} from './auth.js';
 import {enroll,envelope} from './enrollment.js';
 import {BoundaryError,type FirestoreRepository} from './repository.js';
 export interface HttpRequest {method:string;path:string;headers:Record<string,string|string[]|undefined>;body:string|Uint8Array;remoteAddress:string}
 export interface HttpResponse {status:number;headers:Record<string,string>;body?:any}
 export function createRouter(repository: FirestoreRepository) {
+  const api=new DeviceApi(repository);
   return async (request: HttpRequest): Promise<HttpResponse> => {
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json','X-Content-Type-Options':'nosniff'};
     try {
@@ -15,6 +17,10 @@ export function createRouter(repository: FirestoreRepository) {
       if(request.method==='POST' && request.path==='/v1/enroll') return {status:200,headers,body:await enroll(repository,request.body,request.remoteAddress)};
       const url=new URL(request.path,'https://local.invalid');
       const identity=await authorizeDevice({authorization:request.headers.authorization},repository);
+      if(request.method==='POST' && request.path==='/v2/sync') {
+        let input;try {input=validateContract('sync-request',parseJson(request.body));} catch {throw new BoundaryError('Invalid sync request');}
+        return {status:200,headers,body:await api.syncDevice(identity,input)};
+      }
       if(request.method==='POST' && request.path==='/v1/pair-keys') return {status:201,headers,body:await repository.createPairKey(identity,envelope(request.body,'name'))};
       if(request.method==='GET' && url.pathname==='/v1/access') {
         if(request.body.length || [...url.searchParams.keys()].some(k=>k!=='page') || url.searchParams.getAll('page').length>1) throw new BoundaryError('Invalid request');

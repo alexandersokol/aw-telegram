@@ -390,7 +390,13 @@
       "request": {
         "schemaVersion": 2,
         "sequence": 0,
-        "acks": []
+        "acks": [],
+        "health": {
+          "observedAt": "2026-10-27T09:06:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
       },
       "startedAt": null,
       "now": "2026-10-27T09:06:00.000Z",
@@ -470,7 +476,13 @@
             "presentedAt": "2026-10-27T09:05:01.000Z",
             "reason": null
           }
-        ]
+        ],
+        "health": {
+          "observedAt": "2026-10-27T09:06:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
       },
       "startedAt": null,
       "now": "2026-10-27T09:06:00.000Z",
@@ -550,7 +562,13 @@
             "presentedAt": "2026-10-27T09:05:01.000Z",
             "reason": null
           }
-        ]
+        ],
+        "health": {
+          "observedAt": "2026-10-27T09:06:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
       },
       "startedAt": "2026-10-27T08:00:00.000Z",
       "now": "2026-10-27T09:06:00.000Z",
@@ -630,7 +648,13 @@
             "presentedAt": "2026-10-27T09:05:01.000Z",
             "reason": null
           }
-        ]
+        ],
+        "health": {
+          "observedAt": "2026-10-27T09:06:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
       },
       "startedAt": "2026-10-27T08:30:00.000Z",
       "now": "2026-10-27T09:06:00.000Z",
@@ -710,7 +734,13 @@
             "presentedAt": "2026-10-27T09:05:01.000Z",
             "reason": null
           }
-        ]
+        ],
+        "health": {
+          "observedAt": "2026-10-27T08:59:59.999Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
       },
       "startedAt": "2026-10-27T08:00:00.000Z",
       "now": "2026-10-27T08:59:59.999Z",
@@ -790,7 +820,13 @@
             "presentedAt": "2026-10-27T09:05:01.000Z",
             "reason": null
           }
-        ]
+        ],
+        "health": {
+          "observedAt": "2026-11-03T09:06:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
       },
       "startedAt": "2026-10-27T08:00:00.000Z",
       "now": "2026-11-03T09:06:00.000Z",

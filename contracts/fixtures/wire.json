@@ -336,7 +336,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": true
   },
@@ -382,7 +388,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": true
   },
@@ -411,7 +418,8 @@
       "deliveryOffers": [],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": true
   },
@@ -421,7 +429,13 @@
     "value": {
       "schemaVersion": 2,
       "sequence": 0,
-      "acks": []
+      "acks": [],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": true
   },
@@ -1949,7 +1963,13 @@
           "reason": null
         }
       ],
-      "deviceId": "11111111-1111-4111-8111-111111111111"
+      "deviceId": "11111111-1111-4111-8111-111111111111",
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -2030,7 +2050,13 @@
           "reason": null,
           "token": "forbidden"
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -2077,7 +2103,8 @@
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
       ],
-      "token": "forbidden"
+      "token": "forbidden",
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -2169,7 +2196,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -2279,7 +2312,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -2748,7 +2787,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -4099,7 +4144,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -4290,7 +4341,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -4336,7 +4393,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222\n"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -4382,7 +4440,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -4428,7 +4487,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -4619,7 +4679,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -4665,7 +4731,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222\r"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -4711,7 +4778,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -4757,7 +4825,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -4948,7 +5017,13 @@
           "presentedAt": "2026-10-27T09:05:01.000Z",
           "reason": null
         }
-      ]
+      ],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": false
   },
@@ -4994,7 +5069,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222\r\n"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -5040,7 +5116,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -5086,7 +5163,8 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
-      ]
+      ],
+      "summaryReceipts": []
     },
     "valid": false
   },
@@ -5134,7 +5212,13 @@
     "value": {
       "schemaVersion": 2,
       "sequence": 1,
-      "acks": []
+      "acks": [],
+      "health": {
+        "observedAt": "2026-10-27T09:06:00.000Z",
+        "awState": "unknown",
+        "lastSuccessAt": null,
+        "reportError": null
+      }
     },
     "valid": true
   },

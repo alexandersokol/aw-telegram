@@ -4,7 +4,7 @@ export const projectId = 'demo-aw-telegram';
 export function emulatorAddress(): {host: string; port: number} {
   const address = process.env.FIRESTORE_EMULATOR_HOST ?? '';
   const match = /^(127\.0\.0\.1|localhost):([0-9]+)$/.exec(address);
-  if (!match || process.env.GCLOUD_PROJECT !== projectId || process.env.GOOGLE_APPLICATION_CREDENTIALS)
+  if (!match || !Number.isInteger(Number(match[2])) || Number(match[2])<1 || Number(match[2])>65535 || process.env.METADATA_SERVER_DETECTION!=='none' || process.env.GCLOUD_PROJECT !== projectId || process.env.GOOGLE_APPLICATION_CREDENTIALS)
     throw new Error('Tests require exact demo-aw-telegram and explicit loopback emulator without credentials');
   return {host: match[1]!, port: Number(match[2])};
 }

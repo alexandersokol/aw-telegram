@@ -28,6 +28,14 @@
     "cancellations": {
       "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Cancellations"
     },
+    "summaryReceipts": {
+      "type": "array",
+      "items": {
+        "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/SummaryReceipt"
+      },
+      "minItems": 0,
+      "maxItems": 7
+    },
     "deliveryOffers": {
       "type": "array",
       "items": {
@@ -52,6 +60,7 @@
     "collectionStartedAt",
     "settings",
     "cancellations",
+    "summaryReceipts",
     "deliveryOffers",
     "acknowledgedAckIds"
   ],

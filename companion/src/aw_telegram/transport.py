@@ -9,11 +9,21 @@ import time
 from typing import Callable, Protocol
 from urllib.parse import urlsplit, quote
 
-from .models import parse_json, MAX_BODY_BYTES
+from .models import parse_json, MAX_BODY_BYTES, SyncRequest, SyncResponse, wire_bytes
 from .clock import parse_instant
 
 
 class EnrollmentError(RuntimeError):
+    pass
+
+
+class SyncError(EnrollmentError):
+    def __init__(self, *, retryable=False, retry_after=None):
+        super().__init__('Backend request failed')
+        self.retryable, self.retry_after = retryable, retry_after
+
+
+class CredentialError(SyncError):
     pass
 
 
@@ -93,32 +103,58 @@ def _network(method: str, url: str, body: bytes | None, headers: dict) -> tuple[
             chunks.append(chunk)
             size += len(chunk)
         raw = b''.join(chunks)
-        return response.status, raw
+        return response.status, raw, {"Retry-After": response.getheader("Retry-After")}
     finally:
         connection.close()
 
 
 class Transport:
     def __init__(self, vault: Vault | None = None, *, request: Callable | None = None,
-                 accept_host: Callable[[str], bool] | None = None):
+                 accept_host: Callable[[str], bool] | None = None, identity: DeviceIdentity | None = None):
         if vault is None:
             from .credentials import WindowsVault
             vault = WindowsVault()
+        self.identity = identity
         self._vault = vault
         self._request = request or _network
         self._accept_host = accept_host
 
     def _exchange(self, method, url, body, headers, *, empty=False):
-        result = None
+        status, result, retry_after = None, None, None
         try:
-            status, raw = self._request(method, url, body, headers)
+            reply = self._request(method, url, body, headers)
+            status, raw = reply[:2]
+            if len(reply) == 3:
+                value = reply[2].get('Retry-After')
+                if isinstance(value, str) and value.isascii() and value.isdigit():
+                    retry_after = min(300, max(1, int(value)))
             if isinstance(raw, bytes) and len(raw) <= MAX_BODY_BYTES and 200 <= status < 300:
                 result = {} if empty and status == 204 and not raw else parse_json(raw)
         except Exception:
             pass
         if result is None:
-            raise EnrollmentError('Backend request failed')
+            if status in (401, 403):
+                raise CredentialError()
+            raise SyncError(retryable=status is None or status == 429 or isinstance(status, int) and status >= 500,
+                            retry_after=retry_after)
         return result
+
+    def sync(self, request: SyncRequest) -> SyncResponse:
+        if self.identity is None:
+            raise CredentialError()
+        request = request.to_wire() if isinstance(request, SyncRequest) else SyncRequest.from_wire(request).to_wire()
+        try:
+            result = self.authenticated(self.identity, 'POST', '/v2/sync', request)
+            response = SyncResponse.from_wire(result)
+            if response.requestSequence != request['sequence']:
+                raise ValueError('response sequence mismatch')
+            return response
+        except SyncError:
+            raise
+        except EnrollmentError:
+            raise CredentialError() from None
+        except (ValueError, TypeError):
+            raise SyncError() from None
 
     def enroll(self, bundle: EnrollmentBundle) -> DeviceIdentity:
         backend = canonical_backend(bundle.backendUrl)
@@ -153,7 +189,7 @@ class Transport:
         if not isinstance(identity.deviceId, str) or not _UUID.fullmatch(identity.deviceId):
             raise EnrollmentError('Invalid device identity')
         allowed = ((method == 'GET' and re.fullmatch(r'/v1/access(?:\?page=[0-9a-f-]{36})?', path))
-                   or (method == 'POST' and path == '/v1/pair-keys')
+                   or (method == 'POST' and path in ('/v1/pair-keys', '/v2/sync'))
                    or (method == 'DELETE' and re.fullmatch(r'/v1/access/(?:key:[0-9a-f-]{36}|parent:[1-9][0-9]{0,15}:[0-9a-f-]{36})', path)))
         if not allowed:
             raise EnrollmentError('Invalid authenticated endpoint')
@@ -164,7 +200,7 @@ class Transport:
             pass
         if not _secret(secret):
             raise EnrollmentError('Credential vault is unavailable')
-        body = json.dumps(payload, separators=(',', ':')).encode() if payload is not None else None
+        body = wire_bytes(payload) if payload is not None else None
         if body is not None and len(body) > MAX_BODY_BYTES:
             raise EnrollmentError('Request exceeds transport bound')
         return self._exchange(method, backend + path, body,
