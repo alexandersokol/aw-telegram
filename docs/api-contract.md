@@ -1,9 +1,9 @@
-# Device contract v1
+# Device sync/domain contract v2
 
 This checkpoint defines JSON contracts, Python dataclasses, TypeScript types,
-strict validators and pure time/invariant helpers. It does not implement an HTTP
-endpoint, authentication, cloud/local persistence, ActivityWatch collection or a
-scheduler. Schema validation cannot establish parent identity, private-chat status,
+strict validators and pure time/invariant helpers. The AW adapter produces v2
+daily aggregates. Storage/sync handlers and the scheduler remain pending; Task 4
+enrollment/access uses its separate protocol v1. Schema validation cannot establish parent identity, private-chat status,
 device scope, durable acceptance, clock honesty or retention enforcement in storage.
 
 ## Validation and wire scalars
@@ -75,7 +75,8 @@ newer cached settings. Personal hourly-update preferences are separate parent st
 
 ## Summaries and latest live state
 
-`DaySummary` fields: `date`, `leafTotalsMs:[{category,totalMs}]`, `totalActiveMs`,
+`DaySummary` fields: `date`, `leafTotalsMs:[{category,totalMs}]`,
+`appLeafTotalsMs:[{app,categoryId,totalMs}]`, `totalActiveMs`,
 `selectedTotalMs`, `settingsRevision`, `rulesRevision`, `availableFrom`,
 `availableThrough`, `partial`, `sequence`. Leaf category IDs are unique;
 `totalActiveMs` equals their disjoint sum; selected total is between zero and active.
@@ -93,22 +94,33 @@ Snapshots replace by a durable sequence independently per date. A stale
 `settingsRevision` does not invalidate useful leaf totals: recompute selected total
 with current settings using `selected_total` / `selectedTotal`, and record the
 revision used. Shape validation cannot verify a selected total without those settings.
-The current v1 wire rejects all app, title, message, event and URL fields in day
-summaries. This is the implemented contract, not the final reporting requirement:
-today/yesterday application-name usage now requires daily app × leaf-category
-duration aggregates. They are not yet implemented or accepted by these validators.
+Active v2 requires positive safe-integer milliseconds per exact `(app, categoryId)`
+pair, no duplicates/orphans, at most 256 distinct apps and 4096 pairs. Every row
+references an existing leaf; app rows for each leaf sum exactly to its duration.
+The exact AW app value has 1–256 Unicode scalars: no trimming, normalization,
+case folding or truncation. Parent and child category paths may both be disjoint
+assignments; they are never inclusive rollups. Historical title/event/URL fields
+remain forbidden. Missing/invalid app identity contributes no duration and marks
+coverage partial/unknown; an actual app named `Unknown` is a distinct real identity.
 
-Before Task 5 sync and Task 7 formatting, complete the reviewed extension checkpoint
-in [application-usage-amendment.md](application-usage-amendment.md): record the
-version/compatibility choice, extend canonical/package schemas, Python models and
-reader/counting, TypeScript types/validators/helpers and shared fixtures together.
-Preserve date retention, rules/settings revisions, per-date sequence, coverage,
-recomputation under current category settings and 128 KiB request bounds. Persist
-unfiltered app × leaf-category aggregates, not previously selected app totals.
-App rows count only selected intervals (descendants once, uncategorized opt-in),
-sum exactly to selected total for complete measured data, and explicitly identify
-partial/unknown data otherwise. Raw events, historical window titles and URLs
-remain prohibited; latest title is current-only. The amendment changes no v1 code.
+`selected_app_totals` / `selectedAppTotals` uses the same selection union as leaf
+totals, returning descending durations with Unicode scalar name ties. `project_day`
+/ `projectDay` recalculates both projections from unfiltered evidence and returns
+`sourceSettingsRevision`, current `settingsRevision`, `selectedTotalMs`, and
+`appTotalsMs` without rewriting the source. A matching settings revision validates
+the stored selected total; changed selections never reuse filtered app totals.
+
+The coordinated pre-release cutover preserves immutable `contracts/v1`, rejects
+v1 sync envelopes and category-only days, and never defaults missing app rows.
+Task 5 must invalidate/recollect v1 report caches/outbox days after the immutable
+pairing cutoff while preserving settings, credentials, commands/receipts and
+monotonic counters. No storage migration or runtime compatibility framework exists.
+`ensure_report_capacity` / `ensureReportCapacity` checks one whole day in a minimal
+v2 envelope (maximum sequence width by default); the reader reports
+`report_capacity_exceeded` and keeps its last valid summary on a cardinality or
+byte failure. Cardinality ceilings do not guarantee byte fit. Task 5 must pack
+whole dates and acknowledgments sequentially within the actual 131072-byte UTF-8
+body, never split/trim day rows. See the [extension checkpoint](application-usage-amendment.md).
 
 `LiveState` fields: `observedAt`, `state:active|afk|unknown`, nullable `app`, `title`,
 `category`, `rulesRevision`, plus `categoryCatalog`. Unknown clears all four
@@ -191,11 +203,11 @@ of a clear request. These state transitions are requirements for Tasks 5/6/8.
 
 ## Sync and immutable collection start
 
-`SyncRequest:{schemaVersion:1,sequence,summaries?,live?,acks}` has no credential,
+`SyncRequest:{schemaVersion:2,sequence,summaries?,live?,acks}` has no credential,
 device/recipient ID, settings mutation, cloud path or collectionStartedAt. Authenticate
 the bearer outside JSON. Device scope comes from authentication, never the payload.
 
-`SyncResponse:{schemaVersion:1,requestSequence,serverNow,collectionStartedAt,
+`SyncResponse:{schemaVersion:2,requestSequence,serverNow,collectionStartedAt,
 settings,cancellations,deliveryOffers,acknowledgedAckIds}` correlates transport
 requests independently of each state stream. Acknowledged receipt IDs confirm
 durably committed receipts; a successful HTTP status alone must not clear pending

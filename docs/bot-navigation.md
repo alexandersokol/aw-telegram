@@ -38,7 +38,8 @@ seven-day report keeps daily totals, with today last; no graphs or historical
 window titles. Today includes the current/last-known app and latest title. Show
 freshness and dates. Category edits recompute app rows from category-attributed
 daily app aggregates. See [application-usage-amendment.md](application-usage-amendment.md)
-for the pending contract/reader prerequisite to this navigation.
+for the implemented v2 contract/reader prerequisite (independent review pending).
+Task 5 storage/sync and this Task 7 formatter/navigation remain unimplemented.
 
 ### Laptop status
 

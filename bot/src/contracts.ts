@@ -9,12 +9,14 @@ export type LocalDate = string;
 export type CategoryPath = string[];
 export interface CategoryRef {id: string; path: CategoryPath | null}
 export interface LeafTotal {category: CategoryRef; totalMs: number}
+export interface AppLeafTotal {app: string; categoryId: string; totalMs: number}
+export interface AppTotal {app: string; totalMs: number}
 export interface Settings {
   revision: Counter; selectedPaths: CategoryPath[]; selectedUncategorized: boolean; defaultLimitMs: number;
   todayOverride: {date: LocalDate; limitMs: number} | null; freeUseDate: LocalDate | null; suppressedDate: LocalDate | null;
 }
 export interface DaySummary {
-  date: LocalDate; leafTotalsMs: LeafTotal[]; totalActiveMs: number; selectedTotalMs: number;
+  date: LocalDate; leafTotalsMs: LeafTotal[]; appLeafTotalsMs: AppLeafTotal[]; totalActiveMs: number; selectedTotalMs: number;
   settingsRevision: Counter; rulesRevision: string; availableFrom: Instant | null; availableThrough: Instant | null;
   partial: boolean; sequence: Counter;
 }
@@ -42,9 +44,9 @@ export interface ActionAck {
 export type Ack = ActionAck | {id: string; kind: 'settings'; revision: Counter; appliedAt: Instant} |
   {id: string; kind: 'cancellation'; revision: Counter; throughActionSequence: Counter; appliedAt: Instant};
 export interface Cancellations {revision: Counter; throughActionSequence: Counter; canceledIds: string[]}
-export interface SyncRequest {schemaVersion: 1; sequence: Counter; summaries?: DaySummary[]; live?: LiveState; acks: Ack[]}
+export interface SyncRequest {schemaVersion: 2; sequence: Counter; summaries?: DaySummary[]; live?: LiveState; acks: Ack[]}
 export interface SyncResponse {
-  schemaVersion: 1; requestSequence: Counter; serverNow: Instant; collectionStartedAt: Instant | null;
+  schemaVersion: 2; requestSequence: Counter; serverNow: Instant; collectionStartedAt: Instant | null;
   settings: Settings; cancellations: Cancellations; deliveryOffers: Action[]; acknowledgedAckIds: string[];
 }
 export interface Evaluation {
@@ -63,15 +65,19 @@ export interface ContractMap {
   cancellations: Cancellations; 'sync-request': SyncRequest; 'sync-response': SyncResponse;
 }
 export const MAX_BODY_BYTES = 131072;
-const BASE = 'https://aw-telegram.invalid/contracts/v1/';
+const BASE = 'https://aw-telegram.invalid/contracts/v2/';
 const ajv = new Ajv({allErrors: false, strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false});
 ajv.addFormat('local-date', {type: 'string', validate: (value: string) => {try {parseDate(value); return true;} catch {return false;}}});
 ajv.addFormat('utc-instant', {type: 'string', validate: (value: string) => {try {parseInstant(value); return true;} catch {return false;}}});
 // dist/schemas is populated at build time. Production needs no files outside bot.
 const bundled = new URL('./schemas/', import.meta.url);
-const schemaDirectory = existsSync(bundled) ? bundled : new URL('../../contracts/v1/', import.meta.url);
+const schemaDirectory = existsSync(bundled) ? bundled : new URL('../../contracts/v2/', import.meta.url);
 for (const name of readdirSync(schemaDirectory).filter(n => n.endsWith('.schema.json')))
   ajv.addSchema(JSON.parse(readFileSync(new URL(name, schemaDirectory), 'utf8')));
+const aggregateValidators = [
+  ajv.compile({type:'array', maxItems:1024, items:{$ref:`${BASE}shared.schema.json#/$defs/LeafTotal`}}),
+  ajv.compile({type:'array', maxItems:4096, items:{$ref:`${BASE}shared.schema.json#/$defs/AppLeafTotal`}}),
+] as const;
 
 function primitives(value: unknown, depth = 0): void {
   if (depth > 64) throw new Error('JSON nesting exceeds transport bound');
@@ -155,6 +161,62 @@ export function selectedTotal(leaves: LeafTotal[], paths: CategoryPath[], uncate
   return total;
 }
 
+function reconcileApps(leaves: LeafTotal[], rows: AppLeafTotal[]): void {
+  const expected = new Map(leaves.map(leaf => [leaf.category.id, leaf.totalMs]));
+  const sums = new Map([...expected.keys()].map(id => [id, 0]));
+  const pairs = new Map<string, Set<string>>();
+  for (const row of rows) {
+    let ids = pairs.get(row.app);
+    if (!ids) {ids = new Set(); pairs.set(row.app, ids);}
+    if (!expected.has(row.categoryId) || ids.has(row.categoryId)) throw new Error('orphan or duplicate app/category row');
+    ids.add(row.categoryId);
+    const total = sums.get(row.categoryId)! + row.totalMs;
+    if (!Number.isSafeInteger(total)) throw new Error('application total overflow');
+    sums.set(row.categoryId, total);
+  }
+  if (pairs.size > 256 || [...expected].some(([id, total]) => sums.get(id) !== total))
+    throw new Error('invalid application reconciliation or cardinality');
+}
+
+function scalarCompare(a: string, b: string): number {
+  const aa = Array.from(a, c => c.codePointAt(0)!), bb = Array.from(b, c => c.codePointAt(0)!);
+  for (let i=0; i<Math.min(aa.length, bb.length); i++) if (aa[i] !== bb[i]) return aa[i]! - bb[i]!;
+  return aa.length - bb.length;
+}
+
+/** Derive from unfiltered category-attributed rows; no source revision is changed. */
+export function selectedAppTotals(leaves: LeafTotal[], rows: AppLeafTotal[], paths: CategoryPath[], uncategorized: boolean): AppTotal[] {
+  primitives([leaves, rows]);
+  if (!aggregateValidators[0](leaves) || !aggregateValidators[1](rows)) throw new Error('invalid aggregate shape');
+  selectedTotal(leaves, paths, uncategorized); paths.forEach(categoryKey);
+  reconcileApps(leaves, rows);
+  const chosen = new Set(leaves.filter(leaf => selectedTotal([leaf], paths, uncategorized)>0).map(leaf => leaf.category.id));
+  const totals = new Map<string, number>();
+  for (const row of rows) if (chosen.has(row.categoryId)) totals.set(row.app, (totals.get(row.app) ?? 0) + row.totalMs);
+  return [...totals].map(([app, totalMs]) => ({app, totalMs})).sort((a,b) => b.totalMs-a.totalMs || scalarCompare(a.app,b.app));
+}
+
+export interface DayProjection {sourceSettingsRevision: Counter; settingsRevision: Counter; selectedTotalMs: number; appTotalsMs: AppTotal[]}
+export function projectDay(input: DaySummary, settingsInput: Settings): DayProjection {
+  const v=validateContract('day',input), s=validateContract('settings',settingsInput);
+  const total=selectedTotal(v.leafTotalsMs,s.selectedPaths,s.selectedUncategorized);
+  if (v.settingsRevision===s.revision && v.selectedTotalMs!==total) throw new Error('selected total disagrees with known settings');
+  return {sourceSettingsRevision:v.settingsRevision,settingsRevision:s.revision,selectedTotalMs:total,
+    appTotalsMs:selectedAppTotals(v.leafTotalsMs,v.appLeafTotalsMs,s.selectedPaths,s.selectedUncategorized)};
+}
+
+export class ReportCapacityExceeded extends Error {
+  constructor() {super('report_capacity_exceeded');}
+}
+/** One whole day with minimal required envelope. Task5 must bound actual packed bodies. */
+export function ensureReportCapacity(day: DaySummary, sequence: Counter = Number.MAX_SAFE_INTEGER): void {
+  primitives(day);
+  if (day.leafTotalsMs.length>1024 || day.appLeafTotalsMs.length>4096 || new Set(day.appLeafTotalsMs.map(r=>r.app)).size>256)
+    throw new ReportCapacityExceeded();
+  const request=validateContract('sync-request',{schemaVersion:2,sequence,acks:[],summaries:[day]});
+  if (Buffer.byteLength(JSON.stringify(request),'utf8')>MAX_BODY_BYTES) throw new ReportCapacityExceeded();
+}
+
 const reasons: Record<ActionStatus, (Reason | null)[]> = {
   accepted: [null], presenting: [null], presented: [null], dismissed: [null], completed: [null],
   replaced: ['replaced'], expired: ['display_busy', 'missed_deadline'], skipped: ['free_use'], canceled: ['canceled'],
@@ -163,6 +225,7 @@ const reasons: Record<ActionStatus, (Reason | null)[]> = {
 
 function day(v: DaySummary): void {
   v.leafTotalsMs.forEach(x => category(x.category)); unique(v.leafTotalsMs.map(x => x.category.id), 'leaf category');
+  reconcileApps(v.leafTotalsMs, v.appLeafTotalsMs);
   const total = v.leafTotalsMs.reduce((a, b) => a + b.totalMs, 0);
   if (!Number.isSafeInteger(total) || total !== v.totalActiveMs || v.selectedTotalMs > total) throw new Error('invalid disjoint totals');
   const bounds = dayBounds(v.date);
@@ -233,6 +296,9 @@ export function validateContract<K extends keyof ContractMap>(name: K, value: un
   const validator: ValidateFunction | undefined = ajv.getSchema(BASE + name + '.schema.json');
   if (!validator || name === ('shared' as string)) throw new Error('unknown contract');
   primitives(value);
+  if ((name==='sync-request' || name==='sync-response') && value!==null && typeof value==='object' &&
+      'schemaVersion' in value && Number.isInteger(value.schemaVersion) && value.schemaVersion!==2)
+    throw new Error('unsupported sync schema version');
   if (!validator(value)) throw new Error(`invalid ${name} shape at ${validator.errors?.[0]?.instancePath ?? ''}`);
   const validated = value as ContractMap[K]; semantics(name, validated);
   return structuredClone(validated);

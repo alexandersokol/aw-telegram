@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aw-telegram.invalid/contracts/v2/sync-response.schema.json",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "requestSequence": {
+      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
+    },
+    "serverNow": {
+      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
+    },
+    "collectionStartedAt": {
+      "anyOf": [
+        {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "settings": {
+      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Settings"
+    },
+    "cancellations": {
+      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Cancellations"
+    },
+    "deliveryOffers": {
+      "type": "array",
+      "items": {
+        "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Action"
+      },
+      "minItems": 0,
+      "maxItems": 100
+    },
+    "acknowledgedAckIds": {
+      "type": "array",
+      "items": {
+        "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
+      },
+      "minItems": 0,
+      "maxItems": 100
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "requestSequence",
+    "serverNow",
+    "collectionStartedAt",
+    "settings",
+    "cancellations",
+    "deliveryOffers",
+    "acknowledgedAckIds"
+  ],
+  "additionalProperties": false
+}

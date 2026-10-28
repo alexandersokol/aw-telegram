@@ -22,6 +22,7 @@ class Span:
 @dataclass(frozen=True)
 class Aggregation:
     totals: dict[Path, int]
+    app_totals: dict[str, dict[Path, int]]
     coverage: list[tuple[datetime, datetime]]
     invalid_events: int
 
@@ -43,13 +44,18 @@ def leaf_records(totals: dict[Path, int]) -> list[dict]:
     return [{'category': category_record(p), 'totalMs': n} for p, n in totals.items()]
 
 
+def app_leaf_records(totals: dict[str, dict[Path, int]]) -> list[dict]:
+    return [{'app':app, 'categoryId':category_record(path)['id'], 'totalMs':n}
+            for app, categories in totals.items() for path,n in categories.items() if n > 0]
+
+
 def normalize(events: list, start: datetime, end: datetime, kind: str) -> tuple[list[Span], int]:
     if not isinstance(events, list):
         raise ValueError('invalid event list')
     spans, invalid = [], 0
     for index, event in enumerate(events):
         try:
-            if not isinstance(event, dict) or not isinstance(event.get('data'), dict):
+            if not isinstance(event, dict):
                 raise ValueError()
             stamp = event['timestamp']
             if not isinstance(stamp, str):
@@ -63,11 +69,18 @@ def normalize(events: list, start: datetime, end: datetime, kind: str) -> tuple[
             if type(duration) not in (int, float) or not math.isfinite(duration) or duration < 0:
                 raise ValueError()
             hi = lo + timedelta(seconds=duration)
-            data = event['data']
-            if kind == 'window' and (not isinstance(data.get('app'), str) or not data['app'] or not isinstance(data.get('title', ''), str)):
-                raise ValueError()
-            if kind == 'afk' and data.get('status') not in ('not-afk', 'afk'):
-                raise ValueError()
+            data = event.get('data')
+            if kind == 'window' and (not isinstance(data, dict) or not isinstance(data.get('app'), str) or not 1 <= len(data['app']) <= 256
+                                     or any(0xD800 <= ord(c) <= 0xDFFF for c in data['app'])
+                                     or not isinstance(data.get('title', ''), str)):
+                # Keep the timed interval as an unknown barrier in the winner
+                # sweep; dropping it would expose older overlapping evidence.
+                data = None
+                invalid += 1
+            if kind == 'afk' and (not isinstance(data, dict) or data.get('status') not in ('not-afk', 'afk')):
+                # A timed unknown status cannot expose an older not-afk span.
+                data = None
+                invalid += 1
             lo, hi = max(lo, start), min(hi, end)
             # AW records arbitrary microseconds; wire evidence is conservative
             # whole milliseconds, never rounded out into unobserved time.
@@ -91,7 +104,7 @@ def normalize(events: list, start: datetime, end: datetime, kind: str) -> tuple[
             position += 1
         while heap and heap[0][2] <= lo:
             heapq.heappop(heap)
-        if heap:
+        if heap and heap[0][4] is not None:
             data = heap[0][4]
             if result and result[-1].end == lo and result[-1].data == data:
                 result[-1] = Span(result[-1].start, hi, data)
@@ -135,7 +148,7 @@ def aggregate(canonical: list, windows: list, afk: list, start: datetime, end: d
             coverage[-1] = (coverage[-1][0], max(coverage[-1][1], span.end))
         else:
             coverage.append((span.start, span.end))
-    totals = {}
+    totals, app_totals = {}, {}
     for span in counted_spans:
         if owned(span.data):
             continue
@@ -148,5 +161,8 @@ def aggregate(canonical: list, windows: list, afk: list, start: datetime, end: d
             raise ValueError('server returned unknown category')
         else:
             path = category_map[tuple(category)]
-        totals[path] = totals.get(path, 0) + (span.end-span.start)//MILLISECOND
-    return Aggregation({p:n for p,n in totals.items() if n}, coverage, bad_window+bad_afk+bad_canonical)
+        duration = (span.end-span.start)//MILLISECOND
+        totals[path] = totals.get(path, 0) + duration
+        categories = app_totals.setdefault(span.data['app'], {})
+        categories[path] = categories.get(path, 0) + duration
+    return Aggregation({p:n for p,n in totals.items() if n}, app_totals, coverage, bad_window+bad_afk+bad_canonical)

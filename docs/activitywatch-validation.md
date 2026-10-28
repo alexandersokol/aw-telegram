@@ -6,6 +6,15 @@ pending. This checkpoint adds a local adapter;
 it does not enroll a device, pair a parent, persist collection start, upload data,
 or run a collection loop.
 
+The 2026-10-28 app-aggregate extension now produces active v2 app/category rows
+from the same conservative spans as leaves. Focused contract/counting/reader and
+enrollment regressions pass 157 tests; default Node contracts pass 9 groups, with
+build and isolated packaged schemas checked. Invalid timed app/AFK evidence masks
+older overlaps, rules/settings are captured, and capacity failures preserve the
+previous summary. Independent extension review is pending. These are synthetic
+fixture checks; no new installed AW metadata/history/source queries, UI or game
+tests were performed. Historical native/source evidence below keeps its original scope.
+
 ## Installed Windows binary: metadata and empty queries only
 
 After the owner installed AW on this laptop, an explicit read-only

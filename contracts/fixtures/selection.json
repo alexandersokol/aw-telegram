@@ -4,9 +4,9 @@
     "~",
     "\"",
     "\\",
-    "😀"
+    "\ud83d\ude00"
   ],
-  "key": "[\"a/b\",\"~\",\"\\\"\",\"\\\\\",\"😀\"]",
+  "key": "[\"a/b\",\"~\",\"\\\"\",\"\\\\\",\"\ud83d\ude00\"]",
   "leaves": [
     {
       "category": {
@@ -43,6 +43,15 @@
         "path": null
       },
       "totalMs": 5
+    },
+    {
+      "category": {
+        "id": "[\"Games\"]",
+        "path": [
+          "Games"
+        ]
+      },
+      "totalMs": 3
     }
   ],
   "selectedPaths": [
@@ -53,5 +62,98 @@
       "Games",
       "a"
     ]
+  ],
+  "appLeafTotalsMs": [
+    {
+      "app": "Browser",
+      "categoryId": "[\"Games\",\"a\"]",
+      "totalMs": 10
+    },
+    {
+      "app": "Browser",
+      "categoryId": "[\"GamesPlus\"]",
+      "totalMs": 40
+    },
+    {
+      "app": "\ud800\udc00",
+      "categoryId": "[\"Games\",\"b\"]",
+      "totalMs": 10
+    },
+    {
+      "app": "\ue000",
+      "categoryId": "[\"Games\",\"b\"]",
+      "totalMs": 10
+    },
+    {
+      "app": "Browser",
+      "categoryId": "uncategorized",
+      "totalMs": 5
+    },
+    {
+      "app": "Browser",
+      "categoryId": "[\"Games\"]",
+      "totalMs": 3
+    }
+  ],
+  "projections": [
+    {
+      "paths": [
+        [
+          "Games"
+        ],
+        [
+          "Games",
+          "a"
+        ]
+      ],
+      "uncategorized": false,
+      "total": 33,
+      "apps": [
+        {
+          "app": "Browser",
+          "totalMs": 13
+        },
+        {
+          "app": "\ue000",
+          "totalMs": 10
+        },
+        {
+          "app": "\ud800\udc00",
+          "totalMs": 10
+        }
+      ]
+    },
+    {
+      "paths": [
+        [
+          "GamesPlus"
+        ]
+      ],
+      "uncategorized": false,
+      "total": 40,
+      "apps": [
+        {
+          "app": "Browser",
+          "totalMs": 40
+        }
+      ]
+    },
+    {
+      "paths": [],
+      "uncategorized": true,
+      "total": 5,
+      "apps": [
+        {
+          "app": "Browser",
+          "totalMs": 5
+        }
+      ]
+    },
+    {
+      "paths": [],
+      "uncategorized": false,
+      "total": 0,
+      "apps": []
+    }
   ]
 }

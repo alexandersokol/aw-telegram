@@ -20,7 +20,10 @@ See `../docs/api-contract.md` for wire semantics and later-task invariants.
 See [enrollment security](../docs/enrollment-security.md) for the local owner CLI,
 recovery, consumer authorization requirements, IAM and emulator commands.
 
-There is no usage formatter yet. Today/yesterday must eventually show application
-names/durations for selected-category intervals. Complete/review the pending
-[contract/reader extension](../docs/application-usage-amendment.md) before Task 5
-sync or Task 7 formatting; current v1 DaySummary rejects app fields.
+Active v2 contracts now require app/category daily rows and provide exact current
+selection projections, including descending duration and Unicode scalar name ties.
+The [contract/reader extension](../docs/application-usage-amendment.md) is implemented
+and awaiting independent review. Archived v1 is immutable; legacy report caches
+require recollection. Task 4 enrollment/access still uses protocol v1.
+Task 5 storage/sync, whole-date bounded batching, and Task 7 usage formatting remain
+pending. No usage formatter exists yet.

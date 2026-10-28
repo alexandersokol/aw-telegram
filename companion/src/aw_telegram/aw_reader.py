@@ -4,6 +4,7 @@ The local fragment mirrors AW canonical desktop flood/filter/categorize machiner
 It deliberately does not import aw-client: published 0.5.15 lacks exact IDs, auth,
 and bounded transport, while a newer checkout advertises the same version.
 """
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import http.client
@@ -14,8 +15,8 @@ from typing import Callable, Protocol
 
 from .category_settings import CategorySettingsUnsupported, EffectiveCategories, resolve_categories
 from .clock import format_instant, kyiv_date, local_day_bounds, retained_dates
-from .counting import aggregate, category_record, leaf_records, normalize, selected_total
-from .models import DaySummary, LiveState, Settings, collection_start
+from .counting import aggregate, app_leaf_records, category_record, leaf_records, normalize, selected_total
+from .models import DaySummary, LiveState, Settings, collection_start, ensure_report_capacity, ReportCapacityExceeded
 
 
 class AWUnavailable(RuntimeError):
@@ -274,7 +275,8 @@ class AWReader:
             raise AWUnavailable(self.health.reason)
         if not capabilities.window_bucket_id or not capabilities.afk_bucket_id or not self._categories:
             raise AWUnsupported(self.health.reason or 'setup_required')
-        query, mapping = build_query(capabilities.window_bucket_id, capabilities.afk_bucket_id, self._categories)
+        categories = deepcopy(self._categories)
+        query, mapping = build_query(capabilities.window_bucket_id, capabilities.afk_bucket_id, categories)
         try:
             result = self.client.query(query, [(start, end)])
             if not isinstance(result, list) or len(result) != 1 or not isinstance(result[0], dict):
@@ -300,8 +302,16 @@ class AWReader:
                         category = sample
                     if category != expected:
                         raise AWUnsupported('server_rule_semantics_unsupported')
+            # Query uses explicit rules. Reject a detected change instead of
+            # associating its result with a later mutable reader revision.
+            try:
+                current_categories = resolve_categories(self.client.get_setting())
+            except CategorySettingsUnsupported:
+                raise AWUnsupported('rules_revision_changed') from None
+            if current_categories.revision != categories.revision:
+                raise AWUnsupported('rules_revision_changed')
             self._health('ready')
-            return result, mapping
+            return result, mapping, categories
         except AWUnavailable as exc:
             self._health('unavailable', str(exc))
             raise
@@ -320,7 +330,8 @@ class AWReader:
         lo, hi = max(start, paired), min(end, current)
         if lo >= hi:
             raise ValueError('no paired collection interval')
-        result, mapping = self._read(lo, hi)
+        settings = deepcopy(self.settings)
+        result, mapping, categories = self._read(lo, hi)
         try:
             counted = aggregate(result['events'], result['window_raw'], result['afk_raw'], lo, hi, mapping, self.owned_foreground)
         except ValueError:
@@ -329,11 +340,18 @@ class AWReader:
         coverage = counted.coverage
         first, last = (coverage[0][0], coverage[-1][1]) if coverage else (None, None)
         partial = bool(counted.invalid_events or len(coverage) != 1 or first != day_start or last != min(day_end, current))
-        day_summary = DaySummary(day, leaf_records(counted.totals), sum(counted.totals.values()),
-                                 selected_total(counted.totals, [tuple(p) for p in self.settings.selectedPaths], self.settings.selectedUncategorized),
-                                 self.settings.revision, self._categories.revision,
-                                 format_instant(first) if first else None, format_instant(last) if last else None,
-                                 partial, self.sequence_provider())
+        candidate = dict(date=day, leafTotalsMs=leaf_records(counted.totals), appLeafTotalsMs=app_leaf_records(counted.app_totals),
+                         totalActiveMs=sum(counted.totals.values()),
+                         selectedTotalMs=selected_total(counted.totals, [tuple(p) for p in settings.selectedPaths], settings.selectedUncategorized),
+                         settingsRevision=settings.revision, rulesRevision=categories.revision,
+                         availableFrom=format_instant(first) if first else None, availableThrough=format_instant(last) if last else None,
+                         partial=partial, sequence=self.sequence_provider())
+        try:
+            ensure_report_capacity(candidate)
+        except ReportCapacityExceeded:
+            self._health('unsupported', 'report_capacity_exceeded')
+            raise
+        day_summary = DaySummary.from_wire(candidate)
         self._health('partial' if partial else 'ready')
         self.last_summary = day_summary
         return day_summary
@@ -349,7 +367,7 @@ class AWReader:
         if start >= now:
             return unknown()
         try:
-            result, mapping = self._read(start, now)
+            result, mapping, categories = self._read(start, now)
             windows, bad_window = normalize(result['window_raw'], start, now, 'window')
             statuses, bad_afk = normalize(result['afk_raw'], start, now, 'afk')
             if bad_window or bad_afk or not windows or not statuses:
@@ -361,7 +379,7 @@ class AWReader:
                 return unknown()
             observed = format_instant(min(now, window.end, status.end).replace(microsecond=min(now, window.end, status.end).microsecond//1000*1000))
             if status.data['status'] == 'afk':
-                return LiveState(observed, 'afk', None, None, None, self._categories.revision, self._categories.catalog)
+                return LiveState(observed, 'afk', None, None, None, categories.revision, categories.catalog)
             canonical, invalid = normalize(result['events'], start, now, 'window')
             matching = [s for s in canonical if s.start < min(window.end, status.end) <= s.end and s.data.get('app') == window.data['app'] and s.data.get('title', '') == window.data.get('title', '')]
             if invalid or not matching:
@@ -374,7 +392,7 @@ class AWReader:
                 raise AWUnsupported('invalid_server_categories')
             # Unicode scalar wire limits; AW input surrogates are replaced locally.
             clean = lambda text, limit: ''.join(c if not 0xD800 <= ord(c) <= 0xDFFF else '\ufffd' for c in text)[:limit]
-            return LiveState(observed, 'active', clean(window.data['app'], 256), clean(window.data.get('title', ''), 1000), category_record(path), self._categories.revision, self._categories.catalog)
+            return LiveState(observed, 'active', window.data['app'], clean(window.data.get('title', ''), 1000), category_record(path), categories.revision, categories.catalog)
         except AWUnsupported as exc:
             self._health('unsupported', str(exc))
             return unknown()

@@ -2,9 +2,9 @@
 import json
 from pathlib import Path
 
-DEST = Path(__file__).resolve().parent / 'v1'
+DEST = Path(__file__).resolve().parent / 'v2'
 DEST.mkdir(parents=True, exist_ok=True)
-BASE = 'https://aw-telegram.invalid/contracts/v1/'
+BASE = 'https://aw-telegram.invalid/contracts/v2/'
 def ref(name): return {'$ref': BASE + 'shared.schema.json#/$defs/' + name}
 def obj(properties): return {'type':'object','properties':properties,'required':list(properties),'additionalProperties':False}
 def string(lo=1, hi=1000): return {'type':'string','minLength':lo,'maxLength':hi}
@@ -30,11 +30,12 @@ defs = {
  # 16 * (256 * 6 + 2) + 15 commas + 2 brackets: worst JSON escaped path.
  'CategoryRef':obj({'id':string(1,24625),'path':nullable(ref('CategoryPath'))}),
  'LeafTotal':obj({'category':ref('CategoryRef'),'totalMs':ref('DurationMs')}),
+ 'AppLeafTotal':obj({'app':string(1,256),'categoryId':string(1,24625),'totalMs':integer(1)}),
  'Settings':obj({'revision':ref('Counter'),'selectedPaths':array(ref('CategoryPath'),256),
     'selectedUncategorized':{'type':'boolean'},'defaultLimitMs':ref('DurationMs'),
     'todayOverride':nullable(obj({'date':ref('LocalDate'),'limitMs':ref('DurationMs')})),
     'freeUseDate':nullable(ref('LocalDate')),'suppressedDate':nullable(ref('LocalDate'))}),
- 'DaySummary':obj({'date':ref('LocalDate'),'leafTotalsMs':array(ref('LeafTotal'),1024),
+ 'DaySummary':obj({'date':ref('LocalDate'),'leafTotalsMs':array(ref('LeafTotal'),1024),'appLeafTotalsMs':array(ref('AppLeafTotal'),4096),
     'totalActiveMs':ref('DurationMs'),'selectedTotalMs':ref('DurationMs'),'settingsRevision':ref('Counter'),
     'rulesRevision':string(1,128),'availableFrom':nullable(ref('Instant')),'availableThrough':nullable(ref('Instant')),
     'partial':{'type':'boolean'},'sequence':ref('Counter')}),
@@ -61,10 +62,10 @@ defs['Ack']={'oneOf':[
 save('shared', {'$defs':defs})
 for name,definition in [('settings','Settings'),('day','DaySummary'),('action','Action'),('ack','Ack'),('live','LiveState'),('cancellations','Cancellations')]:
     save(name,ref(definition))
-request=obj({'schemaVersion':literal(1),'sequence':ref('Counter'),'summaries':array(ref('DaySummary'),7),
+request=obj({'schemaVersion':literal(2),'sequence':ref('Counter'),'summaries':array(ref('DaySummary'),7),
              'live':ref('LiveState'),'acks':array(ref('Ack'),100)})
 request['required']=['schemaVersion','sequence','acks']
 save('sync-request',request)
-save('sync-response',obj({'schemaVersion':literal(1),'requestSequence':ref('Counter'),'serverNow':ref('Instant'),
+save('sync-response',obj({'schemaVersion':literal(2),'requestSequence':ref('Counter'),'serverNow':ref('Instant'),
     'collectionStartedAt':nullable(ref('Instant')),'settings':ref('Settings'),'cancellations':ref('Cancellations'),
     'deliveryOffers':array(ref('Action'),100),'acknowledgedAckIds':array(ref('Uuid'),100)}))

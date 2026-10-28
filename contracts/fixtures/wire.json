@@ -101,7 +101,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": true
   },
@@ -118,7 +125,8 @@
       "availableFrom": null,
       "availableThrough": null,
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": []
     },
     "valid": true
   },
@@ -135,7 +143,8 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": false,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": []
     },
     "valid": true
   },
@@ -160,7 +169,14 @@
       "availableFrom": "2026-10-24T21:00:00.000Z",
       "availableThrough": "2026-10-25T22:00:00.000Z",
       "partial": false,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "uncategorized",
+          "totalMs": 90000000
+        }
+      ]
     },
     "valid": true
   },
@@ -248,7 +264,7 @@
     "name": "sync request",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -272,7 +288,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -321,7 +344,7 @@
     "name": "sync response",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -367,7 +390,7 @@
     "name": "unpaired control exchange",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": null,
@@ -396,7 +419,7 @@
     "name": "heartbeat before pairing",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 0,
       "acks": []
     },
@@ -1167,7 +1190,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "Games/a",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1194,7 +1224,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "uncategorized",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1232,7 +1269,19 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        },
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1260,7 +1309,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1288,7 +1344,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1316,7 +1379,14 @@
       "availableFrom": "2026-10-26T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1344,7 +1414,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T08:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1372,7 +1449,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": null,
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1389,7 +1473,8 @@
       "availableFrom": null,
       "availableThrough": null,
       "partial": false,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": []
     },
     "valid": false
   },
@@ -1418,7 +1503,14 @@
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
       "sequence": 88,
-      "title": "forbidden"
+      "title": "forbidden",
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
     },
     "valid": false
   },
@@ -1704,7 +1796,7 @@
     "name": "unknown version",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "sequence": 17,
       "summaries": [
         {
@@ -1728,7 +1820,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -1777,7 +1876,7 @@
     "name": "no caller selected device",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -1801,7 +1900,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -1851,7 +1957,7 @@
     "name": "deep unknown receipt field",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -1875,7 +1981,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -1925,7 +2038,7 @@
     "name": "unknown response field",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -1972,7 +2085,7 @@
     "name": "duplicate ACK IDs",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -1996,7 +2109,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -2057,7 +2177,7 @@
     "name": "duplicate dates",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -2081,7 +2201,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         },
         {
           "date": "2026-10-27",
@@ -2104,7 +2231,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -2436,7 +2570,8 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": []
     },
     "valid": false
   },
@@ -2463,7 +2598,14 @@
       "availableFrom": "2026-10-27T08:00:00.000Z",
       "availableThrough": "2026-10-27T09:00:00.000Z",
       "partial": true,
-      "sequence": 88
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\"]",
+          "totalMs": true
+        }
+      ]
     },
     "valid": false
   },
@@ -2534,7 +2676,7 @@
     "name": "negative request sequence",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": -1,
       "summaries": [
         {
@@ -2558,7 +2700,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -2678,7 +2827,7 @@
     "name": "no receipt batch over transport bound",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -2702,7 +2851,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -4062,7 +4218,7 @@
     "name": "sync receipt ID trailing LF",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -4086,7 +4242,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -4135,7 +4298,7 @@
     "name": "acknowledged receipt reference trailing LF",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4181,7 +4344,7 @@
     "name": "offered action ID trailing LF",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4227,7 +4390,7 @@
     "name": "offered actor ID trailing LF",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4384,7 +4547,7 @@
     "name": "sync receipt ID trailing CR",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -4408,7 +4571,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -4457,7 +4627,7 @@
     "name": "acknowledged receipt reference trailing CR",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4503,7 +4673,7 @@
     "name": "offered action ID trailing CR",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4549,7 +4719,7 @@
     "name": "offered actor ID trailing CR",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4706,7 +4876,7 @@
     "name": "sync receipt ID trailing CRLF",
     "contract": "sync-request",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "sequence": 17,
       "summaries": [
         {
@@ -4730,7 +4900,14 @@
           "availableFrom": "2026-10-27T08:00:00.000Z",
           "availableThrough": "2026-10-27T09:00:00.000Z",
           "partial": true,
-          "sequence": 88
+          "sequence": 88,
+          "appLeafTotalsMs": [
+            {
+              "app": "fixture-app",
+              "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+              "totalMs": 60000
+            }
+          ]
         }
       ],
       "live": {
@@ -4779,7 +4956,7 @@
     "name": "acknowledged receipt reference trailing CRLF",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4825,7 +5002,7 @@
     "name": "offered action ID trailing CRLF",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4871,7 +5048,7 @@
     "name": "offered actor ID trailing CRLF",
     "contract": "sync-response",
     "value": {
-      "schemaVersion": 1,
+      "schemaVersion": 2,
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
@@ -4909,6 +5086,930 @@
       ],
       "acknowledgedAckIds": [
         "22222222-2222-4222-8222-222222222222"
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "legacy category-only day rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88
+    },
+    "valid": false
+  },
+  {
+    "name": "legacy sync rejected",
+    "contract": "sync-request",
+    "value": {
+      "schemaVersion": 1,
+      "sequence": 1,
+      "acks": []
+    },
+    "valid": false
+  },
+  {
+    "name": "v2 minimal sync",
+    "contract": "sync-request",
+    "value": {
+      "schemaVersion": 2,
+      "sequence": 1,
+      "acks": []
+    },
+    "valid": true
+  },
+  {
+    "name": "invalid app identity ''",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app identity 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app identity '\\ud800'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "\ud800",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app identity 7",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": 7,
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app identity None",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": null,
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "exact app '\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app ' Unknown '",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": " Unknown ",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app 'Unknown'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "Unknown",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app 'app'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app 'APP'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "APP",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app '\u00e9'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "\u00e9",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app 'e\u0301'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "e\u0301",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app '\\ue000'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "\ue000",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "exact app '\ud800\udc00'",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "\ud800\udc00",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "invalid app milliseconds 0",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 0
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app milliseconds -1",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": -1
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app milliseconds 0.5",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 0.5
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app milliseconds 9007199254740992",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 9007199254740992
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "invalid app milliseconds True",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": true
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "app row duplicate rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 30000
+        },
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 30000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "app row orphan rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "uncategorized",
+          "totalMs": 60000
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "app row mismatch rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 59999
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "app row empty rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": []
+    },
+    "valid": false
+  },
+  {
+    "name": "app row title rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000,
+          "title": "private historical text"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "app row url rejected",
+    "contract": "day",
+    "value": {
+      "date": "2026-10-27",
+      "leafTotalsMs": [
+        {
+          "category": {
+            "id": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+            "path": [
+              "Games",
+              "a/b~\"\\\ud83d\ude00"
+            ]
+          },
+          "totalMs": 60000
+        }
+      ],
+      "totalActiveMs": 60000,
+      "selectedTotalMs": 60000,
+      "settingsRevision": 3,
+      "rulesRevision": "rules-v1",
+      "availableFrom": "2026-10-27T08:00:00.000Z",
+      "availableThrough": "2026-10-27T09:00:00.000Z",
+      "partial": true,
+      "sequence": 88,
+      "appLeafTotalsMs": [
+        {
+          "app": "fixture-app",
+          "categoryId": "[\"Games\",\"a/b~\\\"\\\\\ud83d\ude00\"]",
+          "totalMs": 60000,
+          "url": "private historical text"
+        }
       ]
     },
     "valid": false

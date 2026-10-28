@@ -1,8 +1,9 @@
 # Application-name usage amendment
 
-Status: requested and authorized on 2026-10-27; reporting extension pending.
+Status: authorized on 2026-10-27; contract/reader extension implemented on
+2026-10-28, independent review approved. Storage/sync and bot formatting remain pending.
 This supersedes earlier category-only report and no-app-breakdown wording.
-It does not claim that app reports, synchronization, or bot formatting exist.
+Application aggregates and pure projections exist; no user-facing usage formatter exists.
 
 ## Required report behavior
 
@@ -32,43 +33,33 @@ Existing category-change, warning, suppression and milestone rules still apply.
 
 ## Mandatory extension checkpoint before Task 5 and Task 7
 
-The current v1 `DaySummary`, JSON schemas, Python/TypeScript validators and AW
-reader contain leaf-category totals only. Unknown fields are rejected, including
-app fields in a daily summary. `bot/src` currently contains `contracts.ts` and
-`clock.ts`; no usage formatter exists to fix. No contract or adapter code is
-changed by this documentation amendment.
+The active schema/domain/sync version is now v2. `contracts/v1` remains immutable
+and rejects app fields. Active v2 rejects category-only days and v1 sync envelopes;
+Task 4 enrollment/access endpoints retain their separate protocol v1.
 
-Before Task 5 persists/synchronizes reports or Task 7 implements `renderUsage`,
-complete and review this extension to Tasks 2–3:
-
-- [ ] Review and record a schema-version/compatibility decision. Decide whether
-  to introduce a new version or a coordinated replacement of the current closed
-  contract, including explicit handling of category-only persisted/wire snapshots.
-  Do not silently accept app fields under the unchanged v1 validators or label
-  older snapshots as complete app reports.
-- [ ] Define daily application × disjoint leaf-category duration aggregates,
-  alongside the existing leaf totals, as the preferred sufficient representation.
-  Use the AW app value, exact category references and integer milliseconds; do not
-  retain event timestamps, per-event records, historical window titles or URLs.
-  Specify uniqueness, app identity validation and unavailable-identity/coverage
-  semantics. Verify consistency of app aggregates, leaf totals and selected totals;
-  complete measured data must reconcile exactly, otherwise report partial/unknown.
-- [ ] Extend canonical schema generation, packaged schema assets, Python models
-  and validation/selection helpers, TypeScript types/validators/helpers, and shared
-  positive/negative fixtures together. Preserve rulesRevision, settingsRevision,
-  sequence ordering per date, coverage intervals/partial flags, pairing clipping,
-  strict unknown-field rejection, seven Kyiv dates and the 128 KiB raw UTF-8 JSON body
-  bound. Review bounded app/category cardinality and batch sizing so an extension
-  cannot silently truncate rows or exceed the transport cap.
-- [ ] Extend AW counting/reader output using the same conservative disjoint
-  foreground × not-AFK × category intervals used for leaf totals. Apply the same
-  rules revision and evidence checks. Exercise app spanning selected/unselected
-  leaves, overlapping parent/child selections, opt-in uncategorized, AFK/background
-  exclusion, pre-pairing clipping, missing data and changed category selections.
-- [ ] Validate cross-language fixtures for exact row/selected-total reconciliation,
-  revision races, unknown identity/coverage, incompatible/legacy summaries,
-  retained-date boundaries and payload-size failures. Review the checkpoint before
-  dependent storage, sync or formatters proceed.
+- [x] Coordinated pre-release v2 cutover recorded. Task 5 must invalidate and
+  recollect incompatible v1 report caches after pairing, preserving settings,
+  credentials, command/receipt state and monotonic counters. No fake app rows or
+  runtime negotiation/migration framework is provided.
+- [x] Required `appLeafTotalsMs:[{app,categoryId,totalMs}]` uses the exact AW app
+  identity, 1–256 Unicode scalars, and positive safe-integer durations. Each pair
+  is unique, references one exact leaf and reconciles exactly. Limits: 1024 leaves,
+  256 distinct apps, 4096 pairs. No historical timestamps, titles or URLs are stored.
+- [x] Canonical v2/package schemas, Python/TS models, validators, selection helpers,
+  shared fixtures and bundle checks updated together. Pure projections derive
+  current totals/app rows without rewriting source settings revision. Scalar name
+  ties sort identically across languages; ancestors/descendants count once.
+- [x] Counting emits apps and leaves in the same conservative measured-span loop.
+  Invalid identity/AFK evidence remains unknown, including invalid later overlaps;
+  missing identity never becomes a fabricated `Unknown` app. Reader captures
+  settings/rules used for the query and rejects detected category revision changes.
+- [x] Focused regressions cover reconciliation, identity, selections, coverage,
+  clipping, races, immutable v1, bounds and oversized dates. A pure minimal-envelope
+  capacity preflight reports `report_capacity_exceeded` and retains the last valid
+  summary. Cardinality ceilings do not guarantee 131072-byte body fit.
+- [ ] Independent review before Task 5 storage/sync and Task 7 formatting. Whole-date
+  batching, sequential acknowledgment packing, durable sequence acceptance and
+  legacy cache migration are Task 5 work; presentation/escaping is Task 7 work.
 
 Task 5 must store and synchronize unfiltered category-attributed app aggregates,
 recompute selected app rows and totals under current settings even for a stale

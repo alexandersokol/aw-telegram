@@ -33,13 +33,17 @@ counting separately; they do not establish installed matching-rule behavior.
 The earlier LAN/source notes below are historical, not current laptop identity.
 
 Task 5 must supply durable collection-start/sequence storage and reviewed health
-sync behavior. Before Task 5 sync or Task 7 bot formatting, complete/review the
-pending [application-name usage extension](application-usage-amendment.md):
-version/compatibility decision, canonical/packaged schemas, Python/TS contracts and
-fixtures, and reader/counting app × leaf-category aggregates. Current v1 rejects
-app fields; current reader output is category-only and no bot formatter exists.
-Preserve rules/settings revisions, sequences, coverage, recomputation, retained
-dates and 128 KiB bounds. The countdown now uses #242424 alpha 179 background and
+sync behavior. The [application-name usage extension](application-usage-amendment.md)
+now implements active v2 canonical/packaged schemas, Python/TS contracts/helpers and
+fixtures, and reader/counting app × disjoint-category aggregates; independent review
+is pending. Archived v1 remains immutable/category-only; Task 4 enrollment/access
+stays protocol v1. Reader output captures settings/rules, preserves unknown coverage,
+and retains its prior summary on explicit `report_capacity_exceeded`. Pure projections
+recalculate current selection while preserving source revision. No usage formatter
+exists. Task 5 must invalidate/recollect legacy v1 report caches without losing
+pairing/settings/commands/receipts/counters, pack atomic whole dates and sequential
+acks within actual 131072-byte bodies, and enforce per-date sequences. Cardinality
+ceilings alone do not guarantee byte fit. The countdown now uses #242424 alpha 179 background and
 opaque white text; real Qt rendering/lifecycle checks cover it. A fresh device
 contact must never imply fresh AW data, measured
 zero, or power-off. Task 4 enrollment/authentication/private pairing/revocation is
@@ -49,7 +53,7 @@ groups, build/bundle checks and a synthetic native Windows vault write/read/dele
 See [enrollment security](enrollment-security.md) for owner recovery, IAM, consumer
 guards, retained binding migration limits and development-tool audit findings.
 No persistent collection loop, Telegram webhook/menu/delivery, packaged executable
-or cloud deployment exists yet. Continue after the usage amendment,
+or cloud deployment exists yet. Continue after the extension's independent review,
 carrying all pending Windows game acceptance gates forward. Do not deploy, send
 Telegram messages, or modify the separate ActivityWatch source/config/data roots.
 

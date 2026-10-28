@@ -1,4 +1,4 @@
-"""Strict shared v1 wire validation and small domain value objects.
+"""Strict shared v2 wire validation and small domain value objects.
 
 Shape validation does not authenticate a sender or prove a local clock honest.
 Context helpers are pure invariants for later authenticated transaction handlers.
@@ -17,7 +17,7 @@ from .windows.foreground import PresentationResult  # shared existing domain typ
 
 MAX_SAFE_INTEGER = 9007199254740991
 MAX_BODY_BYTES = 131072
-_BASE = 'https://aw-telegram.invalid/contracts/v1/'
+_BASE = 'https://aw-telegram.invalid/contracts/v2/'
 _SCHEMAS = {p.name.removesuffix('.schema.json'): json.loads(p.read_text(encoding='utf-8'))
             for p in files('aw_telegram').joinpath('schemas').iterdir() if p.name.endswith('.schema.json')}
 _REGISTRY = Registry().with_resources((s['$id'], Resource.from_contents(s)) for s in _SCHEMAS.values())
@@ -126,6 +126,78 @@ def selected_total(leaves: list[dict], selected_paths: list[list[str]], selected
     return total
 
 
+def _reconcile_apps(leaves: list[dict], rows: list[dict]) -> None:
+    expected = {leaf['category']['id']: leaf['totalMs'] for leaf in leaves}
+    sums = dict.fromkeys(expected, 0)
+    pairs = set()
+    apps = set()
+    for row in rows:
+        app, category_id = row['app'], row['categoryId']
+        pair = (app, category_id)
+        if category_id not in expected or pair in pairs:
+            raise ValueError('orphan or duplicate app/category row')
+        pairs.add(pair)
+        apps.add(app)
+        sums[category_id] += row['totalMs']
+    if len(apps) > 256 or sums != expected:
+        raise ValueError('invalid application reconciliation or cardinality')
+
+
+def selected_app_totals(leaves: list[dict], rows: list[dict], selected_paths: list[list[str]],
+                        selected_uncategorized: bool) -> list[dict]:
+    """Project exact applications from unfiltered, reconciled disjoint evidence."""
+    _primitives([leaves, rows])
+    for values, name, maximum in [(leaves, 'LeafTotal', 1024), (rows, 'AppLeafTotal', 4096)]:
+        schema = {'type':'array', 'maxItems':maximum, 'items':{'$ref':_BASE+'shared.schema.json#/$defs/'+name}}
+        if not Draft7Validator(schema, registry=_REGISTRY).is_valid(values):
+            raise ValueError('invalid aggregate shape')
+    # Validate leaf identities, duplicates and the same selection predicate.
+    selected_total(leaves, selected_paths, selected_uncategorized)
+    for path in selected_paths:
+        category_key(path)
+    _reconcile_apps(leaves, rows)
+    chosen = {leaf['category']['id'] for leaf in leaves
+              if selected_total([leaf], selected_paths, selected_uncategorized) > 0}
+    totals = {}
+    for row in rows:
+        if row['categoryId'] in chosen:
+            totals[row['app']] = totals.get(row['app'], 0) + row['totalMs']
+    # Python str comparison is lexicographic Unicode scalar ordering.
+    return [{'app':app, 'totalMs':total} for app,total in sorted(totals.items(), key=lambda x:(-x[1], x[0]))]
+
+
+def project_day(day: dict, settings: dict) -> dict:
+    """Keep source revision/evidence intact while deriving current selected usage."""
+    day, settings = validate_contract('day', day), validate_contract('settings', settings)
+    total = selected_total(day['leafTotalsMs'], settings['selectedPaths'], settings['selectedUncategorized'])
+    if day['settingsRevision'] == settings['revision'] and day['selectedTotalMs'] != total:
+        raise ValueError('selected total disagrees with known settings')
+    apps = selected_app_totals(day['leafTotalsMs'], day['appLeafTotalsMs'], settings['selectedPaths'], settings['selectedUncategorized'])
+    return {'sourceSettingsRevision':day['settingsRevision'], 'settingsRevision':settings['revision'],
+            'selectedTotalMs':total, 'appTotalsMs':apps}
+
+
+class ReportCapacityExceeded(ValueError):
+    def __init__(self):
+        super().__init__('report_capacity_exceeded')
+
+
+def ensure_report_capacity(day: dict, sequence: int = MAX_SAFE_INTEGER) -> None:
+    """Preflight one atomic day in a minimal active sync body, never truncate it.
+
+    Task5 must still pack and bound the actual UTF-8 envelope, acks and live data.
+    The default reserves the largest possible request sequence's encoded width.
+    """
+    _primitives(day)
+    rows = day.get('appLeafTotalsMs', [])
+    if (len(day.get('leafTotalsMs', [])) > 1024 or len(rows) > 4096
+            or len({r['app'] for r in rows if isinstance(r, dict) and isinstance(r.get('app'), str)}) > 256):
+        raise ReportCapacityExceeded()
+    request = validate_contract('sync-request', {'schemaVersion':2, 'sequence':sequence, 'acks':[], 'summaries':[day]})
+    if len(json.dumps(request, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8')) > MAX_BODY_BYTES:
+        raise ReportCapacityExceeded()
+
+
 def _semantics(name: str, v: dict) -> None:
     if name == 'settings':
         _unique([category_key(p) for p in v['selectedPaths']], 'selected path')
@@ -133,6 +205,7 @@ def _semantics(name: str, v: dict) -> None:
         for leaf in v['leafTotalsMs']:
             _category(leaf['category'])
         _unique([x['category']['id'] for x in v['leafTotalsMs']], 'leaf category')
+        _reconcile_apps(v['leafTotalsMs'], v['appLeafTotalsMs'])
         total = sum(x['totalMs'] for x in v['leafTotalsMs'])
         if total != v['totalActiveMs'] or not 0 <= v['selectedTotalMs'] <= total:
             raise ValueError('invalid disjoint totals')
@@ -211,6 +284,8 @@ def validate_contract(name: str, value: Any) -> dict:
     if name not in _VALIDATORS:
         raise ValueError('unknown contract')
     _primitives(value)
+    if name in ('sync-request', 'sync-response') and isinstance(value, dict) and type(value.get('schemaVersion')) is int and value['schemaVersion'] != 2:
+        raise ValueError('unsupported sync schema version')
     errors = _VALIDATORS[name].iter_errors(value)
     first = next(errors, None)
     if first is not None:
@@ -311,6 +386,7 @@ class DaySummary(WireModel):
     contract: ClassVar[str] = 'day'
     date: str
     leafTotalsMs: list[dict]
+    appLeafTotalsMs: list[dict]
     totalActiveMs: int
     selectedTotalMs: int
     settingsRevision: int

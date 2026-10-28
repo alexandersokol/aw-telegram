@@ -23,7 +23,7 @@
 - Mandatory buttonless duration; repeat after dismissal, end at Kyiv midnight; no OS lock/tamper resistance.
 - No bot token or cloud admin credentials on laptop; cloud reports only, latest title overwritten in place.
 - Daily app names/durations may be retained as category-attributed aggregates for retained dates; app rows sum to selected total for complete data, otherwise explicitly partial/unknown.
-- Complete the reviewed application-usage contract/reader extension below before Task 5 sync or Task 7 formatting; current v1 rejects app fields.
+- Review the implemented v2 application-usage contract/reader extension below before Task 5 sync or Task 7 formatting; archived v1 rejects app fields.
 - Modify only aw-telegram files; no changes to submodule pins/root build without a separate reason.
 - Exact library patches locked during implementation; root runtime pins do not apply.
 
@@ -174,27 +174,34 @@ checkout exact-ID/auth/timeout capabilities. Included in the reviewed implementa
 
 ## Required amendment checkpoint: application-name usage (Tasks 2–3 extension)
 
-Status: pending, authorized on 2026-10-27. Read the binding
+Status: implemented on 2026-10-28; independent review approved. Read the binding
 [application-usage-amendment.md](application-usage-amendment.md) before proceeding.
-The implemented DaySummary/schema/reader remain category-only. Bot source has
-contracts and clock helpers, no report formatter; no report implementation is
-completed by this amendment. Task 4 can proceed independently, but Task 5 and
-Task 7 depend on this reviewed extension:
+The active v2 DaySummary/schema/reader now carries exact app × disjoint-category
+aggregates; immutable v1 remains category-only. Task 4 enrollment/access keeps
+protocol v1. Storage/sync and the report formatter remain pending. Task 5 and
+Task 7 use this reviewed extension:
 
-- [ ] Record the version/compatibility decision for the closed existing v1 schema
+- [x] Record the version/compatibility decision for the closed existing v1 schema
   and category-only persisted summaries; do not silently add wire fields.
-- [ ] Extend canonical/packaged schemas, Python models/validation, TS types and
+- [x] Extend canonical/packaged schemas, Python models/validation, TS types and
   validators/helpers, shared fixtures and AW reader/counting with daily unfiltered
   app × disjoint leaf-category aggregates alongside existing leaf totals.
-- [ ] Preserve retained dates, immutable pairing start, rules/settings revisions,
+- [x] Preserve retained dates, immutable pairing start, rules/settings revisions,
   per-date sequence, coverage/partial semantics, exact selection recomputation and
   128 KiB requests; review app/category bounds and batch sizing without silent loss.
-- [ ] Verify names/durations descending, app spanning selected/unselected leaves,
+- [x] Verify names/durations descending, app spanning selected/unselected leaves,
   descendants counted once, opt-in uncategorized, no AFK/background/pre-pairing
   time, exact complete app-row/selected-total equality, explicit partial/unknown,
   and category edits recomputed from category-attributed aggregates.
-- [ ] Review cross-language schema/fixture/reader compatibility before Task 5 sync
+- [x] Review cross-language schema/fixture/reader compatibility before Task 5 sync
   and Task 7 formatting. Keep historical window titles/events/URLs prohibited.
+
+The reader and pure helpers reject invalid identity/reconciliation and detected
+rules races, preserve the source settings revision, and preflight one atomic day
+inside a minimal v2 body. `report_capacity_exceeded` retains the last valid summary.
+Limits of 256 apps/4096 pairs do not guarantee 131072-byte fit. Task 5 must migrate
+legacy report caches by invalidation/recollection, preserve non-report state, and
+pack whole dates/acknowledgments sequentially under the actual body cap.
 
 Timer amendment: the top-left countdown now paints #242424 at alpha 179 with
 opaque white text; the real Qt rendering regression and existing lifecycle tests

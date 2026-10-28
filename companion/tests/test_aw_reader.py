@@ -50,10 +50,63 @@ def test_summary_clips_first_pairing_and_uses_contract_and_provider_sequence():
     assert d.totalActiveMs==d.selectedTotalMs==40000
     assert d.sequence==17 and d.settingsRevision==4 and d.partial
     assert d.availableFrom=='2026-10-27T08:00:20.000Z'
-    query=c.calls[-1][0]
+    assert d.appLeafTotalsMs==[{'app':'game','categoryId':'["Fun","Games"]','totalMs':40000}]
+    query=next(call[0] for call in c.calls if isinstance(call,tuple))
     assert 'find_bucket' not in query and 'audible' not in query and 'get_classes' not in query
     assert 'query_bucket("window")' in query and 'query_bucket("afk")' in query
     with pytest.raises(ValueError):r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+
+
+def test_summary_captures_settings_and_rules_used_by_query_and_rejects_rule_race():
+    c=Client(); selected=[['Fun']]
+    r=reader(c,collection_started_at=BASE,settings=Settings(revision=4,selectedPaths=selected))
+    query=c.query
+    def change_settings(q,t):
+        result=query(q,t)
+        selected.clear()
+        r.settings=Settings(revision=5)
+        return result
+    c.query=change_settings
+    before=r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+    assert before.settingsRevision==4 and before.selectedTotalMs==60000
+    assert before.rulesRevision==module().resolve_categories(c.settings).revision
+    def race(q,t):
+        result=query(q,t)
+        c.settings={'classes':[category(['Changed'])]}
+        r.probe()  # A later call must not relabel the earlier query's result.
+        return result
+    c.query=race
+    with pytest.raises(module().AWUnsupported,match='rules_revision_changed'):
+        r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+    assert r.last_summary is before and r.health.reason=='rules_revision_changed'
+
+
+@pytest.mark.parametrize('side',['raw','canonical','both'])
+def test_missing_identity_preserves_only_measured_subtotal_and_all_unknown(side):
+    c=Client(); r=reader(c,collection_started_at=BASE)
+    c.windows=[event(0,30,app='Unknown'),event(30,30,app='game')]
+    c.canonical=[dict(e,data={**e['data'],'$category':['awtg:Fun','awtg:Games']}) for e in c.windows]
+    targets=([c.windows] if side=='raw' else [c.canonical] if side=='canonical' else [c.windows,c.canonical])
+    for events in targets: del events[0]['data']['app']
+    day=r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+    assert day.totalActiveMs==30000 and day.partial
+    assert day.appLeafTotalsMs==[{'app':'game','categoryId':'["Fun","Games"]','totalMs':30000}]
+    for events in targets: del events[1]['data']['app']
+    day=r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+    assert day.totalActiveMs==0 and day.appLeafTotalsMs==[] and day.leafTotalsMs==[]
+    assert day.availableFrom is None and day.availableThrough is None and day.partial
+
+
+@pytest.mark.parametrize('oversize',['apps','bytes'])
+def test_report_capacity_failure_keeps_last_valid_summary(oversize):
+    c=Client(); r=reader(c,collection_started_at=BASE)
+    previous=r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+    names=[f'app{i}' for i in range(257)] if oversize=='apps' else ['😀'*255+chr(0x1000+i) for i in range(256)]
+    c.windows=[event(i/10,.1,app=name) for i,name in enumerate(names)]
+    c.canonical=[dict(e,data={**e['data'],'$category':['awtg:Fun','awtg:Games']}) for e in c.windows]
+    with pytest.raises(ValueError,match='report_capacity_exceeded'):
+        r.summarize(BASE,BASE+timedelta(seconds=60),BASE)
+    assert r.last_summary is previous and r.health.state=='unsupported' and r.health.reason=='report_capacity_exceeded'
 
 def test_metadata_ignores_remote_synced_imported_and_requires_explicit_ambiguity():
     c=Client(); c.buckets.update({'synced':{'id':'synced-synced-from-other','type':'currentwindow','client':'aw-watcher-window','hostname':'test'},'import':{'id':'import','type':'currentwindow','client':'importer','hostname':'test'},'remote':{'id':'remote','type':'currentwindow','client':'aw-watcher-window','hostname':'other'}})
@@ -87,7 +140,7 @@ def test_empty_categories_query_has_no_fallback_and_legitimate_uncategorized_is_
     c=Client({'classes':[]}); c.canonical=[event(0,60,app='game',title='Game')]
     d=reader(c,collection_started_at=BASE).summarize(BASE,BASE+timedelta(seconds=60),BASE)
     assert d.leafTotalsMs[0]['category']=={'id':'uncategorized','path':None}
-    assert 'categorize(events' not in c.calls[-1][0]
+    assert 'categorize(events' not in next(call[0] for call in c.calls if isinstance(call,tuple))
     c=Client({'classes':[category(['Uncategorized'])]});c.canonical=[event(0,60,app='game',title='Game',**{'$category':['awtg:Uncategorized']})]
     assert reader(c,collection_started_at=BASE).summarize(BASE,BASE+timedelta(seconds=60),BASE).leafTotalsMs[0]['category']['path']==['Uncategorized']
 

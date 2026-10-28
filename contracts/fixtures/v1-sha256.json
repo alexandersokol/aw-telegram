@@ -1,0 +1,11 @@
+{
+  "ack.schema.json": "f7d23703fde87de966213443d88ed948c4f968630736808e3232649c861b6317",
+  "action.schema.json": "a83f5da7c3a4cdea797deefdb085b6f7ec774e7d1829cd2f1248c2248b6eb1e5",
+  "cancellations.schema.json": "1f4313a75be59dfdbafcd36d5a3049ca3a5fb02df319498f6ebefac73b1b26b1",
+  "day.schema.json": "e71f53b845a8467874a011e63fafe1a8ff1399957cb161e8ccf4ef48a8cd66a5",
+  "live.schema.json": "83b7d0afc582a83e4d6154e02c318bf6471ada07c995fd6f5cae67bbfaebf520",
+  "settings.schema.json": "efd60a317bc30ee72438d5faee493ad9b62d05de63a9df12296faa5621feaaaf",
+  "shared.schema.json": "83f84fd22a51ba07c08036557053581ad4008b47e64fb26ad2683ad2791e71b8",
+  "sync-request.schema.json": "10e11ad9384d8a28fc65adc046b54bce4788b4e2117686d35a3c533e0e99e122",
+  "sync-response.schema.json": "e105983bbb6630f6bcddc753fd6f572f0b4e4bbe19ffe1aedc213ea9c0d73240"
+}

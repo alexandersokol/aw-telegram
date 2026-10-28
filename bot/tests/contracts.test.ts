@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { Ajv } from 'ajv';
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`../../contracts/fixtures/${name}.json`, import.meta.url), 'utf8'));
 // Dynamic imports permit a real missing-feature assertion during the initial RED run.
 async function api() {
@@ -7,7 +8,7 @@ async function api() {
   expect(existsSync(new URL('../src/clock.ts', import.meta.url)), 'Kyiv calendar helpers are not implemented').toBe(true);
   return { models: await import('../src/contracts.js'), clock: await import('../src/clock.js') };
 }
-describe('shared v1 contract', () => {
+describe('shared v2 contract', () => {
   it('accepts and rejects identical shared wire cases without mutation', async () => {
     const {models} = await api();
     for (const c of fixture('wire')) {
@@ -33,8 +34,8 @@ describe('shared v1 contract', () => {
   it('round trips exact category paths and counts overlapping ancestors once', async () => {
     const {models} = await api(); const c = fixture('selection');
     expect(models.categoryKey(c.escapedPath)).toBe(c.key);
-    expect(models.selectedTotal(c.leaves, c.selectedPaths, false)).toBe(30);
-    expect(models.selectedTotal(c.leaves, c.selectedPaths, true)).toBe(35);
+    expect(models.selectedTotal(c.leaves, c.selectedPaths, false)).toBe(33);
+    expect(models.selectedTotal(c.leaves, c.selectedPaths, true)).toBe(38);
     expect(models.selectedTotal(c.leaves, [], false)).toBe(0);
   });
   it('rejects duplicate keys and noninteger JSON without truncating scalar text', async () => {
@@ -70,4 +71,60 @@ describe('shared v1 contract', () => {
     expect(() => clock.retainedDates('1970-01-06T12:00:00.000Z')).toThrow();
     expect(() => clock.kyivDate('0001-01-01T12:00:00.000Z')).toThrow();
   });
+});
+
+function appDay(apps=1,pairs=1) {
+  const rows=Array.from({length:pairs},(_,i)=>({app:`a${i%apps}`,categoryId:`["c${Math.floor(i/apps)}"]`,totalMs:1}));
+  const leaves=Array.from({length:Math.ceil(pairs/apps)},(_,i)=>({category:{id:`["c${i}"]`,path:[`c${i}`]},totalMs:Math.min(apps,pairs-i*apps)}));
+  return {date:'2026-10-27',leafTotalsMs:leaves,appLeafTotalsMs:rows,totalActiveMs:pairs,selectedTotalMs:pairs,
+    settingsRevision:3,rulesRevision:'rules',availableFrom:'2026-10-27T08:00:00.000Z',availableThrough:'2026-10-27T09:00:00.000Z',partial:true,sequence:17};
+}
+it('projects exact unfiltered applications under edited settings with Unicode scalar ties',async()=>{
+  const {models}=await api(); const c=fixture('selection');
+  for(const p of c.projections) {
+    const rows=models.selectedAppTotals(c.leaves,c.appLeafTotalsMs,p.paths,p.uncategorized);
+    expect(rows).toEqual(p.apps);
+    expect(rows.reduce((n,r)=>n+r.totalMs,0)).toBe(models.selectedTotal(c.leaves,p.paths,p.uncategorized));
+    expect(models.selectedTotal(c.leaves,p.paths,p.uncategorized)).toBe(p.total);
+  }
+  const day={...appDay(),leafTotalsMs:c.leaves,appLeafTotalsMs:c.appLeafTotalsMs,totalActiveMs:78,selectedTotalMs:33};
+  const settings={...models.defaultSettings(),revision:4,selectedPaths:[['GamesPlus']]};
+  expect(models.projectDay(day,settings)).toEqual({sourceSettingsRevision:3,settingsRevision:4,selectedTotalMs:40,appTotalsMs:[{app:'Browser',totalMs:40}]});
+  expect(day.settingsRevision).toBe(3); expect(day.selectedTotalMs).toBe(33);
+  expect(()=>models.projectDay(day,{...settings,revision:3})).toThrow();
+  expect(models.projectDay(day,{...settings,revision:3,selectedPaths:c.selectedPaths}).selectedTotalMs).toBe(33);
+});
+it('separates application cardinality from the atomic whole-body UTF-8 bound',async()=>{
+  const {models}=await api();
+  for(const [apps,pairs,valid] of [[256,256,true],[257,257,false],[256,4096,true],[256,4097,false]] as const) {
+    const day=appDay(apps,pairs);
+    if(valid) expect(()=>models.validateContract('day',day)).not.toThrow();
+    else {
+      expect(()=>models.validateContract('day',day)).toThrow();
+      expect(()=>models.ensureReportCapacity(day)).toThrow('report_capacity_exceeded');
+    }
+  }
+  expect(()=>models.ensureReportCapacity(appDay(256,256))).not.toThrow();
+  expect(()=>models.ensureReportCapacity(appDay(256,4096))).toThrow('report_capacity_exceeded');
+  const day=appDay(9,9),path=Array(16).fill('😀"\\'.repeat(80));
+  const category={id:models.categoryKey(path),path};
+  day.leafTotalsMs=[{category,totalMs:9}];
+  day.appLeafTotalsMs.forEach((r,i)=>{r.categoryId=category.id;r.app='😀"\\'.repeat(80)+i;});
+  expect(()=>models.validateContract('day',day)).not.toThrow();
+  expect(()=>models.ensureReportCapacity(day)).toThrow('report_capacity_exceeded');
+  expect(models.parseJson(Buffer.from('{}'+' '.repeat(131070)))).toEqual({});
+  expect(()=>models.parseJson(Buffer.from('{}'+' '.repeat(131071)))).toThrow();
+});
+
+it('reuses compiled validation while repeatedly recalculating application projections',async()=>{
+  const {models}=await api(); const c=fixture('selection'),p=c.projections[0];
+  models.selectedAppTotals(c.leaves,c.appLeafTotalsMs,p.paths,p.uncategorized);
+  const compile=vi.spyOn(Ajv.prototype,'compile');
+  try {
+    for(let i=0;i<25;i++) expect(models.selectedAppTotals(c.leaves,c.appLeafTotalsMs,p.paths,p.uncategorized)).toEqual(p.apps);
+    const invalid=structuredClone(c.appLeafTotalsMs); invalid[0].totalMs=0;
+    expect(()=>models.selectedAppTotals(c.leaves,invalid,p.paths,p.uncategorized)).toThrow();
+    // A long-running sync/selection loop must not add new schemas per call.
+    expect(compile.mock.calls.length).toBeLessThanOrEqual(2);
+  } finally {compile.mockRestore();}
 });

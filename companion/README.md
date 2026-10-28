@@ -2,11 +2,19 @@
 
 Task 1 implements the Qt presentation shell: primary-monitor dimming overlay,
 notification card, countdown, and conservative Win32 presentation adapter. It has
-no backend, tray, autostart, pairing, or scheduler integration yet.
-Task 2 adds strict shared v1 contracts/dataclasses and explicit Kyiv calendar helpers;
+no tray, autostart, collection loop, or scheduler integration yet.
+Task 4 adds separate enrollment/access APIs and Windows credential storage.
+Task 2 adds strict shared contracts/dataclasses and explicit Kyiv calendar helpers;
 see [API contract](../docs/api-contract.md).
 Task 3 adds the read-only AW adapter and conservative active-time calculation;
 see [ActivityWatch evidence and limitations](../docs/activitywatch-validation.md).
+The app-usage extension now emits active v2 unfiltered app/category daily rows from
+the same measured spans as leaves, with captured settings/rules revisions. Invalid
+app identity remains unknown/partial; oversized atomic reports raise
+`report_capacity_exceeded` and preserve the last valid summary. Pure selection
+projections retain the source settings revision. Archived v1 reports require
+recollection; Task 5 storage/sync and Task 7 formatting are pending. Enrollment/access
+keeps protocol v1. Extension independent review is pending.
 Actual game fullscreen acceptance is pending; see
 [Windows validation](../docs/windows-validation.md).
 
@@ -22,7 +30,7 @@ python -m venv .venv
 ```
 
 All runtime, test, and editable-build dependencies are pinned in requirements.lock.
-Runtime dependencies are PySide6-Essentials, jsonschema and tzdata. Qt Addons
+Runtime dependencies are PySide6-Essentials, jsonschema, tzdata and keyring. Qt Addons
 and cloud libraries are deferred. The AW adapter uses standard-library HTTP and
 server query transforms; the published aw-client wheel lacks required endpoint
 safety capabilities. Optional source-fixture dependencies live in a separate

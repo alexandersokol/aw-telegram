@@ -22,6 +22,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 companion/.tmp/
+bot/.tmp/
 *.egg-info/
 # Node / Firebase
 node_modules/

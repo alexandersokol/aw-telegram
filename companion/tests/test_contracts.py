@@ -50,8 +50,8 @@ def test_selection_exact_paths_and_disjoint_descendants():
     models, _ = api()
     data = json.loads((FIXTURES / 'selection.json').read_text(encoding='utf-8'))
     assert models.category_key(data['escapedPath']) == data['key']
-    assert models.selected_total(data['leaves'], data['selectedPaths'], False) == 30
-    assert models.selected_total(data['leaves'], data['selectedPaths'], True) == 35
+    assert models.selected_total(data['leaves'], data['selectedPaths'], False) == 33
+    assert models.selected_total(data['leaves'], data['selectedPaths'], True) == 38
     assert models.selected_total(data['leaves'], [], False) == 0
 
 
@@ -122,3 +122,76 @@ def test_calendar_boundaries_keep_utc_representable_and_seven_dates():
         clock.format_instant(clock.parse_instant('2026-10-27T09:00:00.000Z').replace(microsecond=1))
     with pytest.raises(ValueError):
         clock.kyiv_date(clock.parse_instant('0001-01-01T12:00:00.000Z'))
+
+
+def app_day(apps=1, pairs=1):
+    rows = [{'app':f'a{i % apps}', 'categoryId':f'["c{i // apps}"]', 'totalMs':1} for i in range(pairs)]
+    leaves = []
+    for i in range((pairs+apps-1)//apps):
+        leaves.append({'category':{'id':f'["c{i}"]','path':[f'c{i}']},'totalMs':min(apps,pairs-i*apps)})
+    return dict(date='2026-10-27',leafTotalsMs=leaves,appLeafTotalsMs=rows,totalActiveMs=pairs,
+                selectedTotalMs=pairs,settingsRevision=3,rulesRevision='rules',availableFrom='2026-10-27T08:00:00.000Z',
+                availableThrough='2026-10-27T09:00:00.000Z',partial=True,sequence=17)
+
+
+def test_shared_application_projection_recalculates_unfiltered_rows_and_scalar_ties():
+    models, _ = api()
+    data = json.loads((FIXTURES / 'selection.json').read_text(encoding='utf-8'))
+    for c in data['projections']:
+        rows = models.selected_app_totals(data['leaves'], data['appLeafTotalsMs'], c['paths'], c['uncategorized'])
+        assert rows == c['apps']
+        assert sum(r['totalMs'] for r in rows) == models.selected_total(data['leaves'], c['paths'], c['uncategorized']) == c['total']
+    day = {**app_day(), 'leafTotalsMs':data['leaves'], 'appLeafTotalsMs':data['appLeafTotalsMs'],
+           'totalActiveMs':78, 'selectedTotalMs':33}
+    current = {**models.Settings().to_wire(), 'revision':4, 'selectedPaths':[['GamesPlus']]}
+    projected = models.project_day(day, current)
+    assert projected == dict(sourceSettingsRevision=3,settingsRevision=4,selectedTotalMs=40,appTotalsMs=[{'app':'Browser','totalMs':40}])
+    assert day['settingsRevision']==3 and day['selectedTotalMs']==33
+    with pytest.raises(ValueError): models.project_day(day, {**current,'revision':3})
+    assert models.project_day(day,{**current,'revision':3,'selectedPaths':data['selectedPaths']})['selectedTotalMs']==33
+
+
+def test_application_cardinality_and_atomic_day_capacity_are_separate_bounds():
+    models, _ = api()
+    for apps, pairs, valid in [(256,256,True),(257,257,False),(256,4096,True),(256,4097,False)]:
+        day = app_day(apps,pairs)
+        if valid: models.validate_contract('day', day)
+        else:
+            with pytest.raises(ValueError): models.validate_contract('day', day)
+            with pytest.raises(models.ReportCapacityExceeded,match='report_capacity_exceeded'): models.ensure_report_capacity(day)
+    models.ensure_report_capacity(app_day(256,256))
+    # Allowed row cardinality can still be unsendable as one atomic date.
+    with pytest.raises(models.ReportCapacityExceeded,match='report_capacity_exceeded'):
+        models.ensure_report_capacity(app_day(256,4096))
+    day=app_day(9,9); path=['😀"\\'*80]*16
+    category={'id':models.category_key(path),'path':path}
+    day['leafTotalsMs']=[{'category':category,'totalMs':9}]
+    for row in day['appLeafTotalsMs']: row['categoryId']=category['id']; row['app']='😀"\\'*80
+    # Preserve distinct exact identities rather than duplicate pairs.
+    for i,row in enumerate(day['appLeafTotalsMs']): row['app']+=str(i)
+    models.validate_contract('day',day)
+    with pytest.raises(models.ReportCapacityExceeded): models.ensure_report_capacity(day)
+    assert models.parse_json(b'{}'+b' '*131070)=={}
+    with pytest.raises(ValueError): models.parse_json(b'{}'+b' '*131071)
+
+
+def test_archived_v1_stays_immutable_and_rejects_app_fields_after_generation():
+    import hashlib
+    import subprocess
+    import sys
+    from jsonschema import Draft7Validator
+    from referencing import Registry, Resource
+    root=FIXTURES.parent.parent
+    expected=json.loads((FIXTURES/'v1-sha256.json').read_text())
+    before={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'contracts/v1').glob('*.json')}
+    assert before==expected
+    subprocess.run([sys.executable,str(root/'contracts/generate_schemas.py')],check=True)
+    assert {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'contracts/v1').glob('*.json')}==expected
+    schemas=[json.loads(p.read_text()) for p in (root/'contracts/v1').glob('*.json')]
+    registry=Registry().with_resources((s['$id'],Resource.from_contents(s)) for s in schemas)
+    archived=Draft7Validator(next(s for s in schemas if s['$id'].endswith('/day.schema.json')),registry=registry)
+    day=app_day(); assert not archived.is_valid(day)
+    del day['appLeafTotalsMs']; assert archived.is_valid(day)
+    packaged=Path(importlib.import_module('aw_telegram').__file__).parent/'schemas'
+    for p in (root/'contracts/v2').glob('*.json'):
+        assert p.read_bytes()==(packaged/p.name).read_bytes()

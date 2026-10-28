@@ -74,12 +74,14 @@ Use worker threads for IO; only the Qt main thread changes widgets.
 
 ## Shared contract and cloud documents
 
-Create contracts/v1/*.schema.json and fixtures/ for both language implementations.
+Active contracts are `contracts/v2/*.schema.json` with shared fixtures; v1 is an
+immutable category-only archive. Python and TypeScript use the coordinated v2 cutover.
 Use UTC ISO timestamps on the wire, integer milliseconds for durations, category
 paths as arrays of exact original segments, and Europe/Kyiv dates as YYYY-MM-DD.
 Represent uncategorized with a reserved category ID, not a translated label.
 Sync responses include nullable collectionStartedAt; before first pairing it
-is null and activity collection/upload is disabled. All requests have schemaVersion=1; reject unsupported versions and unknown fields
+is null and activity collection/upload is disabled. Sync has schemaVersion=2;
+Task 4 enrollment/access keeps protocol schemaVersion=1. Reject unsupported versions and unknown fields
 on security-sensitive envelopes. Limit request bodies to 128 KiB and messages to
 1000 characters. Paginate Telegram output below its message limit and escape HTML.
 
@@ -91,9 +93,9 @@ Documents (all scoped under devices/{deviceId} except global lookup collections)
   recurring allowance, today-only allowance/date, freeUseDate, suppressedDate.
   Initially select no categories: setup asks the parent to choose, never guesses
   translated category names or silently applies four hours to everything.
-- devices/{id}/days/{date}: leaf-category totals, selected total, availableFrom,
+- devices/{id}/days/{date}: leaf-category totals, app/category totals, selected total, availableFrom,
   availableThrough, partial/coverage flags, rules revision, snapshot sequence.
-  The required extension adds daily app × disjoint leaf-category aggregates;
+  The implemented v2 reader/contract extension supplies daily app × disjoint leaf-category aggregates;
   today/yesterday show names/durations from selected intervals only, with complete
   rows summing to the selected total. Week reports include total active time and
   selected-category time per date and overall. Missing coverage is partial/unknown.
@@ -126,13 +128,16 @@ outages; document that limitation. Overwrite live data without retaining revisio
 disable backups/PITR and request-body logging. Providers may retain infrastructure
 copies under their policies; no claim of cryptographic deletion or Telegram erasure.
 
-The current v1 schemas/models reject app fields in day summaries. Before Task 5
-sync or Task 7 bot formatting, complete and review the version/compatibility,
-schema, Python/TypeScript, fixtures and AW reader extension in
-[application-usage-amendment.md](application-usage-amendment.md). It retains
-daily app names/durations with category attribution under existing date, rules,
-sequence, coverage, recomputation and 128 KiB constraints. This design describes
-the target; this documentation amendment does not implement that extension.
+The v2 [application-usage extension](application-usage-amendment.md) is implemented;
+independent review is pending before Task 5 sync and Task 7 formatting. Exact app
+names use 1–256 Unicode scalars; positive-ms app/category pairs reconcile each leaf,
+with 256 distinct apps and 4096 pairs maximum. Missing identity/invalid timed
+evidence stays unknown. Pure projections retain source settings revision and use
+current category selection. One atomic day is preflighted inside a minimal
+131072-byte sync body; `report_capacity_exceeded` preserves the last valid summary.
+Task 5 must also bound actual whole-date batches/acks and invalidate/recollect
+category-only v1 report caches while preserving settings/pairing/receipts/counters.
+No storage migration, sync loop or usage formatter exists yet.
 
 ## Authentication, enrollment, and pairing
 

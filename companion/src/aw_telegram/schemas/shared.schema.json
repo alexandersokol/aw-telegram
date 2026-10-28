@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://aw-telegram.invalid/contracts/v1/shared.schema.json",
+  "$id": "https://aw-telegram.invalid/contracts/v2/shared.schema.json",
   "$defs": {
     "Counter": {
       "type": "integer",
@@ -55,7 +55,7 @@
         "path": {
           "anyOf": [
             {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/CategoryPath"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/CategoryPath"
             },
             {
               "type": "null"
@@ -73,10 +73,10 @@
       "type": "object",
       "properties": {
         "category": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/CategoryRef"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/CategoryRef"
         },
         "totalMs": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/DurationMs"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/DurationMs"
         }
       },
       "required": [
@@ -85,16 +85,42 @@
       ],
       "additionalProperties": false
     },
+    "AppLeafTotal": {
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24625
+        },
+        "totalMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "app",
+        "categoryId",
+        "totalMs"
+      ],
+      "additionalProperties": false
+    },
     "Settings": {
       "type": "object",
       "properties": {
         "revision": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
         },
         "selectedPaths": {
           "type": "array",
           "items": {
-            "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/CategoryPath"
+            "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/CategoryPath"
           },
           "minItems": 0,
           "maxItems": 256
@@ -103,7 +129,7 @@
           "type": "boolean"
         },
         "defaultLimitMs": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/DurationMs"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/DurationMs"
         },
         "todayOverride": {
           "anyOf": [
@@ -111,10 +137,10 @@
               "type": "object",
               "properties": {
                 "date": {
-                  "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/LocalDate"
+                  "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LocalDate"
                 },
                 "limitMs": {
-                  "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/DurationMs"
+                  "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/DurationMs"
                 }
               },
               "required": [
@@ -131,7 +157,7 @@
         "freeUseDate": {
           "anyOf": [
             {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/LocalDate"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LocalDate"
             },
             {
               "type": "null"
@@ -141,7 +167,7 @@
         "suppressedDate": {
           "anyOf": [
             {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/LocalDate"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LocalDate"
             },
             {
               "type": "null"
@@ -164,24 +190,32 @@
       "type": "object",
       "properties": {
         "date": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/LocalDate"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LocalDate"
         },
         "leafTotalsMs": {
           "type": "array",
           "items": {
-            "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/LeafTotal"
+            "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LeafTotal"
           },
           "minItems": 0,
           "maxItems": 1024
         },
+        "appLeafTotalsMs": {
+          "type": "array",
+          "items": {
+            "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/AppLeafTotal"
+          },
+          "minItems": 0,
+          "maxItems": 4096
+        },
         "totalActiveMs": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/DurationMs"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/DurationMs"
         },
         "selectedTotalMs": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/DurationMs"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/DurationMs"
         },
         "settingsRevision": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
         },
         "rulesRevision": {
           "type": "string",
@@ -191,7 +225,7 @@
         "availableFrom": {
           "anyOf": [
             {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             {
               "type": "null"
@@ -201,7 +235,7 @@
         "availableThrough": {
           "anyOf": [
             {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             {
               "type": "null"
@@ -212,12 +246,13 @@
           "type": "boolean"
         },
         "sequence": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
         }
       },
       "required": [
         "date",
         "leafTotalsMs",
+        "appLeafTotalsMs",
         "totalActiveMs",
         "selectedTotalMs",
         "settingsRevision",
@@ -233,7 +268,7 @@
       "type": "object",
       "properties": {
         "observedAt": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
         },
         "state": {
           "enum": [
@@ -269,7 +304,7 @@
         "category": {
           "anyOf": [
             {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/CategoryRef"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/CategoryRef"
             },
             {
               "type": "null"
@@ -291,7 +326,7 @@
         "categoryCatalog": {
           "type": "array",
           "items": {
-            "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/CategoryRef"
+            "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/CategoryRef"
           },
           "minItems": 0,
           "maxItems": 1024
@@ -312,15 +347,15 @@
       "type": "object",
       "properties": {
         "revision": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
         },
         "throughActionSequence": {
-          "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
         },
         "canceledIds": {
           "type": "array",
           "items": {
-            "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+            "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
           },
           "minItems": 0,
           "maxItems": 100
@@ -339,25 +374,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
             },
             "actorId": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/TelegramId"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/TelegramId"
             },
             "createdAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "targetAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "expiresAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "sequence": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "settingsRevision": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "kind": {
               "const": "notify"
@@ -366,7 +401,7 @@
               "type": "object",
               "properties": {
                 "message": {
-                  "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Message"
+                  "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Message"
                 },
                 "countdown": {
                   "type": "boolean"
@@ -396,25 +431,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
             },
             "actorId": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/TelegramId"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/TelegramId"
             },
             "createdAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "targetAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "expiresAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "sequence": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "settingsRevision": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "kind": {
               "const": "overlay"
@@ -425,7 +460,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Message"
+                      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Message"
                     },
                     "countdown": {
                       "type": "boolean"
@@ -458,7 +493,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Message"
+                      "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Message"
                     },
                     "countdown": {
                       "type": "boolean"
@@ -504,16 +539,16 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
             },
             "kind": {
               "const": "settings"
             },
             "revision": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "appliedAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             }
           },
           "required": [
@@ -528,19 +563,19 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
             },
             "kind": {
               "const": "cancellation"
             },
             "revision": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "throughActionSequence": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "appliedAt": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             }
           },
           "required": [
@@ -556,19 +591,19 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
             },
             "kind": {
               "const": "action"
             },
             "actionId": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Uuid"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
             },
             "eventSequence": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "occurrence": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Counter"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
             },
             "status": {
               "enum": [
@@ -586,12 +621,12 @@
               ]
             },
             "at": {
-              "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+              "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
             },
             "acceptedAt": {
               "anyOf": [
                 {
-                  "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+                  "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
                 },
                 {
                   "type": "null"
@@ -601,7 +636,7 @@
             "presentedAt": {
               "anyOf": [
                 {
-                  "$ref": "https://aw-telegram.invalid/contracts/v1/shared.schema.json#/$defs/Instant"
+                  "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
                 },
                 {
                   "type": "null"

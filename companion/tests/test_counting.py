@@ -77,3 +77,68 @@ def test_invalid_selection_and_unselected_duration_overflow_are_rejected():
     m=importlib.import_module('aw_telegram.counting')
     with pytest.raises(ValueError):m.selected_total({('A',):10},[()])
     with pytest.raises(ValueError):m.selected_total({('A',):9007199254740992},[])
+
+
+def test_application_rows_share_disjoint_clipped_active_foreground_spans():
+    m=importlib.import_module('aw_telegram.counting')
+    windows=[event(0,60,app='Browser'),event(20,10,app='Other'),event(40,10,app='owned')]
+    canonical=[event(0,20,app='Browser',**{'$category':['awtg:A']}),
+               event(20,10,app='Other',**{'$category':['awtg:A','awtg:B']}),
+               event(30,10,app='Browser',**{'$category':['awtg:A','awtg:B']}),
+               event(40,10,app='owned',**{'$category':['awtg:A']}),
+               event(50,10,app='Browser',**{'$category':['Uncategorized']})]
+    result=m.aggregate(canonical,windows,[event(0,60,status='not-afk'),event(55,5,status='afk')],
+                       BASE+timedelta(seconds=5),BASE+timedelta(seconds=60),
+                       {('awtg:A',):('A',),('awtg:A','awtg:B'):('A','B')},owned=lambda d:d['app']=='owned')
+    assert result.totals=={('A',):15000,('A','B'):20000,None:5000}
+    assert result.app_totals=={'Browser':{('A',):15000,('A','B'):10000,None:5000},'Other':{('A','B'):10000}}
+    assert m.app_leaf_records(result.app_totals)==[
+        {'app':'Browser','categoryId':'["A"]','totalMs':15000},
+        {'app':'Browser','categoryId':'["A","B"]','totalMs':10000},
+        {'app':'Browser','categoryId':'uncategorized','totalMs':5000},
+        {'app':'Other','categoryId':'["A","B"]','totalMs':10000}]
+
+
+@pytest.mark.parametrize('side',['raw','canonical','both'])
+@pytest.mark.parametrize('identity',[None,'',7,'x'*257,'\ud800'])
+def test_invalid_app_identity_is_unknown_evidence_in_either_input(side,identity):
+    m=importlib.import_module('aw_telegram.counting')
+    raw=[event(0,10,app='Unknown')]; canonical=[event(0,10,app='Unknown',**{'$category':['Uncategorized']})]
+    for collection in ([raw] if side=='raw' else [canonical] if side=='canonical' else [raw,canonical]):
+        if identity is None: del collection[0]['data']['app']
+        else: collection[0]['data']['app']=identity
+    r=m.aggregate(canonical,raw,[event(0,10,status='not-afk')],BASE,BASE+timedelta(seconds=10),{})
+    assert r.totals=={} and r.app_totals=={} and r.coverage==[] and r.invalid_events>0
+
+
+def test_literal_unknown_is_a_real_exact_app_not_missing_identity():
+    m=importlib.import_module('aw_telegram.counting')
+    apps=['Unknown','unknown',' Unknown ','é','e\u0301','😀'*256]
+    raw=[event(i,1,app=name) for i,name in enumerate(apps)]
+    r=m.aggregate(raw,raw,[event(0,len(apps),status='not-afk')],BASE,BASE+timedelta(seconds=len(apps)),{})
+    assert r.app_totals=={name:{None:1000} for name in apps}
+
+
+@pytest.mark.parametrize('side',['raw','canonical','both'])
+@pytest.mark.parametrize('data',[{'app':'x'*257},None,[],{},'invalid'])
+def test_invalid_later_identity_masks_older_overlapping_evidence(side,data):
+    m=importlib.import_module('aw_telegram.counting')
+    raw=[event(0,60,app='valid')]
+    canonical=[event(0,60,app='valid',**{'$category':['Uncategorized']})]
+    for collection in ([raw] if side=='raw' else [canonical] if side=='canonical' else [raw,canonical]):
+        collection.append({**event(20,20),'data':data})
+    r=m.aggregate(canonical,raw,[event(0,60,status='not-afk')],BASE,BASE+timedelta(seconds=60),{})
+    assert r.totals=={None:40000} and r.app_totals=={'valid':{None:40000}}
+    assert r.coverage==[(BASE,BASE+timedelta(seconds=20)),(BASE+timedelta(seconds=40),BASE+timedelta(seconds=60))]
+    assert r.invalid_events>0
+
+
+@pytest.mark.parametrize('data',[None,[],{},'invalid',{'status':'unknown'},{'status':7}])
+def test_invalid_later_afk_masks_older_active_evidence(data):
+    m=importlib.import_module('aw_telegram.counting')
+    windows=[event(0,60,app='valid')]
+    afk=[event(0,60,status='not-afk'),{**event(20,20),'data':data}]
+    r=m.aggregate(windows,windows,afk,BASE,BASE+timedelta(seconds=60),{})
+    assert r.totals=={None:40000} and r.app_totals=={'valid':{None:40000}}
+    assert r.coverage==[(BASE,BASE+timedelta(seconds=20)),(BASE+timedelta(seconds=40),BASE+timedelta(seconds=60))]
+    assert r.invalid_events>0

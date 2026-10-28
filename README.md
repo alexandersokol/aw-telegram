@@ -17,8 +17,10 @@ and deployment remain later checkpoints.
 
 Today/yesterday usage is specified as application names/durations from selected
 category intervals; weekly reports remain daily totals. The required
-[contract/reader extension](docs/application-usage-amendment.md) is pending before
-sync and bot formatting: current v1 summaries reject app fields. The countdown
+[contract/reader extension](docs/application-usage-amendment.md) now implements active
+v2 app × disjoint-category aggregates and selection helpers; independent review is
+pending. Archived v1 remains immutable and category-only. Storage/sync and bot
+formatting are still pending. Task 4 enrollment/access stays protocol v1. The countdown
 uses a 70% #242424 background with opaque white text.
 
 ## Structure

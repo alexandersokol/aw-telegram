@@ -1,7 +1,9 @@
-# Shared v1 contracts
+# Shared contracts: active v2, archived v1
 
 `generate_schemas.py` contains the compact schema definitions. Run it with Python
-to regenerate `v1/*.schema.json` and identical packaged companion schema assets.
+to regenerate `v2/*.schema.json` and identical active packaged companion assets.
+`v1/*.schema.json` is immutable and is never regenerated. Sync uses schemaVersion 2;
+Task 4 enrollment/access endpoints keep their separate schemaVersion 1 protocol.
 The checked-in JSON schemas work without that script. The Python and TypeScript
 validators add Gregorian time, canonical category ID, uniqueness and sum checks
 that JSON Schema alone cannot express. Use the runtime validator at each boundary.
@@ -9,12 +11,17 @@ that JSON Schema alone cannot express. Use the runtime validator at each boundar
 `fixtures/` is shared by both suites. `wire.json` contains accepted/rejected payloads;
 `time.json` pins Kyiv DST/calendar results; `selection.json` pins exact paths and
 deduplication; `evidence.json` covers collection, receipt and cancellation invariants.
-Fixture values contain synthetic IDs, messages and current titles only.
+Fixture values contain synthetic IDs, application names, messages and current titles only.
+`v1-sha256.json` pins the archived schema bytes; regeneration tests verify the archive.
 
 See `docs/api-contract.md` for field semantics, defensive transport caps and the
 authenticated state transitions that later tasks must implement.
 
-Current v1 daily summaries reject app fields. The pending
-[application-name usage checkpoint](../docs/application-usage-amendment.md) requires
-a reviewed version/compatibility choice and coordinated schema, Python/TS, fixture
-and reader extension before Task 5 sync and Task 7 formatting.
+Active v2 requires exact positive-ms `appLeafTotalsMs` app/category pairs, at most
+256 distinct apps and 4096 pairs, reconciled with every disjoint leaf total.
+Selection helpers derive descending app totals with Unicode scalar ties from
+unfiltered rows. A pure preflight checks one atomic day inside a minimal 131072-byte
+UTF-8 sync body; cardinality limits do not guarantee byte fit. Task 5 must bound
+the actual packed body. Legacy category-only reports must be invalidated/recollected,
+never converted into app reports. Storage/sync and Telegram formatting remain pending.
+See the [extension checkpoint](../docs/application-usage-amendment.md) for scope.
