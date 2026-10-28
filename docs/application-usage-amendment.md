@@ -89,6 +89,7 @@ rules and Telegram/provider retention limitations continue to apply.
 
 The top-left countdown now uses a #242424 background at 70% opacity (alpha 179)
 and fully opaque white text. It uses per-pixel transparency, never whole-window
-opacity. The fullscreen overlay's existing dim layer, layout, input behavior and
+opacity. Mouse clicks pass through the countdown to the underlying app while it
+stays on top. The fullscreen overlay's existing dim layer, layout, input behavior and
 pending real-game acceptance gates are unchanged. Timer deadlines, IDs, replacement,
 expiry, positioning and lifecycle keep their existing behavior.

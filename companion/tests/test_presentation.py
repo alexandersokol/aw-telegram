@@ -1,4 +1,6 @@
 """Real Qt rendering/lifecycle tests; OS calls are isolated at their boundary."""
+import sys
+
 import pytest
 from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QColor
@@ -196,6 +198,37 @@ def test_notification_all_text_is_accessible_within_primary_screen(qtbot, qapp, 
         assert bar.value() == bar.maximum()
         last_line = card.message.mapTo(scroll.viewport(), QPoint(0, card.message.height() - 1))
         assert 0 <= last_line.y() < scroll.viewport().height()
+
+
+def test_countdown_ignores_input_while_staying_on_top(qtbot):
+    # Removing either input flag would let the countdown intercept interaction.
+    countdown = CountdownWindow()
+    qtbot.addWidget(countdown)
+    countdown.start_countdown(10000)
+    assert countdown.windowFlags() & Qt.WindowType.WindowTransparentForInput
+    assert countdown.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    assert countdown.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows native input style")
+def test_countdown_native_window_is_input_transparent(qtbot, qapp):
+    # Check the actual HWND, not a synthetic Qt click that bypasses hit testing.
+    import ctypes
+    from ctypes import wintypes
+
+    if qapp.platformName() != "windows":
+        pytest.skip("Requires the native Windows Qt platform")
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    get_style = (user32.GetWindowLongPtrW if ctypes.sizeof(ctypes.c_void_p) == 8
+                 else user32.GetWindowLongW)
+    get_style.argtypes = [wintypes.HWND, ctypes.c_int]
+    get_style.restype = ctypes.c_ssize_t
+    countdown = CountdownWindow()
+    qtbot.addWidget(countdown)
+    countdown.start_countdown(10000)
+    qapp.processEvents()
+    # WS_EX_TRANSPARENT enables native click-through for the layered timer.
+    assert get_style(wintypes.HWND(int(countdown.winId())), -20) & 0x00000020
 
 
 def test_countdown_translucent_background_keeps_text_opaque(qtbot):

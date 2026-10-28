@@ -11,6 +11,8 @@ from ._surface import PresentationSurface
 class CountdownWindow(PresentationSurface):
     def __init__(self):
         super().__init__()
+        self.setWindowFlag(Qt.WindowType.WindowTransparentForInput)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowTitle("Таймер AW Telegram")
         self.setAccessibleName("Таймер AW Telegram")

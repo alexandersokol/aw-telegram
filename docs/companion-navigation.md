@@ -56,4 +56,6 @@ the dismiss button clickable. Keyboard blocking and OS locking are not implied.
 
 The top-left countdown uses a #242424 background at 70% opacity (alpha 179)
 with fully opaque white text through per-pixel transparency. Keep its existing
-layout, primary-screen position and timing/input lifecycle.
+layout, primary-screen position and timing lifecycle. Mouse clicks pass through
+the countdown to the app underneath while the timer stays on top. The fullscreen
+overlay continues to capture clicks.
