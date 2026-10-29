@@ -69,6 +69,15 @@ Ack. The scheduler removes any visible instance on its next one-second tick, so 
 is durable before the Ack and visible within about a second. A malformed offer still
 rejects the whole response atomically.
 
+Task 8b adds an `activity` entry to the state row for overlay gating, written by the
+IO worker after each live poll: `{observedAt, state, path, ownedAt}`, with no app or
+title. An active or AFK observation replaces it. An observation of the companion's own
+foreground window only refreshes `ownedAt`, so the last outside observation stays
+authoritative while our overlay has focus. An unknown observation changes nothing. AFK
+is checked before companion-owned foreground, so walking away from the overlay is AFK.
+The scheduler reads today's selected total through `selected_usage(date)` under the
+current settings, without revalidating the stored body each second.
+
 Verification uses synthetic sources and exact demo-aw-telegram loopback Firestore only.
 The guarded runner rejects non-demo/non-loopback/credentialed environments and disables
 metadata probing. Raw RED/GREEN evidence and scope limits are recorded in

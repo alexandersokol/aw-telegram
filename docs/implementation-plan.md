@@ -559,10 +559,31 @@ Checkpoint 8a (2026-10-29, local, not independently reviewed): the action execut
 - `add_manual` is removed; manual families come only from accepted actions, and the
   harness delivers a real offer.
 
-Companion 311. Remaining for Task 8: 8b, the allowance engine (local 15/10/5 warnings
-and the repeating expiry overlay gated by active counted use, AFK and companion-owned
-foreground); 8c, the app main loop that runs the sync IO worker and the GUI presenter
-on separate store connections; and the Windows manual checks.
+Companion 311.
+
+Checkpoint 8b (2026-10-29, local, not independently reviewed): the allowance engine.
+- **Policy:** `evaluate_allowance` in `policy.py` uses the effective limit (today-only
+  override on its date, otherwise the default) and today's measured selected total. It
+  only lags and never runs ahead.
+- **Warnings:** cards at 15, 10 and 5 minutes remaining, inclusive, matching the
+  backend's severity bands. Catch-up and limit edits show only the most urgent crossed
+  level, and running out goes straight to the overlay. More time re-arms lower levels.
+- **Expiry overlay:** standard and dismissible. It repeats one minute after dismissal,
+  replacement, failure or a restart, and joins the shared slot as newest due.
+- **Gating:** it shows only with fresh (30 s) evidence of active use of a counted
+  category, descendants and explicit uncategorized included. AFK, schoolwork or 30 s
+  without evidence hides it, and an active return shows it again at once. Companion-
+  owned foreground refreshes the last outside observation instead of replacing it.
+  Switch evidence from the first 5 s after showing is ignored as our own focus change.
+- **Suppression:** free use, Clear all, more time and midnight hide it. Lifting
+  suppression re-evaluates today's usage at once.
+- **No receipts:** Telegram allowance alerts stay with the backend's own measurement.
+- **Open question for the owner:** when the allowance and endtime overlays both repeat,
+  newest-due-wins (applied regardless of source, as approved) alternates them about
+  once a minute instead of letting either stay up.
+
+Companion 339. Remaining for Task 8: 8c, the app main loop that runs the sync IO worker
+and the GUI presenter on separate store connections; and the Windows manual checks.
 
 **Files:** create companion/src/aw_telegram/{policy,scheduler}.py,
 companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate storage and UI.

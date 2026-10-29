@@ -192,6 +192,18 @@ def test_default_owned_focus_excludes_own_python_titles_without_excluding_ide():
     assert r.live().state=='unknown'
 
 
+def test_afk_wins_over_own_foreground_and_own_focus_is_flagged_for_overlay_gating():
+    c=Client();c.windows=[event(0,60,app='python.exe',title='Нагадування AW Telegram')]
+    c.canonical=[dict(e,data={**e['data'],'$category':['Uncategorized']}) for e in c.windows]
+    r=reader(c,collection_started_at=BASE)
+    assert r.live().state=='unknown' and r.live_owned
+    c.afk=[event(0,60,status='afk')]
+    assert r.live().state=='afk' and not r.live_owned
+    c.windows=[event(0,60,app='game',title='Game')];c.afk=[event(0,60,status='not-afk')]
+    c.canonical=[event(0,60,app='game',title='Game',**{'$category':['awtg:Fun','awtg:Games']})]
+    assert r.live().state=='active' and not r.live_owned
+
+
 def test_summary_accepts_real_aw_microseconds_and_stale_health_is_explicit():
     c=Client();c.windows=[{'timestamp':'2026-10-27T08:00:00.000600+00:00','duration':20.0012,'data':{'app':'game','title':'Game'}}]
     c.canonical=[dict(c.windows[0],data={**c.windows[0]['data'],'$category':['awtg:Fun','awtg:Games']})]

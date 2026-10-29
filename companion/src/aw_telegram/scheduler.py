@@ -4,7 +4,8 @@ No Qt. ui.presenter applies the returned commands on the GUI thread and reports 
 presented()/dismissed(). Accepted delivery offers come from LocalStore; every transition's receipt
 commits in the same transaction as the scheduler state. A manual family displaced by a newer
 overlay, canceled by a fence, skipped in free use or interrupted by a crash is terminal and never
-resumes. Endtime recurrence belongs to the daily policy instead.
+resumes. Endtime and allowance recurrence belong to their daily policies instead; the allowance overlay
+has no receipts (Telegram allowance alerts come from the backend's own measurement).
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -14,10 +15,13 @@ from uuid import uuid4
 
 from .clock import format_instant, kyiv_date, local_day_bounds, parse_instant, retained_dates
 from .models import EndtimeAck
-from .policy import EndtimeState, endtime_finished, endtime_shown, evaluate_endtime
+from .policy import (AllowanceState, EndtimeState, allowance_finished, allowance_shown, endtime_finished, endtime_shown,
+                     evaluate_allowance, evaluate_endtime)
 
 OVERLAY_TEXT = "Час завершення {time}.\nЧас відкласти ноутбук."
 WARNING_TEXT = "Час завершення о {time}: залишилося {minutes} хв."
+ALLOWANCE_OVERLAY_TEXT = "Денний час вичерпано.\nБудь ласка, вимкни комп’ютер."
+ALLOWANCE_WARNING_TEXT = "Денний час: залишилося {minutes} хв або менше."
 NOTIFY_CARD_MS = 10_000
 _LIVE = {"waiting", "visible"}
 
@@ -25,7 +29,7 @@ _LIVE = {"waiting", "visible"}
 @dataclass(frozen=True)
 class Presentation:
     key: str
-    source: Literal["endtime", "manual"]
+    source: Literal["endtime", "allowance", "manual"]
     kind: Literal["overlay", "notification"]
     text: str
     dismissible: bool = True
@@ -59,18 +63,23 @@ class Scheduler:
     def _load(self) -> dict:
         value = self.store.overlay_state() or {}
         endtime = EndtimeState.from_json(value["endtime"]) if "endtime" in value else EndtimeState()
-        return dict(endtime=endtime, visible=value.get("visible"), sequence=value.get("sequence", 0),
+        allowance = AllowanceState.from_json(value["allowance"]) if "allowance" in value else AllowanceState()
+        return dict(endtime=endtime, allowance=allowance, visible=value.get("visible"), sequence=value.get("sequence", 0),
                     manual=value.get("manual", {}), card=value.get("card"), countdown=value.get("countdown"))
 
+    @staticmethod
+    def _value(state: dict) -> dict:
+        return {**state, "endtime": state["endtime"].to_json(), "allowance": state["allowance"].to_json()}
+
     def _save(self, state: dict, before: str | None = None, receipt: EndtimeAck | None = None, events=()) -> None:
-        value = {**state, "endtime": state["endtime"].to_json()}
+        value = self._value(state)
         if receipt is None and not events and before == json.dumps(value, sort_keys=True):
             return  # most ticks change nothing
         self.store.commit_overlay_state(value, receipt, events)
 
-    @staticmethod
-    def _snapshot(state: dict) -> str:
-        return json.dumps({**state, "endtime": state["endtime"].to_json()}, sort_keys=True)
+    @classmethod
+    def _snapshot(cls, state: dict) -> str:
+        return json.dumps(cls._value(state), sort_keys=True)
 
     @staticmethod
     def _family_of(action: dict, occurrence: int, sequence: int) -> dict:
@@ -110,25 +119,33 @@ class Scheduler:
         commands: list = []
         events: list = []
         self._import(state, commands, now)
-        endtime, decision = evaluate_endtime(settings, state["endtime"], now, resumed)
+        state["endtime"], decision = evaluate_endtime(settings, state["endtime"], now, resumed)
+        state["allowance"], verdict = evaluate_allowance(settings, state["allowance"],
+            self.store.selected_usage(kyiv_date(now)), self.store.activity, now)
+        endtime, allowance = state["endtime"], state["allowance"]
         visible = state["visible"]
-        if decision.hide and visible and visible.startswith("endtime:"):
-            commands.append(Hide(visible))
-            visible = None
+        for hide, prefix in ((decision.hide, "endtime:"), (verdict.hide, "allowance:")):
+            if hide and visible and visible.startswith(prefix):
+                commands.append(Hide(visible))
+                visible = None
         if decision.warning:
-            if state["card"]:  # the warning card takes the slot from a manual card
-                shown = self._family(state["card"])
-                events.append(_event(shown, "replaced", now, state["manual"][shown]["occurrence"], reason="replaced"))
-                state["manual"][shown]["state"], state["card"] = "done", None
-            commands.append(Presentation(f"endtime-warning:{endtime.date}:{endtime.generation}:{decision.warning}",
-                "endtime", "notification", WARNING_TEXT.format(time=settings.endtimeLocalTime,
-                                                              minutes=decision.warning.removesuffix("m"))))
+            self._warning(state, events, commands, now, Presentation(
+                f"endtime-warning:{endtime.date}:{endtime.generation}:{decision.warning}", "endtime", "notification",
+                WARNING_TEXT.format(time=settings.endtimeLocalTime, minutes=decision.warning.removesuffix("m"))))
+        if verdict.warning:
+            self._warning(state, events, commands, now, Presentation(
+                f"allowance-warning:{allowance.date}:{verdict.warning}", "allowance", "notification",
+                ALLOWANCE_WARNING_TEXT.format(minutes=verdict.warning.removesuffix("m"))))
         overlays, cards = [], []
         if decision.show:
             state["sequence"] += 1
             overlays.append((decision.due_at, state["sequence"], None, Presentation(
                 f"endtime:{endtime.date}:{endtime.generation}:{state['sequence']}", "endtime", "overlay",
                 OVERLAY_TEXT.format(time=settings.endtimeLocalTime))))
+        if verdict.show:
+            state["sequence"] += 1
+            overlays.append((verdict.due_at, state["sequence"], None, Presentation(
+                f"allowance:{allowance.date}:{state['sequence']}", "allowance", "overlay", ALLOWANCE_OVERLAY_TEXT)))
         free = settings.freeUseDate == kyiv_date(now)
         for action_id, family in state["manual"].items():
             midnight = local_day_bounds(family["date"])[1]
@@ -166,13 +183,15 @@ class Scheduler:
             overlays.sort(key=lambda c: (c[0], c[1]))
             *older, (_, _, newest_id, newest) = overlays
             for _, _, action_id, presentation in older:
-                endtime = self._retire(state, endtime, presentation.key, action_id, now, events)
+                self._retire(state, presentation.key, action_id, now, events)
             if visible:
                 commands.append(Hide(visible))
-                endtime = self._retire(state, endtime, visible, self._family(visible), now, events)
+                self._retire(state, visible, self._family(visible), now, events)
             visible = newest.key
-            if newest_id is None:
-                endtime = endtime_shown(endtime)
+            if newest.source == "endtime":
+                state["endtime"] = endtime_shown(state["endtime"])
+            elif newest.source == "allowance":
+                state["allowance"] = allowance_shown(state["allowance"], now)
             else:
                 state["manual"][newest_id]["state"] = "visible"
             commands.append(newest)
@@ -193,9 +212,17 @@ class Scheduler:
         self._countdown(state, commands, now)
         dates = retained_dates(now)
         state["manual"] = {k: f for k, f in state["manual"].items() if f["date"] in dates or f["state"] in _LIVE}
-        state.update(endtime=endtime, visible=visible)
+        state["visible"] = visible
         self._save(state, before, events=events)
         return commands
+
+    def _warning(self, state: dict, events: list, commands: list, now: datetime, card: Presentation) -> None:
+        """A policy warning card takes the slot from a manual card."""
+        if state["card"]:
+            shown = self._family(state["card"])
+            events.append(_event(shown, "replaced", now, state["manual"][shown]["occurrence"], reason="replaced"))
+            state["manual"][shown]["state"], state["card"] = "done", None
+        commands.append(card)
 
     def _countdown(self, state: dict, commands: list, now: datetime) -> None:
         """Show the nearest waiting delayed reminder that asked for a countdown, if any."""
@@ -216,14 +243,16 @@ class Scheduler:
         return key.split(":")[1] if key.startswith(("manual:", "notify:")) else None
 
     @staticmethod
-    def _retire(state: dict, endtime: EndtimeState, key: str, action_id: str | None, now: datetime, events: list) -> EndtimeState:
-        """Terminal replacement: a manual family ends; endtime policy owns its next occurrence."""
-        if action_id is None:
-            return endtime_finished(endtime, now) if key.startswith("endtime:") else endtime
-        family = state["manual"][action_id]
-        events.append(_event(action_id, "replaced", now, family["occurrence"], reason="replaced"))
-        family["state"] = "done"
-        return endtime
+    def _retire(state: dict, key: str, action_id: str | None, now: datetime, events: list) -> None:
+        """Terminal replacement: a manual family ends; the endtime and allowance policies own their next occurrence."""
+        if key.startswith("endtime:"):
+            state["endtime"] = endtime_finished(state["endtime"], now)
+        elif key.startswith("allowance:"):
+            state["allowance"] = allowance_finished(state["allowance"], now)
+        else:
+            family = state["manual"][action_id]
+            events.append(_event(action_id, "replaced", now, family["occurrence"], reason="replaced"))
+            family["state"] = "done"
 
     def presented(self, key: str, result, at: datetime) -> None:
         """An accepted show request (any state except failed) counts as presented; a card has no native result."""
@@ -243,6 +272,10 @@ class Scheduler:
                 state.update(endtime=endtime_finished(state["endtime"], at), visible=None)
             else:
                 receipt = self._receipt(key, at)
+        elif key.startswith("allowance:"):
+            if not failed:
+                return
+            state.update(allowance=allowance_finished(state["allowance"], at), visible=None)
         else:
             action_id = self._family(key)
             family = state["manual"][action_id]
@@ -284,6 +317,8 @@ class Scheduler:
         state["visible"] = None
         if key.startswith("endtime:"):
             state["endtime"] = endtime_finished(state["endtime"], now)
+        elif key.startswith("allowance:"):
+            state["allowance"] = allowance_finished(state["allowance"], now)
         else:
             action_id = self._family(key)
             family = state["manual"][action_id]
@@ -307,9 +342,10 @@ class Scheduler:
         state = self._load()
         events = []
         key = state["visible"]
-        if key and key.startswith("endtime:"):
-            state["endtime"] = endtime_finished(state["endtime"], now)
-        for slot_key in (key if key and not key.startswith("endtime:") else None, state["card"]):
+        policy = key is not None and key.startswith(("endtime:", "allowance:"))
+        if policy:
+            self._retire(state, key, None, now, [])
+        for slot_key in (None if policy else key, state["card"]):
             if slot_key:
                 action_id = self._family(slot_key)
                 family = state["manual"][action_id]

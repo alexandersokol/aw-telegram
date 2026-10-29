@@ -82,5 +82,5 @@ class PolicyPresenter(QObject):
     def _completed(self, presentation_id: str, reason: str) -> None:
         key = self._keys.pop(presentation_id, None)
         # Replacement and clearing were decided by the scheduler; only user/duration ends report back.
-        if key is not None and reason in ("dismissed", "expired") and not key.startswith("endtime-warning:"):
+        if key is not None and reason in ("dismissed", "expired") and not key.startswith(("endtime-warning:", "allowance-warning:")):
             self.scheduler.dismissed(key, self._now(), reason)

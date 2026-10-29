@@ -513,3 +513,31 @@ def test_endtime_receipt_is_sent_once_per_date_generation_and_cleared_by_acknowl
     s.close(); s = store(tmp_path)
     assert not s.commit_overlay_state({"visible": None}, duplicate) and s.overlay_state() == {"visible": None}
     s.close()
+
+
+def test_coordinator_records_activity_for_overlay_gating(tmp_path):
+    from aw_telegram.sync import SyncCoordinator,Observation
+    s=store(tmp_path)
+    live=dict(observedAt=NOW,state="active",app="game.exe",title="Game",category=dict(id='["Games"]',path=["Games"]),
+              rulesRevision="r1",categoryCatalog=[])
+    observations=[Observation(live,{**HEALTH,"awState":"ready","lastSuccessAt":NOW}),
+                  Observation(None,{**HEALTH,"awState":"stale","lastSuccessAt":NOW},owned_at=NOW)]
+    class Network:
+        def sync(self,r):return models.SyncResponse.from_wire(response(r))
+    c=SyncCoordinator(s,Network(),lambda *a:observations.pop(0),lambda *a:day())
+    c.step(NOW,0)
+    assert s.activity==dict(observedAt=NOW,state="active",path=["Games"],ownedAt=None)
+    c.step(NOW,10)
+    assert s.activity==dict(observedAt=NOW,state="active",path=["Games"],ownedAt=NOW)
+
+
+def test_reader_adapter_reports_own_foreground(tmp_path):
+    from aw_telegram.sync import ReaderAdapter
+    from aw_telegram.aw_reader import AWHealth
+    class Reader:
+        health=AWHealth("stale","fresh_foreground_evidence_unavailable",NOW)
+        live_owned=True
+        def now(self):return parse_instant(NOW)
+        def live(self):return models.LiveState(NOW,"unknown",None,None,None,None,[])
+    observation=ReaderAdapter(Reader()).observe(NOW,models.Settings(),START)
+    assert observation.live is None and observation.owned_at==NOW

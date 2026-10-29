@@ -13,6 +13,7 @@ from .transport import CredentialError, SyncError
 class Observation:
     live: dict | None
     health: dict
+    owned_at: str | None = None  # our own window was in the foreground; overlay gating keeps prior evidence
 
 
 class ReaderAdapter:
@@ -32,7 +33,8 @@ class ReaderAdapter:
         completed = format_instant(self.reader.now())
         failure = health.state in ('stale', 'unavailable', 'unsupported')
         return Observation(None if failure else live.to_wire(), dict(observedAt=completed, awState=health.state,
-            lastSuccessAt=health.last_success_at, reportError='report_capacity_exceeded' if health.reason == 'report_capacity_exceeded' else None))
+            lastSuccessAt=health.last_success_at, reportError='report_capacity_exceeded' if health.reason == 'report_capacity_exceeded' else None),
+            completed if getattr(self.reader, 'live_owned', False) else None)
 
     def summarize(self, date, start, end, settings, started):
         self.reader.settings = settings
@@ -100,6 +102,7 @@ class SyncCoordinator:
         health['reportError'] = health['reportError'] or self.health['reportError']
         validate_activity_context({**request, 'health': health}, started, completed)
         self.health, self.live = health, observation.live
+        self.store.record_activity(observation.live, owned_at=observation.owned_at)
 
     def step(self, now_utc, now_monotonic):
         if not self._running.acquire(blocking=False):

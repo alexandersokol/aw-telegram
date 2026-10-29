@@ -10,7 +10,7 @@ from uuid import uuid4
 from .clock import format_instant, local_day_bounds, parse_instant, retained_dates
 from .models import (Ack, ActionAck, CancellationAck, DaySummary, EndtimeAck, Settings, SettingsAck, SyncRequest, SyncResponse,
     validate_action_receipt,
-    MAX_BODY_BYTES, MAX_SAFE_INTEGER, collection_start, ensure_report_capacity, project_day,
+    MAX_BODY_BYTES, MAX_SAFE_INTEGER, collection_start, ensure_report_capacity, project_day, selected_total,
     validate_activity_context, validate_contract, wire_bytes)
 
 
@@ -194,6 +194,34 @@ class LocalStore:
                 state["lastActivitySuccessAt"] = instant
                 self._save(state)
 
+    @property
+    def activity(self) -> dict | None:
+        """Latest outside foreground evidence for overlay gating: {observedAt, state, path, ownedAt}."""
+        return self._state().get("activity")
+
+    def record_activity(self, live: dict | None, *, owned_at: str | None = None) -> None:
+        """Title- and app-free: an active/AFK observation replaces the record; companion-owned foreground
+        only refreshes it (ownedAt); an unknown observation is no evidence and changes nothing."""
+        if live is not None:
+            live = validate_contract("live", live)
+        stamp = owned_at if live is None else live["observedAt"]
+        if stamp is None or live is not None and live["state"] == "unknown":
+            return
+        parse_instant(stamp)
+        if stamp > self.now():
+            raise ValueError("future activity observation")
+        with self._transaction():
+            state = self._state()
+            if live is not None:
+                category = live["category"]
+                state["activity"] = dict(observedAt=stamp, state=live["state"], ownedAt=None,
+                                         path=None if category is None else category["path"])
+            elif state.get("activity") is not None:
+                state["activity"] = {**state["activity"], "ownedAt": stamp}
+            else:
+                state["activity"] = dict(observedAt=None, state=None, path=None, ownedAt=stamp)
+            self._save(state)
+
     def day(self, date):
         row = self.connection.execute("select source from days where date=?", (date,)).fetchone()
         return DaySummary.from_wire(json.loads(row[0])) if row and row[0] is not None else None
@@ -201,6 +229,14 @@ class LocalStore:
     def projection(self, date):
         day = self.day(date)
         return None if day is None else project_day(day.to_wire(), self.settings.to_wire())
+
+    def selected_usage(self, date) -> int | None:
+        """Measured selected-category total under current settings; the body was validated when committed."""
+        row = self.connection.execute("select source from days where date=?", (date,)).fetchone()
+        if row is None or row[0] is None:
+            return None
+        settings = self.settings
+        return selected_total(json.loads(row[0])["leafTotalsMs"], settings.selectedPaths, settings.selectedUncategorized)
 
     def needs_recollection(self, date):
         row = self.connection.execute("select source,recollect from days where date=?", (date,)).fetchone()

@@ -1,4 +1,4 @@
-"""Pure Kyiv endtime policy. No Qt, storage, clock reads or network.
+"""Pure Kyiv endtime and daily allowance policy. No Qt, storage, clock reads or network.
 
 A first eligible evaluation (start, resume, clock change, enabling, a new generation
 or suppression ending) strictly after endtime skips the date; equality is due. Warning
@@ -103,3 +103,114 @@ def endtime_finished(state: EndtimeState, now: datetime) -> EndtimeState:
     if not state.started:
         return replace(state, visible=False)
     return replace(state, visible=False, next_due=format_instant(now + REPEAT))
+
+
+# Daily allowance. Usage is the measured selected-category total for today, so it only lags,
+# never runs ahead. The expiry overlay shows only during fresh evidence of active counted use.
+
+ALLOWANCE_LEVELS = (("expired", 0), ("5m", 5), ("10m", 10), ("15m", 15))  # most urgent first
+_ALLOWANCE_RANK = {None: 0, "15m": 1, "10m": 2, "5m": 3, "expired": 4}
+ACTIVITY_FRESH = timedelta(seconds=30)
+HIDE_SETTLE = timedelta(seconds=5)  # our own focus change when the overlay appears is not the child's switch
+
+
+@dataclass(frozen=True)
+class AllowanceState:
+    """Per Kyiv date; a new date starts afresh."""
+    date: str | None = None
+    warned: str | None = None    # most urgent level already reached (a warning or the overlay)
+    visible: bool = False
+    shown_at: str | None = None
+    next_due: str | None = None  # one minute after dismissal, replacement or failure
+
+    def to_json(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_json(cls, value: dict) -> "AllowanceState":
+        state = cls(**value)
+        if state.warned not in _ALLOWANCE_RANK or any(
+                instant is not None and parse_instant(instant) is None for instant in (state.shown_at, state.next_due)):
+            raise ValueError("invalid allowance state")
+        return state
+
+
+@dataclass(frozen=True)
+class AllowanceDecision:
+    warning: str | None = None
+    show: bool = False
+    hide: bool = False
+    due_at: datetime | None = None
+    remaining_ms: int | None = None
+
+
+def effective_limit_ms(settings: Settings, date: str) -> int:
+    """A today-only override applies on its own Kyiv date; otherwise the recurring default."""
+    override = settings.todayOverride
+    return override["limitMs"] if override is not None and override["date"] == date else settings.defaultLimitMs
+
+
+def counted_path(settings: Settings, path: list[str] | None) -> bool:
+    if path is None:
+        return settings.selectedUncategorized
+    return any(path[:len(selected)] == selected for selected in settings.selectedPaths)
+
+
+def activity_gate(settings: Settings, activity: dict | None, now: datetime) -> tuple[bool, datetime | None]:
+    """(counted, observed): whether fresh evidence shows active counted use, and when the last outside
+    observation was made; observed is None without fresh evidence. Companion-owned foreground refreshes
+    the last outside observation instead of replacing it."""
+    if activity is None or activity["state"] is None:
+        return False, None
+    observed = parse_instant(activity["observedAt"])
+    latest = max(observed, parse_instant(activity["ownedAt"])) if activity["ownedAt"] else observed
+    if latest < now - ACTIVITY_FRESH:
+        return False, None
+    return activity["state"] == "active" and counted_path(settings, activity["path"]), observed
+
+
+def evaluate_allowance(settings: Settings, state: AllowanceState, used_ms: int | None, activity: dict | None,
+                       now: datetime) -> tuple[AllowanceState, AllowanceDecision]:
+    date = kyiv_date(now)
+    hide = False
+    if state.date != date:
+        hide = state.visible
+        state = AllowanceState(date=date)
+    if used_ms is None:
+        return state, AllowanceDecision(hide=hide)
+    remaining = effective_limit_ms(settings, date) - used_ms
+    level = next((name for name, minutes in ALLOWANCE_LEVELS if remaining <= minutes * 60_000), None)
+    if _ALLOWANCE_RANK[level] < _ALLOWANCE_RANK[state.warned]:
+        state = replace(state, warned=level)  # more time was granted; later thresholds warn again
+    exhausted = level == "expired"
+    if not exhausted:
+        state = replace(state, next_due=None)
+    eligible = settings.freeUseDate != date and settings.suppressedDate != date
+    counted, observed = activity_gate(settings, activity, now)
+    if state.visible:
+        shown = parse_instant(state.shown_at)
+        away = not counted and (now >= shown + ACTIVITY_FRESH if observed is None else observed >= shown + HIDE_SETTLE)
+        if not exhausted or not eligible or away:
+            # Pausing for AFK or schoolwork: an active return shows it again at once.
+            hide = True
+            state = replace(state, visible=False, shown_at=None)
+    if not eligible:
+        return replace(state, next_due=None), AllowanceDecision(hide=hide, remaining_ms=remaining)
+
+    warning = None
+    if _ALLOWANCE_RANK[level] > _ALLOWANCE_RANK[state.warned]:
+        warning = None if exhausted else level  # running out goes straight to the overlay
+        state = replace(state, warned=level)
+    show = exhausted and counted and not state.visible and (
+        state.next_due is None or now >= parse_instant(state.next_due))
+    due_at = (parse_instant(state.next_due) if state.next_due else now) if show else None
+    return state, AllowanceDecision(warning=warning, show=show, hide=hide, due_at=due_at, remaining_ms=remaining)
+
+
+def allowance_shown(state: AllowanceState, now: datetime) -> AllowanceState:
+    return replace(state, visible=True, shown_at=format_instant(now), next_due=None)
+
+
+def allowance_finished(state: AllowanceState, now: datetime) -> AllowanceState:
+    """Dismissed, replaced, failed or interrupted by a restart: the next occurrence is one minute later."""
+    return replace(state, visible=False, shown_at=None, next_due=format_instant(now + REPEAT))

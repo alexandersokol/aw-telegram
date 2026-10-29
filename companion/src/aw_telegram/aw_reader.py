@@ -219,6 +219,7 @@ class AWReader:
         self.sequence_provider = sequence_provider or (lambda: 0)
         self.owned_foreground, self.freshness = owned_foreground, freshness
         self.health, self.last_summary = AWHealth(), None
+        self.live_owned = False  # the last live() saw our own window in the foreground
         self.capabilities = None
         self._categories = None
 
@@ -357,6 +358,7 @@ class AWReader:
         return day_summary
 
     def live(self) -> LiveState:
+        self.live_owned = False
         paired = self._gate(self.collection_started_at)
         now = self.now()
         def unknown():
@@ -375,11 +377,13 @@ class AWReader:
             window, status = windows[-1], statuses[-1]
             if min(window.end, status.end) < now - self.freshness or window.start >= status.end or status.start >= window.end:
                 return unknown()
-            if self.owned_foreground(window.data):
-                return unknown()
             observed = format_instant(min(now, window.end, status.end).replace(microsecond=min(now, window.end, status.end).microsecond//1000*1000))
+            # AFK first: a child who walks away from our overlay is AFK, not companion-owned.
             if status.data['status'] == 'afk':
                 return LiveState(observed, 'afk', None, None, None, categories.revision, categories.catalog)
+            if self.owned_foreground(window.data):
+                self.live_owned = True
+                return unknown()
             canonical, invalid = normalize(result['events'], start, now, 'window')
             matching = [s for s in canonical if s.start < min(window.end, status.end) <= s.end and s.data.get('app') == window.data['app'] and s.data.get('title', '') == window.data.get('title', '')]
             if invalid or not matching:
