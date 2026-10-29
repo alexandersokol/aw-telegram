@@ -33,7 +33,10 @@ uses the same injected UTC clock as LocalStore for IO completion times. It seria
 10s polls, 15s sync and 30s current-day queries, with due control sync first and one
 historical date per bounded opportunity. Midnight and multi-day wake schedule newly
 closed retained dates. `IOWorker` starts/stops explicitly and constructs its store on
-its own thread through a factory; later Qt integration must use queued notifications.
+its own thread through a factory. An unexpected step failure is counted and retried
+after five seconds instead of ending background sync; a store that cannot open sets
+`startup_failed`. `runtime.CompanionRuntime` (Task 8c) pairs it with the GUI-thread
+presenter on a second connection and queues a presenter tick after each committed sync.
 
 Cloud bound facades are `DeviceApi(repository,clock).syncDevice(identity,input)` and
 `SettingsService(repository,clock).updateSettings(identity,change,callback?)` /

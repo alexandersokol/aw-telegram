@@ -163,6 +163,11 @@ class LocalStore:
         self.connection.execute("update state set value=? where id=1", (_json(state),))
 
     @property
+    def binding(self) -> dict | None:
+        """Public enrollment identity {deviceId, backendUrl}; the secret stays in the vault."""
+        return self._state()["binding"]
+
+    @property
     def collection_started_at(self):
         return self._state()["collectionStartedAt"]
 

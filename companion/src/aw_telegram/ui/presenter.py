@@ -39,17 +39,23 @@ class PolicyPresenter(QObject):
         self._timer = QTimer(self)
         self._timer.setInterval(interval_ms)
         self._timer.timeout.connect(self.tick)
+        self._stopped = False
 
     def start(self) -> None:
+        self._stopped = False
         self.scheduler.recover(self._now())
         self._last = None
         self._timer.start()
         self.tick()
 
     def stop(self) -> None:
+        """After stop, late Qt events (a queued tick, a widget closing) never reach the scheduler or its store."""
+        self._stopped = True
         self._timer.stop()
 
     def tick(self) -> None:
+        if self._stopped:
+            return
         wall, mono = self._now(), self._monotonic()
         resumed = self._last is None or abs((wall - self._last[0]).total_seconds() - (mono - self._last[1])) > RESUME_DRIFT_S
         self._last = (wall, mono)
@@ -81,6 +87,8 @@ class PolicyPresenter(QObject):
 
     def _completed(self, presentation_id: str, reason: str) -> None:
         key = self._keys.pop(presentation_id, None)
+        if self._stopped:
+            return
         # Replacement and clearing were decided by the scheduler; only user/duration ends report back.
         if key is not None and reason in ("dismissed", "expired") and not key.startswith(("endtime-warning:", "allowance-warning:")):
             self.scheduler.dismissed(key, self._now(), reason)

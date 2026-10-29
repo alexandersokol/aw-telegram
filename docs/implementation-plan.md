@@ -582,8 +582,27 @@ Checkpoint 8b (2026-10-29, local, not independently reviewed): the allowance eng
   newest-due-wins (applied regardless of source, as approved) alternates them about
   once a minute instead of letting either stay up.
 
-Companion 339. Remaining for Task 8: 8c, the app main loop that runs the sync IO worker
-and the GUI presenter on separate store connections; and the Windows manual checks.
+Companion 339.
+
+Checkpoint 8c (2026-10-29, local, not independently reviewed): the app main loop.
+- **Runtime:** `runtime.CompanionRuntime` starts the GUI-thread presenter first (so
+  presentation works offline), then the IO worker. Each opens its own `LocalStore`
+  connection, and they share state only through SQLite.
+- **Prompt display:** each committed sync emits a queued signal that ticks the presenter
+  on the GUI thread, so an offer, clear or free-use change shows at once rather than at
+  the next one-second tick.
+- **Wiring:** `build_coordinator` uses the store's bound enrollment identity (an
+  unenrolled store stops at CredentialError) and an explicit loopback ActivityWatch port.
+- **Resilience:** `IOWorker` counts an unexpected step failure, such as a locked
+  database, and retries after five seconds instead of silently ending sync. A store that
+  cannot open sets `startup_failed`.
+- **Shutdown:** stop is idempotent. A stopped presenter ignores late queued ticks and
+  widget completions, so nothing reaches a closed store.
+
+Companion 344. There is no runnable entry point yet: enrollment, the tray and `main()`
+are Task 9, and the backend is not deployed. Remaining for Task 8: the Windows manual
+checks, of which the presentation-level ones can run through the harness now and the
+live-loop ones after Task 9.
 
 **Files:** create companion/src/aw_telegram/{policy,scheduler}.py,
 companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate storage and UI.

@@ -211,10 +211,15 @@ class SyncCoordinator:
 class IOWorker:
     """Explicit lifecycle. Factory runs inside the worker so SQLite keeps ownership.
 
-    No Qt dependency; a later queued-signal adapter may consume on_update after commit.
+    No Qt dependency; runtime.CompanionRuntime queues on_update to the GUI thread.
+    An unexpected step failure (e.g. a locked database) is counted and retried after
+    retry_delay; it never ends background sync for the session.
     """
-    def __init__(self, factory, *, utc_clock, monotonic=time.monotonic):
+    def __init__(self, factory, *, utc_clock, monotonic=time.monotonic, retry_delay=5.0):
         self.factory, self.utc_clock, self.monotonic = factory, utc_clock, monotonic
+        self.retry_delay = retry_delay
+        self.failures = 0
+        self.startup_failed = False
         self._stop = threading.Event()
         self._thread = None
 
@@ -225,11 +230,20 @@ class IOWorker:
         self._thread.start()
 
     def _run(self):
-        coordinator = self.factory()
+        try:
+            coordinator = self.factory()
+        except Exception:
+            self.startup_failed = True
+            return
         try:
             while not self._stop.is_set():
-                coordinator.step(self.utc_clock(), self.monotonic())
-                self._stop.wait(0.25)
+                delay = 0.25
+                try:
+                    coordinator.step(self.utc_clock(), self.monotonic())
+                except Exception:
+                    self.failures += 1
+                    delay = self.retry_delay
+                self._stop.wait(delay)
         finally:
             coordinator.store.close()
 
