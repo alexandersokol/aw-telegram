@@ -50,9 +50,23 @@ class CompanionRuntime(QObject):
         # Emitted on the worker thread after a committed sync; the tick runs on the GUI thread.
         self.synced.connect(self.presenter.tick, Qt.ConnectionType.QueuedConnection)
         self.presenter.start()
-        self.worker = IOWorker(lambda: self._coordinator(self._open(self.database), lambda *_: self.synced.emit()),
-                               utc_clock=self._clock)
+        self.worker = self._new_worker()
         self.worker.start()
+
+    def _new_worker(self) -> IOWorker:
+        return IOWorker(lambda: self._coordinator(self._open(self.database), lambda *_: self.synced.emit()),
+                        utc_clock=self._clock)
+
+    def restart_sync(self, timeout: float = 15) -> bool:
+        """Rebuild the worker after enrollment or an ActivityWatch address change; True when the old one exited.
+
+        Blocks the GUI thread until the old worker finishes its current step (network calls are bounded)."""
+        if self.worker is None:
+            raise RuntimeError("runtime has not started")
+        stopped = self.worker.stop(timeout)
+        self.worker = self._new_worker()
+        self.worker.start()
+        return stopped
 
     def stop(self, timeout: float = 15) -> bool:
         """Stop presenting, then join the worker; True when the worker has exited. Safe to repeat."""

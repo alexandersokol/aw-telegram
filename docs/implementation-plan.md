@@ -717,6 +717,31 @@ Checkpoint 9a (2026-10-29, local, not independently reviewed): the app shell.
 
 Companion 369.
 
+Checkpoint 9b (2026-10-29, local, not independently reviewed): enrollment and «Налаштування».
+- **Enrollment:** the owner pastes the CLI's one-line `{"backendUrl","secret"}` bundle.
+  «Перевірити код» shows the canonical HTTPS host, and nothing is sent until the owner
+  presses «Підключити». Editing the code withdraws that confirmation.
+  `Transport.enroll` accepts only the confirmed host and runs off the GUI thread.
+- **The secret:** it is cleared from the screen after use and never logged, persisted
+  or echoed in errors.
+- **Enrollment errors:** they are actionable. The code is kept only when it never reached
+  the server: no connection, or the Windows vault was unavailable. An invalid, expired
+  or used code asks for a new one. A consumed code whose vault write failed asks the
+  owner to revoke it and issue a new one.
+- **After enrolling:** `LocalStore.bind` records the public identity once, the sync
+  worker restarts with it (`CompanionRuntime.restart_sync`), and ActivityWatch is
+  checked at once (SETUP-03).
+- **ActivityWatch:** a loopback host (`127.0.0.1` or `::1`) and a port. «Зберегти й
+  перевірити» saves `app_config`, restarts sync and probes. The result names what is
+  missing: the server, the window or AFK watcher, or the categories. A read-only probe of
+  this laptop correctly reported that ActivityWatch was not running.
+- **Autostart:** the checkbox is offered only for the packaged `.exe` (`sys.frozen`);
+  otherwise it explains that it needs the installed version.
+- **Limitation:** restarting sync blocks the GUI thread until the old worker finishes
+  its current step, which is bounded by the network timeouts.
+
+Companion 392.
+
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
 companion/src/aw_telegram/windows/startup.py, companion/aw-telegram.spec,

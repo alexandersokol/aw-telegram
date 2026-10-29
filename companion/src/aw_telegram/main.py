@@ -8,10 +8,13 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
+from .aw_reader import AWReader, LocalAWClient
 from .runtime import CompanionRuntime, build_coordinator
 from .single_instance import SingleInstance
 from .status import read_status, status_lines
+from .transport import Transport
 from .ui.presenter import utc_now
+from .ui.settings import SettingsPanel
 from .ui.tray import CompanionTray
 from .ui.window import CompanionWindow
 
@@ -31,16 +34,34 @@ def production_coordinator(store, on_update):
     return build_coordinator(store, on_update, aw_host=config["awHost"], aw_port=config["awPort"])
 
 
+def enroll(bundle, host):
+    """Exchange the one-time code; only the host the owner confirmed on screen is accepted."""
+    return Transport(accept_host=lambda candidate: candidate == host).enroll(bundle)
+
+
+def probe(host, port):
+    return AWReader(client=LocalAWClient(host=host, port=port)).probe()
+
+
+def installed_executable() -> str | None:
+    """The packaged .exe; autostart is offered only for an installed build."""
+    return sys.executable if getattr(sys, "frozen", False) else None
+
+
 class CompanionApp(QObject):
     """Window, tray and runtime. Create, start and quit on the GUI thread."""
     finished = Signal()
 
     def __init__(self, database: Path, coordinator=production_coordinator, *, presenter_factory=None,
-                 show: bool = True, background: bool = False):
+                 show: bool = True, background: bool = False, enroll=enroll, probe=probe, runner=None,
+                 executable=None, registry=None):
         super().__init__()
         options = {} if presenter_factory is None else {"presenter": presenter_factory}
         self.runtime = CompanionRuntime(database, coordinator, **options)
-        self.window = CompanionWindow()
+        self.settings_panel = SettingsPanel(enroll=enroll, probe=probe, on_enrolled=self._enrolled,
+                                            on_aw_changed=self._aw_changed, executable=executable,
+                                            registry=registry, runner=runner)
+        self.window = CompanionWindow(settings=self.settings_panel)
         self.tray = CompanionTray()
         self._show, self._background = show, background
         self.tray.open_requested.connect(self.open)
@@ -52,6 +73,7 @@ class CompanionApp(QObject):
     def start(self) -> None:
         self.runtime.start()
         self._timer.start()
+        self._settings_state()
         self.refresh()
         enrolled = self.runtime.store.binding is not None
         if not enrolled:
@@ -61,6 +83,20 @@ class CompanionApp(QObject):
         self.tray.show()
         if not enrolled or not self._background:
             self.open()
+
+    def _settings_state(self) -> None:
+        store = self.runtime.store
+        self.settings_panel.set_state(store.binding, store.app_config)
+
+    def _enrolled(self, identity) -> None:
+        self.runtime.store.bind(identity)
+        self.runtime.restart_sync()  # the worker builds its transport from the binding
+        self._settings_state()
+        self.refresh()
+
+    def _aw_changed(self, host: str, port: int) -> None:
+        self.runtime.store.set_app_config(awHost=host, awPort=port)
+        self.runtime.restart_sync()
 
     def refresh(self) -> None:
         store, worker = self.runtime.store, self.runtime.worker
@@ -94,7 +130,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0  # the running instance opens its window
     directory = data_directory()
     directory.mkdir(parents=True, exist_ok=True)
-    companion = CompanionApp(directory / "companion.sqlite", background="--background" in argv)
+    companion = CompanionApp(directory / "companion.sqlite", background="--background" in argv,
+                             executable=installed_executable())
     guard.activated.connect(companion.open)
     companion.finished.connect(app.quit)
     companion.start()

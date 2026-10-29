@@ -1,8 +1,8 @@
 # Companion window and tray
 
 Status: agreed initial interface recorded 2026-10-27; endtime and newest-overlay
-amendment approved 2026-10-29. The window, tray and «Стан» are implemented
-(Task 9a); «Доступ батьків», «Налаштування» and first launch are pending.
+amendment approved 2026-10-29. The window, tray, «Стан», «Налаштування» and
+first-launch enrollment are implemented (Tasks 9a–9b); «Доступ батьків» is pending.
 All built-in interface text is Ukrainian.
 
 ## Window and tray behavior

@@ -94,13 +94,7 @@ class LocalStore:
         try:
             self._migrate()
             if identity is not None:
-                binding = {"deviceId": identity.deviceId, "backendUrl": identity.backendUrl}
-                with self._transaction():
-                    state = self._state()
-                    if state["binding"] is not None and state["binding"] != binding:
-                        raise ValueError("device binding cannot change")
-                    state["binding"] = binding
-                    self._save(state)
+                self.bind(identity)
         except BaseException:
             self.connection.close()
             raise
@@ -173,10 +167,28 @@ class LocalStore:
     def _save(self, state):
         self.connection.execute("update state set value=? where id=1", (_json(state),))
 
+    def bind(self, identity) -> None:
+        """Record the public enrollment identity once; the secret stays in the vault."""
+        binding = {"deviceId": identity.deviceId, "backendUrl": identity.backendUrl}
+        with self._transaction():
+            state = self._state()
+            if state["binding"] is not None and state["binding"] != binding:
+                raise ValueError("device binding cannot change")
+            state["binding"] = binding
+            self._save(state)
+
     @property
     def app_config(self) -> dict:
         """Local companion settings; ActivityWatch's own default address unless changed in «Налаштування»."""
         return {**APP_DEFAULTS, **self._state().get("app", {})}
+
+    def set_app_config(self, *, awHost: str, awPort: int) -> None:
+        if awHost not in ("127.0.0.1", "::1") or type(awPort) is not int or not 1 <= awPort <= 65535:
+            raise ValueError("ActivityWatch needs a loopback host and a port 1-65535")
+        with self._transaction():
+            state = self._state()
+            state["app"] = {**state.get("app", {}), "awHost": awHost, "awPort": awPort}
+            self._save(state)
 
     @property
     def binding(self) -> dict | None:
