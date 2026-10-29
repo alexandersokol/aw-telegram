@@ -13,7 +13,8 @@ import {canonical,checkSettingsCapacity,emptyCancellations} from './deviceApi.js
 export type SettingsChange = {kind:'selectCategories';paths:string[][];uncategorized:boolean} |
   {kind:'setDefaultLimit'|'setTodayLimit';ms:number} | {kind:'setFreeUse'|'setSuppression'|'setEndtimeEnabled';enabled:boolean} |
   {kind:'setEndtime';localTime:string};
-export interface SettingsUpdateResult {settings:Settings;acknowledgedRevision:Counter|null}
+/** changed is false for an effective no-op; status reads omit it. */
+export interface SettingsUpdateResult {settings:Settings;acknowledgedRevision:Counter|null;changed?:boolean}
 export interface CallbackGuard {nonce:string;version:number}
 
 export function applySettingsChange(settings:Settings,change:SettingsChange,now:Instant):Settings {
@@ -58,6 +59,8 @@ function retainedGenerations(history:EndtimePolicyGeneration[],now:Instant):Endt
   const baseline=history.filter(entry=>entry.changedAt<start).at(-1);
   return history.filter(entry=>entry===baseline || entry.changedAt>=start);
 }
+const endtimeSummary=(change:SettingsChange,settings:Settings):string=>change.kind==='setEndtime'||change.kind==='setEndtimeEnabled'?
+  ` Час завершення: ${settings.endtimeEnabled?'увімкнено':'вимкнено'}, ${settings.endtimeLocalTime}.`:'';
 export class SettingsService {
   constructor(private readonly repository:FirestoreRepository,private readonly clock:()=>Instant=()=>new Date().toISOString()) {}
 
@@ -78,7 +81,7 @@ export class SettingsService {
       const dayRef=root.collection('days').doc(kyivDate(now));
       const [old,sync,day,cancel,device]=await tx.getAll(settingsRef,syncRef,dayRef,root.collection('cancellations').doc('current'),root);
       const previous=decodeSettings(old!.data()),settings=applySettingsChange(previous,change,now);
-      const result={settings,acknowledgedRevision:sync!.data()?.settingsAckRevision??null};
+      const result={settings,acknowledgedRevision:sync!.data()?.settingsAckRevision??null,changed:settings.revision!==previous.revision};
       if(settings.revision===previous.revision){
         // Reserve the intent ID, but do not repeat cancellations, alerts or policy transitions.
         tx.set(operation.ref,{digest:operation.hash,result:{...result,settings:encodeSettings(settings)},at:now,expired:false});
@@ -101,7 +104,7 @@ export class SettingsService {
       checkSettingsCapacity(settings,cancellations,now,started===null?null:new Date(started).toISOString());
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
-      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.',category:change.kind==='selectCategories',issuerPairingId:identity.pairingId});
+      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.'+endtimeSummary(change,settings),category:change.kind==='selectCategories',issuerPairingId:identity.pairingId});
       const suppressionWrites=(change.kind==='setFreeUse'||change.kind==='setSuppression')&&change.enabled?
         await planEndtimeSuppression(this.repository,tx,identity.deviceId,kyivDate(now)):[];
       if(change.kind==='setFreeUse'){

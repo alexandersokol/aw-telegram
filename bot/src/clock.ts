@@ -55,10 +55,12 @@ export function dayBounds(value: string): {start: string; end: string} {
   };
 }
 
+export const isEndtimeLocalTime = (value: unknown): value is string => typeof value === 'string' && ENDTIME.test(value);
+
 /** Resolve independently per Kyiv date: first repeated time, gaps shifted forward. */
 export function endtimeAt(value: string, localTime: string): string {
   parseDate(value);
-  if (typeof localTime !== 'string' || !ENDTIME.test(localTime))
+  if (!isEndtimeLocalTime(localTime))
     throw new Error('expected exact endtime HH:MM from 00:15 through 23:59');
   return resolveKyiv(value, localTime);
 }
