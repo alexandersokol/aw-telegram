@@ -5,7 +5,7 @@ import type {CallbackGuard} from '../settings.js';
 
 export const SESSION_TTL_MS = 30 * 60000;
 /** One session document per caregiver; opening another menu replaces it and invalidates its buttons. */
-export type MenuName = 'endtime' | 'nav';
+export type MenuName = 'endtime' | 'nav' | 'limit' | 'clear';
 export interface MenuSession<S> extends CallbackGuard {state: S}
 
 export class MenuSessions {

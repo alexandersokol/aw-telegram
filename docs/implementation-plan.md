@@ -423,6 +423,24 @@ stay under 3500 characters; extra pages follow as messages without buttons.
 are wired; reports create no events. Bot unit 209; emulator 48; build and bundle
 checks passed.
 
+Checkpoint 7c (2026-10-29, local, not independently reviewed): `telegram/allowance.ts`
+adds the Ліміт часу screen (main-menu button and `/limit`), with today-only and daily
+changes, categories, free use, and «Відновити нагадування» while Clear all is
+active. Every menu change shows a review that explains its effect before
+`SettingsService` mutates. Direct commands apply immediately: `/limit ТРИВАЛІСТЬ
+today|daily`, where the duration is 0–24 h written as `H:MM`, minutes, `год/хв` or
+`h/m`; `/free on|off`; `/restore`; and `/categories`, `/add_category` and
+`/remove_category`, which match names case-insensitively with `›`, `>` or `/`
+between levels. Categories come from the laptop's latest live catalog, 8 per page.
+Already-counted descendants are not offered. The pick is stored in the session as
+`{segments}` objects, because Firestore rejects nested arrays (verified in the
+emulator), and applied with new closed `addCategory`/`removeCategory` settings
+changes against current settings. `/clear` offers the scope menu, `/clear manual`
+applies directly, and `/clear all` always confirms first (`telegram/clear.ts`).
+Coordination to other caregivers now names what changed. A restore while free use
+is on explains that reminders stay paused. Bot unit 237; emulator 49; build and
+bundle checks passed.
+
 **Prerequisite:** complete/review the application-name usage checkpoint above.
 Today/yesterday render AW app names/durations sorted descending, only selected
 category intervals incl descendants once and uncategorized opt-in; complete rows

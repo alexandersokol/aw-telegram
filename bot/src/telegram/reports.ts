@@ -9,6 +9,7 @@ import {projectDay,validateContract,type DaySummary,type Health,type Instant,typ
 import {dayBounds,kyivDate,kyivTime,retainedDates} from '../clock.js';
 import {effectiveLimitMs} from '../alerts.js';
 import {decodeSettings} from '../settingsCodec.js';
+import {duration} from '../format.js';
 
 export type UsagePeriod = 'today' | 'yesterday' | 'week';
 export interface ReportData {
@@ -38,11 +39,7 @@ export async function loadReport(repository: FirestoreRepository, identity: Pare
   });
 }
 
-export function duration(ms: number): string {
-  if (ms > 0 && ms < 60000) return 'менше 1 хв';
-  const minutes = Math.floor(ms / 60000), hours = Math.floor(minutes / 60);
-  return hours ? `${hours} год ${String(minutes % 60).padStart(2, '0')} хв` : `${minutes} хв`;
-}
+export {duration};
 const shortDate = (date: string): string => `${date.slice(8, 10)}.${date.slice(5, 7)}`;
 const weekday = (date: string): string => WEEKDAYS[new Date(`${date}T00:00:00.000Z`).getUTCDay()]!;
 const days = (n: number): string => n % 10 === 1 && n % 100 !== 11 ? 'день' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'дні' : 'днів';

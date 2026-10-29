@@ -3,6 +3,7 @@ import {BoundaryError,FirestoreRepository,type ParentIdentity} from '../reposito
 import type {Instant} from '../contracts.js';
 import type {CallbackGuard,SettingsService} from '../settings.js';
 import type {EndtimeController} from './commands.js';
+import type {AllowanceController} from './allowance.js';
 import {MenuSessions} from './sessions.js';
 import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,SECTION_PENDING,HELP,STALE_NAV,CHOOSE_PERIOD,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
 import {loadReport,renderStatus,renderUsage,type UsagePeriod} from './reports.js';
@@ -12,15 +13,16 @@ export interface NavState {screen: NavScreen; period?: UsagePeriod}
 export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourly' | 'endtime' | 'help' | 'back' |
   UsagePeriod | 'refresh';
 /** A null state leaves this menu: openEndtime hands over to the Endtime submenu. */
-export interface NavResult {state: NavState | null; effect?: 'toggleHourly' | 'openEndtime'; error?: 'stale'}
+export interface NavResult {state: NavState | null; effect?: 'toggleHourly' | 'openEndtime' | 'openLimit'; error?: 'stale'}
 
-const SECTIONS: readonly NavScreen[] = ['usage', 'status', 'reminders', 'limit'];
+const SECTIONS: readonly NavScreen[] = ['usage', 'status', 'reminders'];
 const PERIODS: readonly UsagePeriod[] = ['today', 'yesterday', 'week'];
 const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourly', 'endtime', 'help', 'back', ...PERIODS, 'refresh'];
 
 export function transitionNav(state: NavState, action: NavAction): NavResult {
   const to = (screen: NavScreen): NavResult => ({state: {screen}});
   if (state.screen === 'main') {
+    if (action === 'limit') return {state: null, effect: 'openLimit'};
     if (action === 'settings' || SECTIONS.includes(action as NavScreen)) return to(action as NavScreen);
   } else if (state.screen === 'settings') {
     if (action === 'hourly') return {state, effect: 'toggleHourly'};
@@ -51,7 +53,8 @@ const stale = (): Reply => ({text: STALE_NAV, buttons: []});
 export class NavigationController {
   private readonly sessions: MenuSessions;
   constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService,
-              private readonly endtime: EndtimeController, private readonly clock: () => Instant) {
+              private readonly endtime: EndtimeController, private readonly allowance: AllowanceController,
+              private readonly clock: () => Instant) {
     this.sessions = new MenuSessions(repository, clock);
   }
 
@@ -76,6 +79,7 @@ export class NavigationController {
       const result = transitionNav(session.state, parsed.action);
       if (result.error) return stale();
       if (result.effect === 'openEndtime') return this.endtime.openMenu(identity);
+      if (result.effect === 'openLimit') return this.allowance.openStatus(identity);
       let prefix: string | undefined;
       if (result.effect === 'toggleHourly') {
         const enabled = !(await this.hourlyEnabled(identity));

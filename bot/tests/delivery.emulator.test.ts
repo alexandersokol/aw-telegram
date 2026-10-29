@@ -91,6 +91,20 @@ describe('delivery emulator races and rollback',()=>{
   resume();await first;repo.authorizeRecipient=authorize;await outbox.deliverOutbox(rows[1]!.id);
   expect(chats).toEqual([]);expect((await rows[0]!.ref.get()).data()).toMatchObject({state:'canceled',text:null,leaseToken:null});
  });
+ it('stores category pick sessions in real Firestore and applies the picked category',async()=>{
+  const {TelegramBot}=await import('../src/telegram/webhook.js');
+  const replies:any[]=[],client={send:async(_c:string,r:any)=>{replies.push(r);},edit:async(_c:string,_m:number,r:any)=>{replies.push(r);},answer:async()=>{},delete:async()=>{}};
+  const bot=new TelegramBot(repo,settings,actions,client,clock);
+  await db.doc(path('live/current')).set({sequence:1,value:{observedAt:NOW,state:'active',app:'Minecraft',title:null,category:null,rulesRevision:'r',
+    categoryCatalog:[{id:'["Games","Minecraft"]',path:['Games','Minecraft']},{id:'uncategorized',path:null}]}});
+  let update=0;const from={id:1,is_bot:false,first_name:'P'},chat={id:1,type:'private'};
+  const say=(text:string)=>bot.handleUpdate({update_id:++update,message:{message_id:update,date:0,chat,from,text}});
+  const tap=(label:string)=>bot.handleUpdate({update_id:++update,callback_query:{id:'cb'+update,from,chat_instance:'i',
+    data:replies.at(-1).buttons.flat().find((b:any)=>b.text===label).data,message:{message_id:1,date:0,chat}}});
+  await say('/categories');await tap('Додати');await tap('Games › Minecraft');await tap('Підтвердити');
+  expect(replies.at(-1).text.startsWith('Збережено: категорії для обліку — Games › Minecraft.')).toBe(true);
+  expect((await db.doc(path('settings/current')).get()).data()?.selectedPaths).toEqual([{segments:['Games','Minecraft']}]);
+ });
  it('rolls back settings and coordination if mandatory controls exceed capacity',async()=>{
   const paths=Array.from({length:200},(_,i)=>Array.from({length:8},(_,j)=>String(i)+'x'.repeat(77)+j));const before=(await db.collection('events').get()).size;
   await expect(settings.updateSettings(p1,{kind:'selectCategories',paths,uncategorized:true},'too-big')).rejects.toThrow();expect((await db.doc(path('settings/current')).get()).data()?.revision).toBe(0);expect((await db.collection('events').get()).size).toBe(before);

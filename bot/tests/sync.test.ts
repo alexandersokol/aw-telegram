@@ -200,6 +200,18 @@ describe('revisioned settings',()=>{
       {kind:'setSuppression',enabled:true},
     ] as SettingsChange[])expect(applySettingsChange(initial,change,NOW)).toMatchObject({revision:8,endtimeGeneration:3,endtimeLocalTime:'22:00',endtimeEnabled:true});
   });
+  it('adds and removes one category atomically, treating null as the uncategorized opt-in',()=>{
+    const base={...defaultSettings(),selectedPaths:[['Games']]};
+    const added=applySettingsChange(base,{kind:'addCategory',path:['Media','Video']},NOW);
+    expect(added).toMatchObject({revision:1,selectedPaths:[['Games'],['Media','Video']]});
+    expect(applySettingsChange(added,{kind:'addCategory',path:['Media','Video']},NOW)).toEqual(added);
+    expect(applySettingsChange(added,{kind:'addCategory',path:null},NOW)).toMatchObject({revision:2,selectedUncategorized:true});
+    expect(applySettingsChange(added,{kind:'removeCategory',path:['Games']},NOW)).toMatchObject({revision:2,selectedPaths:[['Media','Video']]});
+    expect(applySettingsChange(added,{kind:'removeCategory',path:['Nope']},NOW)).toEqual(added);
+    for(const change of [{kind:'addCategory'},{kind:'addCategory',path:'Games'},{kind:'removeCategory',path:['Games'],extra:1},
+      {kind:'addCategory',path:['']}])
+      expect(()=>applySettingsChange(base,change as any,NOW)).toThrow('Invalid settings change');
+  });
   it('checks exhaustion only for counters that must advance',()=>{
     const max=Number.MAX_SAFE_INTEGER;
     const full={...defaultSettings(),revision:max,endtimeGeneration:max};

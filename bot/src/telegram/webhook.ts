@@ -12,6 +12,8 @@ import type {SettingsService} from '../settings.js';
 import {privateActor} from '../pairing.js';
 import {EndtimeController} from './commands.js';
 import {NavigationController} from './navigation.js';
+import {AllowanceController} from './allowance.js';
+import {ClearController} from './clear.js';
 import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
   hourlySaved,type Reply} from './uk.js';
 
@@ -44,11 +46,15 @@ const unauthorized = (error: unknown) => error instanceof BoundaryError && error
 export class TelegramBot {
   private readonly endtime: EndtimeController;
   private readonly navigation: NavigationController;
+  private readonly allowance: AllowanceController;
+  private readonly clear: ClearController;
   constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService,
-              _actions: ActionService, private readonly client: TelegramClient,
+              actions: ActionService, private readonly client: TelegramClient,
               private readonly clock: () => Instant = () => new Date().toISOString()) {
     this.endtime = new EndtimeController(repository, settings, clock);
-    this.navigation = new NavigationController(repository, settings, this.endtime, clock);
+    this.allowance = new AllowanceController(repository, settings, clock);
+    this.clear = new ClearController(repository, actions, clock);
+    this.navigation = new NavigationController(repository, settings, this.endtime, this.allowance, clock);
   }
 
   async handleUpdate(update: unknown): Promise<void> {
@@ -80,7 +86,10 @@ export class TelegramBot {
       reply = await this.endtime.callback(identity, data);
       if (reply.navigate === 'settings') reply = await this.navigation.openSettings(identity);
     } else if (typeof data === 'string' && data.startsWith('nv:')) reply = await this.navigation.callback(identity, data);
+    else if (typeof data === 'string' && data.startsWith('lm:')) reply = await this.allowance.callback(identity, data);
+    else if (typeof data === 'string' && data.startsWith('cl:')) reply = await this.clear.callback(identity, data);
     else reply = {text: STALE_NAV, buttons: []};
+    if (identity && reply.navigate === 'main') reply = await this.navigation.openMain(identity);
     await this.deliver(actor.chatId, reply, callback.message?.message_id);
   }
 
@@ -119,7 +128,7 @@ export class TelegramBot {
 
   private async reply(identity: ParentIdentity, text: string, parsed: RegExpExecArray | null, updateId: number): Promise<Reply> {
     const plain = (value: string): Reply => ({text: value, buttons: []});
-    if (!parsed) return (await this.endtime.text(identity, text)) ?? plain(HINT);
+    if (!parsed) return (await this.endtime.text(identity, text)) ?? (await this.allowance.text(identity, text)) ?? plain(HINT);
     const args = (parsed[2] ?? '').trim();
     switch (parsed[1]) {
       case 'start': return this.navigation.openMain(identity);
@@ -133,6 +142,13 @@ export class TelegramBot {
       case 'help': return plain(HELP);
       case 'pair': return plain(ALREADY_PAIRED);
       case 'endtime': return this.endtime.command(identity, text, updateId);
+      case 'limit': return this.allowance.limitCommand(identity, args, updateId);
+      case 'categories': return this.allowance.openCategories(identity);
+      case 'add_category': return this.allowance.categoryCommand(identity, 'add', args, updateId);
+      case 'remove_category': return this.allowance.categoryCommand(identity, 'remove', args, updateId);
+      case 'free': return this.allowance.freeCommand(identity, args, updateId);
+      case 'restore': return this.allowance.restoreCommand(identity, updateId);
+      case 'clear': return this.clear.command(identity, args, updateId);
       case 'hourly':
         if (args !== 'on' && args !== 'off') return plain(HOURLY_USAGE);
         await this.settings.setHourly(identity, args === 'on', `tg:${updateId}`);

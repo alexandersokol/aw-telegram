@@ -9,8 +9,11 @@ import {advanceMilestone} from './alerts.js';
 import {applyPlan} from './outbox.js';
 import {planEndtimeSuppression} from './endtime.js';
 import {canonical,checkSettingsCapacity,emptyCancellations} from './deviceApi.js';
+import {duration,selectionLabel} from './format.js';
 
+/** addCategory/removeCategory apply to current settings atomically; a null path is the uncategorized opt-in. */
 export type SettingsChange = {kind:'selectCategories';paths:string[][];uncategorized:boolean} |
+  {kind:'addCategory'|'removeCategory';path:string[]|null} |
   {kind:'setDefaultLimit'|'setTodayLimit';ms:number} | {kind:'setFreeUse'|'setSuppression'|'setEndtimeEnabled';enabled:boolean} |
   {kind:'setEndtime';localTime:string};
 /** changed is false for an effective no-op; status reads omit it. */
@@ -25,6 +28,16 @@ export function applySettingsChange(settings:Settings,change:SettingsChange,now:
     case 'selectCategories':
       if(keys!=='kind,paths,uncategorized') throw new BoundaryError('Invalid settings change');
       next.selectedPaths=change.paths;next.selectedUncategorized=change.uncategorized;break;
+    case 'addCategory': case 'removeCategory': {
+      if(keys!=='kind,path' || (change.path!==null && !Array.isArray(change.path))) throw new BoundaryError('Invalid settings change');
+      const add=change.kind==='addCategory',path=change.path;
+      if(path===null) next.selectedUncategorized=add;
+      else {
+        const same=(p:string[])=>p.length===path.length && p.every((s,i)=>s===path[i]);
+        next.selectedPaths=add ? (next.selectedPaths.some(same) ? next.selectedPaths : [...next.selectedPaths,path]) : next.selectedPaths.filter(p=>!same(p));
+      }
+      break;
+    }
     case 'setDefaultLimit':
       if(keys!=='kind,ms') throw new BoundaryError('Invalid settings change');
       next.defaultLimitMs=change.ms;next.todayOverride=null;break;
@@ -59,8 +72,19 @@ function retainedGenerations(history:EndtimePolicyGeneration[],now:Instant):Endt
   const baseline=history.filter(entry=>entry.changedAt<start).at(-1);
   return history.filter(entry=>entry===baseline || entry.changedAt>=start);
 }
-const endtimeSummary=(change:SettingsChange,settings:Settings):string=>change.kind==='setEndtime'||change.kind==='setEndtimeEnabled'?
-  ` Час завершення: ${settings.endtimeEnabled?'увімкнено':'вимкнено'}, ${settings.endtimeLocalTime}.`:'';
+/** What other caregivers are told changed; the issuer gets the bot's own confirmation. */
+function changeSummary(change:SettingsChange,settings:Settings):string {
+  switch(change.kind) {
+    case 'setEndtime': case 'setEndtimeEnabled':
+      return ` Час завершення: ${settings.endtimeEnabled?'увімкнено':'вимкнено'}, ${settings.endtimeLocalTime}.`;
+    case 'setTodayLimit': return ` Ліміт на сьогодні ${duration(change.ms)}.`;
+    case 'setDefaultLimit': return ` Щоденний ліміт ${duration(change.ms)}.`;
+    case 'selectCategories': case 'addCategory': case 'removeCategory':
+      return ` Категорії для обліку: ${selectionLabel(settings.selectedPaths,settings.selectedUncategorized)}.`;
+    case 'setFreeUse': return change.enabled?' Вільний режим увімкнено до опівночі.':' Вільний режим вимкнено.';
+    case 'setSuppression': return change.enabled?' Автоматичні нагадування вимкнено до опівночі.':' Автоматичні нагадування відновлено.';
+  }
+}
 export class SettingsService {
   constructor(private readonly repository:FirestoreRepository,private readonly clock:()=>Instant=()=>new Date().toISOString()) {}
 
@@ -104,7 +128,7 @@ export class SettingsService {
       checkSettingsCapacity(settings,cancellations,now,started===null?null:new Date(started).toISOString());
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
-      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.'+endtimeSummary(change,settings),category:change.kind==='selectCategories',issuerPairingId:identity.pairingId});
+      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.'+changeSummary(change,settings),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
       const suppressionWrites=(change.kind==='setFreeUse'||change.kind==='setSuppression')&&change.enabled?
         await planEndtimeSuppression(this.repository,tx,identity.deviceId,kyivDate(now)):[];
       if(change.kind==='setFreeUse'){
