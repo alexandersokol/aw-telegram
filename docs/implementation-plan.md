@@ -604,6 +604,59 @@ are Task 9, and the backend is not deployed. Remaining for Task 8: the Windows m
 checks, of which the presentation-level ones can run through the harness now and the
 live-loop ones after Task 9.
 
+Task 8 review (2026-10-29, independent, over 14b7759..16f718a). Verdict: not ready.
+Several common paths produced receipts the backend rejects. A rejected receipt fails
+the whole sync and stays queued, so one would stop all synchronization for good. Every
+finding was reproduced against the real `planActionSync`.
+
+Fixed (companion; LocalStore schema 5 adds `last_status` and `last_at` to `actions`):
+- A restart with a presented overlay or card sent `unconfirmed` after `presented`
+  (status regression). It now sends `completed`. `unconfirmed` is kept for an occurrence
+  whose presentation was never recorded.
+- A clear between repeats sent `canceled` for an occurrence already `dismissed`
+  (second terminal status). The family now ends locally; the backend applies the fence.
+- Acceptance was clamped to the laptop clock, but the backend requires it no earlier
+  than its first offer. It now uses the delivering response's `serverNow`.
+  Presentation is clamped to no earlier than acceptance, and a repeat to no earlier
+  than the recorded dismissal plus its interval.
+- Repeat families at Kyiv midnight sent later-occurrence receipts after midnight, and
+  a laptop asleep across midnight could show yesterday's repeat. No later-occurrence
+  receipt is sent at or after the family's midnight; the row ends locally, and a
+  waiting repeat past midnight never shows.
+- Event times could go backwards after a clock correction. They are now nondecreasing
+  per action.
+- Receipts outside the retained dates were kept forever. They are now pruned (action
+  and endtime).
+- Free use now hides countdowns (FREE-01) and removes a visible manual overlay or card
+  as `skipped`/`free_use` (FREE-04).
+- New cross-language test: `companion/tests/test_receipt_fixture.py` generates
+  `contracts/fixtures/action-receipts.json` from the real scheduler and store, and
+  `bot/tests/receipt-replay.test.ts` replays it through the real device sync. Nine
+  scenarios are accepted end to end. Regenerate with `AW_TELEGRAM_REGENERATE_FIXTURES=1`.
+
+Open, needs an owner decision:
+- The backend rejects truthful late evidence: `presented` at or after a cancellation
+  fence, or a presentation during free use the laptop had not yet learned about
+  (offline or within the 15 s sync gap). The companion cannot avoid this, so it still
+  stops sync. Either the backend records such evidence without failing the sync, or
+  the response reports per-receipt rejections the companion can drop.
+
+Deferred:
+- Minimizing a fullscreen game may hand the foreground to another window, so the
+  allowance overlay could hide and reshow. This needs the plan's real-AW Windows check,
+  or gating that keeps prior evidence until the minimized window is restored.
+- A store error inside a GUI slot (for example a 5 s busy timeout in `dismissed`) is
+  not retried.
+- When a policy warning card and a manual card fall due in the same tick, the warning
+  is replaced at once.
+- While our overlay has focus, AW health reads `stale`.
+- `IOWorker.failures` and `startup_failed` are surfaced only once Task 9's status
+  window exists.
+- A laptop clock far ahead of the server makes receipts wait until server time catches
+  up (the backend rejects receipts from its future).
+
+Companion 357, bot unit 278.
+
 **Files:** create companion/src/aw_telegram/{policy,scheduler}.py,
 companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate storage and UI.
 

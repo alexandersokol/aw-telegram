@@ -65,10 +65,16 @@ Task 8a (schema 4) accepts delivery offers durably. In the `apply_sync` transact
 an offer that is new and valid is recorded in `actions` and acknowledged `accepted`
 at once. A known ID is ignored. An offer already covered by the cancellation fence
 gets `canceled`, and one past its window gets `expired` (`missed_deadline`); neither
-has acceptance. Acceptance and event times are clamped to no earlier than the action's
-creation, so a laptop clock slightly behind the server cannot reject a whole sync. A new
-fence marks covered open actions `canceled` in the same transaction as the cancellation
-Ack. The scheduler removes any visible instance on its next one-second tick, so clearing
+has acceptance. Acceptance is no earlier than the delivering response's `serverNow`
+(the backend requires it no earlier than its first offer) or the action's creation.
+Presentation is no earlier than acceptance, and event times never go backwards per
+action (schema 5 keeps `last_status` and `last_at`). So a laptop clock behind the
+server, or stepped back, cannot get a receipt rejected. A new fence marks covered open
+actions `canceled` in the same transaction as the cancellation Ack, unless the latest
+occurrence already ended between repeats, in which case the family ends locally. No
+later-occurrence receipt is sent at or after the family's Kyiv midnight, and receipts
+outside the retained dates are pruned. `contracts/fixtures/action-receipts.json`
+records real companion receipt sequences that the bot replay test must accept. The scheduler removes any visible instance on its next one-second tick, so clearing
 is durable before the Ack and visible within about a second. A malformed offer still
 rejects the whole response atomically.
 

@@ -147,10 +147,25 @@ class Scheduler:
             overlays.append((verdict.due_at, state["sequence"], None, Presentation(
                 f"allowance:{allowance.date}:{state['sequence']}", "allowance", "overlay", ALLOWANCE_OVERLAY_TEXT)))
         free = settings.freeUseDate == kyiv_date(now)
+        if free:
+            # Active reminders must not bypass free use (FREE-04): remove a visible manual overlay or card.
+            for key in (visible, state["card"]):
+                action_id = self._family(key) if key else None
+                if action_id is None:
+                    continue
+                family = state["manual"][action_id]
+                commands.append(Hide(key))
+                events.append(_event(action_id, "skipped", now, family["occurrence"], reason="free_use"))
+                family["state"] = "done"
+                if key == visible:
+                    visible = None
+                else:
+                    state["card"] = None
         for action_id, family in state["manual"].items():
             midnight = local_day_bounds(family["date"])[1]
             if family["state"] == "visible" and family["repeat"] and now >= midnight:
-                # A repeat family stops at its Kyiv midnight, removing any visible instance.
+                # A repeat family stops at its Kyiv midnight, removing any visible instance. The store
+                # sends no receipt for a later occurrence past midnight; the backend closes it there.
                 key = self._overlay_key(action_id, family)
                 if visible == key:
                     commands.append(Hide(key))
@@ -164,9 +179,11 @@ class Scheduler:
                 expires = parse_instant(family["expires"])
                 late = now >= expires if family["immediate"] else now > expires
             else:
-                late = due >= midnight
+                late = now >= midnight  # e.g. asleep across midnight: yesterday's repeat never shows
             if late and occurrence:
-                family["state"] = "done"  # the family ended at midnight; the backend closes it there too
+                # The family ended at midnight; this closes it locally without a receipt (see above).
+                events.append(_event(action_id, "completed", now, occurrence))
+                family["state"] = "done"
             elif late:
                 events.append(_event(action_id, "expired", now, 0, reason="missed_deadline"))
                 family["state"] = "done"
@@ -193,7 +210,7 @@ class Scheduler:
             elif newest.source == "allowance":
                 state["allowance"] = allowance_shown(state["allowance"], now)
             else:
-                state["manual"][newest_id]["state"] = "visible"
+                state["manual"][newest_id].update(state="visible", presented=False)
             commands.append(newest)
         if cards:
             cards.sort()
@@ -205,11 +222,11 @@ class Scheduler:
                 shown = self._family(state["card"])
                 events.append(_event(shown, "replaced", now, state["manual"][shown]["occurrence"], reason="replaced"))
                 state["manual"][shown]["state"] = "done"
-            state["manual"][newest_id]["state"] = "visible"
+            state["manual"][newest_id].update(state="visible", presented=False)
             state["card"] = f"notify:{newest_id}"
             commands.append(Presentation(state["card"], "manual", "notification", state["manual"][newest_id]["text"],
                                          duration_ms=NOTIFY_CARD_MS))
-        self._countdown(state, commands, now)
+        self._countdown(state, commands, now, free)
         dates = retained_dates(now)
         state["manual"] = {k: f for k, f in state["manual"].items() if f["date"] in dates or f["state"] in _LIVE}
         state["visible"] = visible
@@ -224,9 +241,10 @@ class Scheduler:
             state["manual"][shown]["state"], state["card"] = "done", None
         commands.append(card)
 
-    def _countdown(self, state: dict, commands: list, now: datetime) -> None:
-        """Show the nearest waiting delayed reminder that asked for a countdown, if any."""
-        waiting = [(f["target"], action_id) for action_id, f in state["manual"].items()
+    def _countdown(self, state: dict, commands: list, now: datetime, free: bool) -> None:
+        """Show the nearest waiting delayed reminder that asked for a countdown, if any. Free use hides
+        countdowns (FREE-01); the timer keeps its deadline and its countdown returns if free use ends first."""
+        waiting = [] if free else [(f["target"], action_id) for action_id, f in state["manual"].items()
                    if f["state"] == "waiting" and f["countdown"] and f["occurrence"] == 0 and parse_instant(f["target"]) > now]
         wanted = f"countdown:{min(waiting)[1]}" if waiting else None
         if wanted == state["countdown"]:
@@ -263,6 +281,7 @@ class Scheduler:
             family = state["manual"][self._family(key)]
             events.append(_event(self._family(key), "failed" if failed else "presented", at, family["occurrence"],
                 None if failed else at, "presentation_failed" if failed else None, failed))
+            family["presented"] = not failed
             if failed:
                 family["state"], state["card"] = "done", None
         elif state["visible"] != key:
@@ -281,6 +300,7 @@ class Scheduler:
             family = state["manual"][action_id]
             events.append(_event(action_id, "failed" if failed else "presented", at, family["occurrence"],
                 None if failed else at, "presentation_failed" if failed else None, failed))
+            family["presented"] = not failed
             if failed:
                 family["state"], state["visible"] = "done", None
         self._save(state, receipt=receipt, events=events)
@@ -338,7 +358,11 @@ class Scheduler:
         self._save(state, events=events)
 
     def recover(self, now: datetime) -> None:
-        """After restart nothing is on screen; never replay a possibly shown presentation."""
+        """After restart nothing is on screen; never replay a possibly shown presentation.
+
+        A recorded presentation is closed as `completed`: the backend rejects `unconfirmed` after
+        `presented` as a status regression. Only an occurrence whose presentation was never recorded
+        (the app died between the show request and its receipt) is `unconfirmed`."""
         state = self._load()
         events = []
         key = state["visible"]
@@ -349,7 +373,10 @@ class Scheduler:
             if slot_key:
                 action_id = self._family(slot_key)
                 family = state["manual"][action_id]
-                events.append(_event(action_id, "unconfirmed", now, family["occurrence"], reason="crash_during_presentation"))
+                if family.get("presented", True):
+                    events.append(_event(action_id, "completed", now, family["occurrence"]))
+                else:
+                    events.append(_event(action_id, "unconfirmed", now, family["occurrence"], reason="crash_during_presentation"))
                 family["state"] = "done"
         state.update(visible=None, card=None, countdown=None)  # the countdown widget is reissued on the next tick
         self._save(state, events=events)

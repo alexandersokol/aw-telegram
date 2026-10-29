@@ -226,7 +226,7 @@ def test_newest_due_overlay_replaces_a_manual_family_terminally(h):
     assert all(h.shown(h.tick(h.time + timedelta(minutes=n))) == [] for n in range(1, 5))
 
 
-def test_restart_after_a_visible_overlay_reports_unconfirmed_without_replay(h):
+def test_restart_after_a_visible_overlay_completes_it_without_replay(h):
     h.offer(action(1, repeatEveryMinutes=1))
     h.show()
     h.store.close()
@@ -234,7 +234,7 @@ def test_restart_after_a_visible_overlay_reports_unconfirmed_without_replay(h):
     from aw_telegram.scheduler import Scheduler
     h.scheduler = Scheduler(h.store)
     h.scheduler.recover(h.time + timedelta(seconds=20))
-    assert h.statuses(1)[-1] == ("unconfirmed", 0, "crash_during_presentation")
+    assert h.statuses(1)[-1] == ("completed", 0, None)  # presented before the restart
     assert all(h.shown(h.tick(h.time + timedelta(minutes=n), resumed=n == 0)) == [] for n in range(0, 5))
     h.offer(action(1, repeatEveryMinutes=1))
     assert len(h.acks(1)) == 3
