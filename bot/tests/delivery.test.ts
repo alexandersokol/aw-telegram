@@ -11,12 +11,12 @@ async function setup(){
 }
 const ack=(action:any,status='accepted',extra:any={})=>({id:randomUUID(),kind:'action' as const,actionId:action.id,eventSequence:1,occurrence:0,status,at:NOW,acceptedAt:NOW,presentedAt:null,reason:null,...extra});
 describe('delivery lifecycle',()=>{
-  it('rejects endtime receipts without acknowledging them until delivery support exists',async()=>{
+  it('rejects endtime receipts that match no enabled generation without acknowledging them',async()=>{
     const f=await setup();const before=structuredClone(f.db.data);
     await expect(f.api.syncDevice(identity,{...request(),acks:[{
       id:randomUUID(),kind:'endtime',date:'2026-10-28',settingsRevision:0,endtimeGeneration:0,
       endtimeLocalTime:'13:00',presentedAt:'2026-10-28T11:00:00.000Z',
-    }]})).rejects.toThrow('Endtime receipt delivery is not implemented');
+    }]})).rejects.toThrow('Invalid endtime receipt');
     expect(f.db.data).toEqual(before);
   });
   it('commits precisely three actual offers at 0/20/40 seconds and never at expiry',async()=>{

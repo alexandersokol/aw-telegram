@@ -73,6 +73,24 @@ describe('delivery emulator races and rollback',()=>{
   let calls=0,fail=true;const tasks=new TaskService(repo,{create:async()=>{calls++;if(fail)throw new Error('offline');}},{deliverOutbox:async()=>{}} as any,clock);
   const intent=taskIntent(repo,'outbox','pending',NOW);await db.runTransaction(async tx=>{applyPlan(tx,[intent]);});await tasks.repair();expect((await intent.ref.get()).data()?.state).toBe('pending');fail=false;time+=60001;await tasks.repair();expect((await intent.ref.get()).data()?.state).toBe('enqueued');time+=60001;await tasks.repair();expect((await intent.ref.get()).data()?.dispatchGeneration).toBe(1);expect(calls).toBe(3);expect((await db.collection('events').get()).size).toBe(0);
  });
+ it('deduplicates concurrent endtime receipts and cancels their queued and leased delivery on suppression',async()=>{
+  await settings.updateSettings(p1,{kind:'setEndtime',localTime:'14:05'},'endtime');time=Date.parse('2026-10-28T12:10:00.000Z');
+  const receipt=()=>({id:randomUUID(),kind:'endtime' as const,date:'2026-10-28',settingsRevision:1,endtimeGeneration:1,endtimeLocalTime:'14:05',presentedAt:'2026-10-28T12:05:03.000Z'});
+  const same=receipt(),health=minimalHealth(clock());
+  await Promise.all([same,same,receipt()].map((ack,i)=>api.syncDevice(identity,{schemaVersion:2,sequence:i+1,health,acks:[ack]})));
+  expect((await db.collection('events').where('kind','==','endtime').get()).size).toBe(1);
+  const rows=(await db.collection('outbox').where('policy.endtimeDate','==','2026-10-28').get()).docs;expect(rows).toHaveLength(2);
+  const chats:string[]=[];let leased!:()=>void,resume!:()=>void;const paused=new Promise<void>(r=>{resume=r;});
+  const outbox=new OutboxService(repo,{send:async chat=>{chats.push(chat);return {kind:'sent',messageId:1};}},clock);
+  // Pause one worker after its lease commits: authorization runs between the lease and the pre-send recheck.
+  const authorize=repo.authorizeRecipient.bind(repo);repo.authorizeRecipient=async r=>{leased();await paused;return authorize(r);};
+  const leasedOnce=new Promise<void>(r=>{leased=r;}),first=outbox.deliverOutbox(rows[0]!.id);await leasedOnce;
+  expect((await rows[0]!.ref.get()).data()?.state).toBe('sending');
+  await settings.updateSettings(p2,{kind:'setFreeUse',enabled:true},'free');
+  expect((await rows[1]!.ref.get()).data()).toMatchObject({state:'canceled',text:null});
+  resume();await first;repo.authorizeRecipient=authorize;await outbox.deliverOutbox(rows[1]!.id);
+  expect(chats).toEqual([]);expect((await rows[0]!.ref.get()).data()).toMatchObject({state:'canceled',text:null,leaseToken:null});
+ });
  it('rolls back settings and coordination if mandatory controls exceed capacity',async()=>{
   const paths=Array.from({length:200},(_,i)=>Array.from({length:8},(_,j)=>String(i)+'x'.repeat(77)+j));const before=(await db.collection('events').get()).size;
   await expect(settings.updateSettings(p1,{kind:'selectCategories',paths,uncategorized:true},'too-big')).rejects.toThrow();expect((await db.doc(path('settings/current')).get()).data()?.revision).toBe(0);expect((await db.collection('events').get()).size).toBe(before);

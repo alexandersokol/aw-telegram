@@ -75,6 +75,24 @@
       ]
     },
     {
+      "collectionGroup": "outbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "policy.deviceId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "policy.endtimeDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "operations",
       "queryScope": "COLLECTION",
       "fields": [

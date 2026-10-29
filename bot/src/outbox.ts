@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { Transaction, DocumentReference } from 'firebase-admin/firestore';
 import { BoundaryError, FirestoreRepository, digest, MAX_ACTIVE_CAREGIVERS, type RecipientRef } from './repository.js';
 import { retainedDates, kyivDate } from './clock.js';
+import { decodeSettings } from './settingsCodec.js';
+import type { Settings } from './contracts.js';
+/** Free use and Clear all both silence endtime work for their active local date. */
+export const endtimeSuppressed = (settings: Settings, date: string): boolean => settings.freeUseDate === date || settings.suppressedDate === date;
 export interface PlannedWrite {
     ref: DocumentReference;
     value: Record<string, any>;
@@ -27,6 +31,14 @@ export interface ParentEvent {
         occurrence: number;
         presentedAt: string | null;
     }[];
+    policy?: EndtimeRowPolicy;
+}
+/** Identity an automatic policy alert needs for suppression rechecks before delivery. */
+export interface EndtimeRowPolicy {
+    kind: 'endtime';
+    deviceId: string;
+    endtimeDate: string;
+    endtimeGeneration: number;
 }
 export type SendOutcome = {
     kind: 'sent';
@@ -74,7 +86,7 @@ export async function ensureTaskIntent(repo: FirestoreRepository, tx: Transactio
 }
 export async function planParentEvent(repo: FirestoreRepository, tx: Transaction, event: ParentEvent): Promise<PlannedWrite[]> {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(event.id) || event.recipients.length > MAX_ACTIVE_CAREGIVERS || new Set(event.recipients.map(r => r.pairingId)).size !== event.recipients.length ||
-        !event.text || event.text.length > 3500 || event.recipients.some(r => r.deviceId !== event.deviceId))
+        !event.text || event.text.length > 3500 || event.recipients.some(r => r.deviceId !== event.deviceId) || event.policy && event.policy.deviceId !== event.deviceId)
         throw new BoundaryError('Invalid event');
     const ref = repo.db.doc('events/' + event.id);
     if ((await tx.get(ref)).exists)
@@ -83,7 +95,7 @@ export async function planParentEvent(repo: FirestoreRepository, tx: Transaction
     const writes: PlannedWrite[] = [{ ref, value: { id: event.id, deviceId: event.deviceId, at: event.at, kind: event.kind, text: event.text, recipients, ...(event.actions ? { actions: event.actions } : {}) } }];
     for (const recipient of recipients) {
         const id = digest(event.id + ':' + recipient.pairingId);
-        writes.push({ ref: repo.db.doc('outbox/' + id), value: { id, eventId: event.id, recipient, text: event.text, createdAt: event.at, state: 'pending', attempts: 0, nextAttemptAt: event.at, leaseToken: null, leaseUntil: null, ...(event.milestone ? { milestone: event.milestone } : {}) } }, taskIntent(repo, 'outbox', id, event.at));
+        writes.push({ ref: repo.db.doc('outbox/' + id), value: { id, eventId: event.id, recipient, text: event.text, createdAt: event.at, state: 'pending', attempts: 0, nextAttemptAt: event.at, leaseToken: null, leaseUntil: null, ...(event.milestone ? { milestone: event.milestone } : {}), ...(event.policy ? { policy: event.policy } : {}) } }, taskIntent(repo, 'outbox', id, event.at));
     }
     return writes;
 }
@@ -98,7 +110,7 @@ export class OutboxService {
             const r = (await tx.get(ref)).data();
             if (!r || ['delivered', 'undeliverable', 'canceled', 'exhausted'].includes(r.state) || r.nextAttemptAt > now || r.leaseUntil && r.leaseUntil > now)
                 return null;
-            if (!retainedDates(now).includes(kyivDate(r.createdAt))) {
+            if (!retainedDates(now).includes(kyivDate(r.createdAt)) || r.policy && await this.policyCanceled(tx, r.policy)) {
                 tx.update(ref, { state: 'canceled', text: null });
                 return null;
             }
@@ -110,6 +122,8 @@ export class OutboxService {
         let result: SendOutcome;
         try {
             const recipient = await this.repo.authorizeRecipient(row.recipient);
+            if (row.policy && !await this.policySendable(ref, token, row.policy))
+                return;
             result = await this.telegram.send(recipient.chatId, row.text);
         }
         catch (error) {
@@ -150,6 +164,22 @@ export class OutboxService {
             if (['pending', 'uncertain'].includes(state))
                 applyPlan(tx, [taskIntent(this.repo, 'outbox', id, extra.nextAttemptAt)]);
         });
+    }
+    /** A suppression may commit after the lease; recheck immediately before the provider call.
+     *  A request Telegram already accepted remains subject to the documented crash-after-send uncertainty. */
+    private async policySendable(ref: DocumentReference, token: string, policy: EndtimeRowPolicy): Promise<boolean> {
+        return this.repo.db.runTransaction(async (tx) => {
+            if ((await tx.get(ref)).data()?.leaseToken !== token)
+                return false;
+            if (!await this.policyCanceled(tx, policy))
+                return true;
+            tx.update(ref, { state: 'canceled', text: null, leaseToken: null, leaseUntil: null });
+            return false;
+        });
+    }
+    private async policyCanceled(tx: Transaction, policy: EndtimeRowPolicy): Promise<boolean> {
+        const stored = (await tx.get(this.repo.db.doc(`devices/${policy.deviceId}/settings/current`))).data();
+        return !stored || endtimeSuppressed(decodeSettings(stored), policy.endtimeDate);
     }
     private async finalize(ref: DocumentReference, token: string, patch: Record<string, any>): Promise<void> {
         await this.repo.db.runTransaction(async (tx) => { if ((await tx.get(ref)).data()?.leaseToken === token)

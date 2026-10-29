@@ -7,6 +7,7 @@ import {readActionSnapshot,readOperation,planCancellation} from './actions.js';
 import {readAlerts,planAlerts,measurement} from './alertPlans.js';
 import {advanceMilestone} from './alerts.js';
 import {applyPlan} from './outbox.js';
+import {planEndtimeSuppression} from './endtime.js';
 import {canonical,checkSettingsCapacity,emptyCancellations} from './deviceApi.js';
 
 export type SettingsChange = {kind:'selectCategories';paths:string[][];uncategorized:boolean} |
@@ -101,6 +102,8 @@ export class SettingsService {
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
       const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.',category:change.kind==='selectCategories',issuerPairingId:identity.pairingId});
+      const suppressionWrites=(change.kind==='setFreeUse'||change.kind==='setSuppression')&&change.enabled?
+        await planEndtimeSuppression(this.repository,tx,identity.deviceId,kyivDate(now)):[];
       if(change.kind==='setFreeUse'){
         const transitions=(policy.transitions??[]).filter((x:any)=>retainedDates(now).includes(kyivDate(x.at)));
         if(transitions.length>=MAX_POLICY_HISTORY)throw new BoundaryError('Policy transition capacity exceeded',409);
@@ -115,7 +118,7 @@ export class SettingsService {
       if(policy!==actions.policy)tx.set(root.collection('policy').doc('current'),policy);
       tx.set(operation.ref,{digest:operation.hash,result:{...result,settings:encodeSettings(result.settings)},at:now,expired:false});
       tx.set(root.collection('cancellations').doc('current'),cancellations);
-      applyPlan(tx,alertWrites);
+      applyPlan(tx,[...alertWrites,...suppressionWrites]);
       tx.set(settingsRef,encodeSettings(settings));
       if(evidence) tx.set(dayRef,{...evidence,projection});
       return result;

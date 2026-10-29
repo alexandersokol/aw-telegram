@@ -8,6 +8,7 @@ import { canonical, checkSettingsCapacity, emptyCancellations, boundedResponse }
 import { decodeSettings, encodeSettings, needsSettingsMigration } from './settingsCodec.js';
 import type { CallbackGuard } from './settings.js';
 import { applyPlan, planParentEvent, taskIntent, ensureTaskIntent, type PlannedWrite, type ParentEvent } from './outbox.js';
+import { planEndtimeSuppression } from './endtime.js';
 export type ActionDraft = ({
     kind: 'notify';
     options: Extract<Action, {
@@ -205,6 +206,8 @@ export class ActionService {
                 throw new BoundaryError('Policy transition capacity exceeded', 409);
             fences.push({ at: now, throughActionSequence: cancellations.throughActionSequence, canceledIds: [] });
             const events = await planParentEvent(this.repo, tx, eventFor(identity.deviceId, 'clear:' + identity.pairingId + ':' + operationId, now, 'Очищення запитано; очікуємо підтвердження ноутбука', snapshot.parents));
+            if (scope === 'all')
+                events.push(...await planEndtimeSuppression(this.repo, tx, identity.deviceId, kyivDate(now)));
             checkSettingsCapacity(settings, cancellations, now, d!.data()!.collectionStartedAt === null ? null : new Date(d!.data()!.collectionStartedAt).toISOString());
             tx.set(root.collection('policy').doc('current'), { ...snapshot.policy, fences });
             tx.set(root.collection('cancellations').doc('current'), cancellations);

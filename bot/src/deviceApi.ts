@@ -2,11 +2,12 @@
 import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,digest,type DeviceIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,
-  type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant} from './contracts.js';
+  type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant,type EndtimeAck} from './contracts.js';
 import {applyPlan,type PlannedWrite} from './outbox.js';
 import {readActionSnapshot,planActionSync} from './actions.js';
 import {readAlerts,planAlerts,measurement} from './alertPlans.js';
 import {retainedDates,parseInstant} from './clock.js';
+import {planEndtimeAck} from './endtime.js';
 
 export function canonical(value:unknown):string {
   if(Array.isArray(value)) return '['+value.map(canonical).join(',')+']';
@@ -14,6 +15,8 @@ export function canonical(value:unknown):string {
     return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical((value as Record<string,unknown>)[k])).join(',')+'}';
   return JSON.stringify(value);
 }
+/** One ten-caregiver receipt plans 21 writes, so at most 220 of the 450-write transaction. */
+const ENDTIME_WRITE_BUDGET=200;
 export const emptyCancellations=():Cancellations=>({revision:0,throughActionSequence:0,canceledIds:[]});
 export function boundedResponse(response:SyncResponse):SyncResponse {
   const validated=validateContract('sync-response',response);
@@ -65,13 +68,16 @@ export class DeviceApi {
       const next={...current};
       const actions=await readActionSnapshot(this.repository,tx,identity.deviceId,request.acks.filter(a=>a.kind==='action').map(a=>a.actionId));
       const alertSnapshot=await readAlerts(this.repository,tx,identity.deviceId,now);
+      const endtimeAcks:EndtimeAck[]=[];
       for(let i=0;i<request.acks.length;i++) {
         const ack=request.acks[i]!,previous=receiptDocs[i]!.data();
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='action') continue;
-        // Task 2 defines the wire receipt; later delivery work must validate and
-        // persist it before it can be acknowledged to the companion.
-        if(ack.kind==='endtime') throw new BoundaryError('Endtime receipt delivery is not implemented');
+        if(ack.kind==='endtime') {
+          // An already stored receipt was planned (or suppressed) when it was first accepted.
+          if(!previous)endtimeAcks.push(ack);
+          continue;
+        }
         if(ack.appliedAt>now) throw new BoundaryError('Invalid receipt');
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='settings') {
@@ -111,12 +117,20 @@ export class DeviceApi {
         acknowledgedAckIds:request.acks.map(a=>a.id)});
       const changedToday=dayWrites.find(w=>w.value.source.date===retained[0])?.value;
       const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alertSnapshot,measurement(changedToday)):[];
-      let actionAcks=request.acks.filter(a=>a.kind==='action'),selectedAcks=request.acks;
+      // Event identity covers device/date/generation; identical rows planned twice in one request collapse.
+      // Receipts past the budget stay unacknowledged; the companion retains and resends them.
+      const endtimeWrites=new Map<string,PlannedWrite>(),deferred=new Set<string>();
+      for(const ack of endtimeAcks) {
+        if(endtimeWrites.size>=ENDTIME_WRITE_BUDGET){deferred.add(ack.id);continue;}
+        for(const write of await planEndtimeAck(this.repository,tx,identity.deviceId,ack,actions.policy,actions.parents,settings,now))
+          endtimeWrites.set(write.ref.path,write);
+      }
+      let actionAcks=request.acks.filter(a=>a.kind==='action'),selectedAcks=request.acks.filter(a=>!deferred.has(a.id));
       let mandatoryWrites:number,actionWrites:PlannedWrite[];
       for(;;){
         const selectedIds=new Set(selectedAcks.map(a=>a.id));
         const newReceipts=receiptDocs.filter((doc,i)=>!doc.exists&&selectedIds.has(request.acks[i]!.id)).length;
-        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length+(migrateSettings?1:0);
+        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length+endtimeWrites.size+(migrateSettings?1:0);
         response.acknowledgedAckIds=selectedAcks.map(a=>a.id);response.deliveryOffers=[];
         try{
           actionWrites=await planActionSync(this.repository,tx,actions,actionAcks,settings,cancellations,now,response,450-mandatoryWrites);
@@ -127,7 +141,7 @@ export class DeviceApi {
           // and still applied. The companion retains every ID omitted from this response.
           actionAcks=actionAcks.slice(0,Math.ceil(actionAcks.length/2));
           const retainedIds=new Set(actionAcks.map(a=>a.id));
-          selectedAcks=request.acks.filter(a=>a.kind!=='action'||retainedIds.has(a.id));
+          selectedAcks=request.acks.filter(a=>!deferred.has(a.id)&&(a.kind!=='action'||retainedIds.has(a.id)));
         }
       }
       boundedResponse(response);
@@ -135,7 +149,7 @@ export class DeviceApi {
       const cleanup=dayDocs.docs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
       // All reads, validation and response capacity checks precede any protected write.
       if(migrateSettings)tx.set(settingsRef,encodeSettings(settings));
-      applyPlan(tx,[...actionWrites,...alertWrites]);
+      applyPlan(tx,[...actionWrites,...alertWrites,...endtimeWrites.values()]);
       for(const write of dayWrites) tx.set(write.ref,write.value);
       for(const doc of cleanup) tx.delete(doc.ref);
       const acknowledgedIds=new Set(response.acknowledgedAckIds);
