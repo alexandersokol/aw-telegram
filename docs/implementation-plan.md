@@ -915,6 +915,34 @@ Checkpoint 10a (2026-10-29, local, not independently reviewed): retention and pu
 
 Bot unit 291, emulator sync, delivery and purge 29, build passes.
 
+Checkpoint 10b (2026-10-29, local, not independently reviewed, nothing deployed): deployment wiring.
+- **`src/functions.ts`** (`firebase-functions` 7.4.0, pinned) exports two functions:
+  - `api`: HTTPS, `europe-central2`, `aw-backend@`, both Telegram secrets, 0–2
+    instances, concurrency 20, 512 MiB, public invoker; each route authenticates.
+  - `sweep`: scheduled 00:30 Europe/Kyiv, at most 1 instance, one retry.
+
+  Import is side-effect free. The backend is built per instance on first use. Cloud
+  Tasks target `BACKEND_URL` (a Functions parameter) and stay pending until it is set.
+- **Request adapter:** it keeps the router's duplicate-Authorization rule. The client
+  IP is the last `X-Forwarded-For` entry, which must be verified at staging.
+- **Logs:** `createRouter` gained a `report` hook for unexpected failures, which carries
+  only an ID-free route label and the error type.
+- **Packaging:** `firebase.json` has the Functions block (Node 22, build on predeploy),
+  `package.json` `main` points at `dist/functions.js`, and `bot/.env.example` documents
+  `BACKEND_URL`. `check:bundle` imports the compiled entry.
+- **Manifest:** the local discovery manifest was fetched without contacting the project
+  and matches the intended options.
+- **Webhook:** `src/webhookAdmin.ts` and `scripts/webhook.ts` (`set`, `info`, `remove`)
+  read both secrets from Secret Manager with owner ADC. `set` sends `secret_token`,
+  `allowed_updates` message and callback_query, and `max_connections` 1. Nothing secret
+  is printed. This resolves the Task 7 deferral.
+- **`docs/operations.md`:** deploy order, post-deploy checks, logging, costs and alerts
+  versus the absence of a spend cap, recovery, secret rotation, data deletion and
+  rollback, including contract coupling with the companion.
+
+Bot unit 300, emulator (auth, pairing, rules, sync, delivery, purge) 51, build and bundle
+check pass. The runtime npm audit reports 0 vulnerabilities.
+
 **Files:** create bot/src/cleanup.ts, bot/scripts/purge.ts,
 bot/tests/{cleanup,e2e}.test.ts, docs/{operations,setup}.md,
 companion/tests/test_e2e_simulated.py; lockfiles and Firebase configuration updates.

@@ -20,7 +20,15 @@ function webhookSecretMatches(header:unknown,secret:string):boolean {
   const given=Buffer.from(header,'utf8'),expected=Buffer.from(secret,'utf8');
   return given.length===expected.length && timingSafeEqual(given,expected);
 }
-export function createRouter(repository: FirestoreRepository,options?:{api?:DeviceApi;taskHandler?:ReturnType<typeof createTaskHandler>;telegram?:TelegramWebhook}) {
+/** A fixed, ID-free label for logs: never a raw path, which can carry access IDs. */
+export function routeLabel(method:string,path:string):string {
+  const pathname=path.split('?')[0]!;
+  const known=['/v1/enroll','/v2/sync','/v1/pair-keys','/v1/access','/internal/tasks','/telegram/webhook'];
+  return `${method} ${known.includes(pathname)?pathname:pathname.startsWith('/v1/access/')?'/v1/access/:id':'other'}`;
+}
+/** report: unexpected (non-boundary) failures only; it receives the route label and the error, never the request. */
+export function createRouter(repository: FirestoreRepository,options?:{api?:DeviceApi;taskHandler?:ReturnType<typeof createTaskHandler>;telegram?:TelegramWebhook;
+  report?:(route:string,error:unknown)=>void}) {
   const api=options?.api??new DeviceApi(repository);
   return async (request: HttpRequest): Promise<HttpResponse> => {
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json','X-Content-Type-Options':'nosniff'};
@@ -63,6 +71,7 @@ export function createRouter(repository: FirestoreRepository,options?:{api?:Devi
         if(error.retryAfter) headers['Retry-After']=String(error.retryAfter);
         return {status:error.status,headers,body:{error:error.message}};
       }
+      try {options?.report?.(routeLabel(request.method,request.path),error);} catch {/* logging never changes the answer */}
       return {status:500,headers,body:{error:'Request failed'}};
     }
   };
@@ -85,7 +94,7 @@ export function createHttpHandler(repository: FirestoreRepository,options?:Param
 
 /** Task 10 supplies deployed adapters/configuration. Construction itself does no external work. */
 export function createBackend(repository:FirestoreRepository,options:{telegram:TelegramSender;taskAdapter:TaskAdapter;oidc:{verify(token:string):Promise<void>};clock?:()=>string;
-  webhook?:{secret:string;client:TelegramClient}}){
+  webhook?:{secret:string;client:TelegramClient};report?:(route:string,error:unknown)=>void}){
   const clock=options.clock??(()=>new Date().toISOString());
   const outbox=new OutboxService(repository,options.telegram,clock);
   const tasks=new TaskService(repository,options.taskAdapter,outbox,clock);
@@ -93,6 +102,6 @@ export function createBackend(repository:FirestoreRepository,options:{telegram:T
   const taskHandler=createTaskHandler(options.oidc,tasks);
   const bot=options.webhook&&new TelegramBot(repository,new SettingsService(repository,clock),new ActionService(repository,clock),options.webhook.client,clock);
   const telegram=bot&&{secret:options.webhook!.secret,handle:(update:unknown)=>bot.handleUpdate(update)};
-  const routes={api,taskHandler,...(telegram?{telegram}:{})};
+  const routes={api,taskHandler,...(telegram?{telegram}:{}),...(options.report?{report:options.report}:{})};
   return {api,outbox,tasks,router:createRouter(repository,routes),httpHandler:createHttpHandler(repository,routes)};
 }

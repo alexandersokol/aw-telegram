@@ -1,7 +1,8 @@
 # Cloud environment setup
 
 Recorded 2026-10-29. Owner-run setup of the hosted environment; nothing is
-deployed yet. Commands run on the owner's workstation with the owner's own
+deployed yet. Deploying, the webhook, rotation, deletion and rollback are in
+[operations.md](operations.md). Commands run on the owner's workstation with the owner's own
 `gcloud auth login` and Application Default Credentials. No service account key
 is created or downloaded at any step.
 

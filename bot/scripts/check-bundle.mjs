@@ -33,7 +33,11 @@ try {
   assert.equal(endtimeAt('1981-04-01','00:30'),'1981-03-31T21:30:00.000Z');
   assert.equal(endtimeAt('1991-09-29','03:30'),'1991-09-29T01:30:00.000Z');
   assert.deepEqual(dayBounds('1981-04-01'), {start:'1981-03-31T21:00:00.000Z',end:'1981-04-01T20:00:00.000Z'});
-  process.stdout.write('Isolated compiled package: schemas and Kyiv time helper passed.\n');
+  // The deployed entry point imports without connecting anywhere or reading a secret.
+  const entry = await import(new URL('dist/functions.js', directory));
+  assert.equal(typeof entry.api, 'function');
+  assert.equal(entry.sweep.__endpoint.scheduleTrigger.schedule, '30 0 * * *');
+  process.stdout.write('Isolated compiled package: schemas, Kyiv time helper and Functions entry passed.\n');
 } finally {
   if (!resolve(temporary).startsWith(resolve(fileURLToPath(root)) + sep))
     throw new Error('Refusing cleanup outside bot workspace');
