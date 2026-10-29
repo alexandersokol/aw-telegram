@@ -15,7 +15,9 @@ from .windows.foreground import ForegroundAdapter
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Локальна перевірка нагадувань")
-    parser.add_argument("--mode", choices=["overlay", "notification", "countdown"], default="overlay")
+    parser.add_argument("--mode", choices=["overlay", "notification", "countdown", "endtime-sequence"], default="overlay")
+    parser.add_argument("--order", choices=["manual-first", "endtime-first"], default="manual-first",
+                        help="endtime-sequence: яке накладання з'являється першим")
     parser.add_argument("--text", default="Час зробити перерву")
     parser.add_argument("--buttonless", action="store_true")
     parser.add_argument("--duration-ms", type=int)
@@ -41,6 +43,8 @@ def main(argv=None):
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setQuitOnLastWindowClosed(False)
+    if options.mode == "endtime-sequence":
+        return endtime_sequence(app, adapter, options)
     if options.mode == "overlay":
         surface = OverlayWindow(foreground_adapter=adapter)
     elif options.mode == "notification":
@@ -84,6 +88,61 @@ def main(argv=None):
             QTimer.singleShot(options.quit_after_ms, finish)
 
     QTimer.singleShot(options.delay_ms, present)
+    return app.exec()
+
+
+def endtime_sequence(app, adapter, options):
+    """Real presenter/scheduler on a temporary store; simulated wall time starts 3 s before endtime.
+
+    manual-first: a manual overlay at +1 s is replaced by endtime at +3 s.
+    endtime-first: endtime at +3 s is replaced by a manual overlay at +8 s; endtime
+    returns one minute after that replacement (+68 s). Dismissals recur after one minute.
+    """
+    from datetime import timedelta
+    import tempfile
+    import time
+    from .clock import endtime_at, kyiv_date
+    from .models import Settings
+    from .scheduler import Scheduler
+    from .storage import LocalStore
+    from .ui.presenter import PolicyPresenter, utc_now
+
+    directory = tempfile.TemporaryDirectory(prefix="aw-telegram-endtime-")
+    store = LocalStore(Path(directory.name) / "harness.sqlite")
+    with store._transaction():  # harness-only settings install; real settings arrive by sync
+        state = store._state()
+        state["settings"] = Settings(revision=1, endtimeEnabled=True, endtimeGeneration=1).to_wire()
+        store._save(state)
+    base = endtime_at(kyiv_date(utc_now()), "21:00") - timedelta(seconds=3)
+    started = time.monotonic()
+    def now():
+        elapsed = timedelta(milliseconds=int((time.monotonic() - started) * 1000))
+        return base + elapsed
+    scheduler = Scheduler(store)
+    manual_at = base + timedelta(seconds=1 if options.order == "manual-first" else 8)
+    scheduler.add_manual("harness-manual", options.text, manual_at, repeat_minutes=1)
+    presenter = PolicyPresenter(scheduler, OverlayWindow(foreground_adapter=adapter), NotificationCard(), now=now)
+
+    def emit(event, **fields):
+        print(json.dumps({"event": event, "simulated": now().isoformat(timespec="milliseconds"), **fields},
+                         ensure_ascii=True), flush=True)
+    presenter.overlay.shown.connect(lambda identifier: emit("overlay_shown", text=presenter.overlay._text,
+                                                            native=presenter.overlay.presentation_result.reason))
+    presenter.overlay.completed.connect(lambda identifier, reason: emit("overlay_completed", reason=reason))
+    presenter.notification.shown.connect(lambda identifier: emit("card_shown"))
+
+    def finish():
+        presenter.stop()
+        presenter.overlay.hide_message()
+        receipts = [a.to_wire() for a in store.pending_acks() if a.kind == "endtime"]
+        emit("receipts", count=len(receipts))
+        store.close()
+        directory.cleanup()
+        app.quit()
+
+    QTimer.singleShot(options.delay_ms, presenter.start)
+    if options.quit_after_ms:
+        QTimer.singleShot(options.delay_ms + options.quit_after_ms, finish)
     return app.exec()
 
 

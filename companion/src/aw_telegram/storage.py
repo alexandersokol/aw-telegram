@@ -8,7 +8,7 @@ import sqlite3
 from uuid import uuid4
 
 from .clock import format_instant, parse_instant, retained_dates
-from .models import (Ack, CancellationAck, DaySummary, Settings, SettingsAck, SyncRequest, SyncResponse,
+from .models import (Ack, CancellationAck, DaySummary, EndtimeAck, Settings, SettingsAck, SyncRequest, SyncResponse,
     MAX_BODY_BYTES, MAX_SAFE_INTEGER, collection_start, ensure_report_capacity, project_day,
     validate_activity_context, validate_contract, wire_bytes)
 
@@ -112,7 +112,7 @@ class LocalStore:
 
     def _migrate(self):
         version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2):
+        if version not in (0, 1, 2, 3):
             raise ValueError("unsupported local schema")
         with self._transaction():
             if version == 0:
@@ -136,6 +136,10 @@ class LocalStore:
                 # No conversion of category-only data into fabricated application rows.
                 self.connection.execute("update days set source=NULL,digest=NULL,dirty=0,recollect=1 where schema_version<>2")
                 self.connection.execute("delete from requests")
+            if version < 3:
+                # Schema 3 adds offline overlay policy state and one endtime receipt per date/generation.
+                self.connection.execute("CREATE TABLE IF NOT EXISTS overlay_state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)")
+                self.connection.execute("CREATE TABLE IF NOT EXISTS endtime_receipts (date TEXT NOT NULL, generation INTEGER NOT NULL, ack_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(date, generation))")
             # Compatibility is confined to persisted state. Wire Settings stay strict.
             state = self._state()
             settings = state["settings"]
@@ -146,7 +150,7 @@ class LocalStore:
             if legacy:
                 state["settings"] = migrated
                 self._save(state)
-            self.connection.execute("PRAGMA user_version=2")
+            self.connection.execute("PRAGMA user_version=3")
 
     def _state(self):
         return json.loads(self.connection.execute("select value from state where id=1").fetchone()[0])
@@ -232,8 +236,29 @@ class LocalStore:
         with self._transaction():
             self._queue_ack(ack, self.now())
 
+    def overlay_state(self) -> dict | None:
+        row = self.connection.execute("select value from overlay_state where id=1").fetchone()
+        return None if row is None else json.loads(row[0])
+
+    def commit_overlay_state(self, value: dict, receipt: EndtimeAck | None = None) -> bool:
+        """Persist scheduler state; queue at most one endtime receipt per date/generation atomically."""
+        with self._transaction():
+            queued = False
+            if receipt is not None:
+                ack = validate_contract("ack", _wire(receipt))
+                if ack["kind"] != "endtime":
+                    raise ValueError("expected an endtime receipt")
+                cursor = self.connection.execute("insert or ignore into endtime_receipts values(?,?,?,?)",
+                    (ack["date"], ack["endtimeGeneration"], ack["id"], self.now()))
+                if cursor.rowcount:
+                    self._queue_ack(ack, self.now())
+                    queued = True
+            self.connection.execute("insert into overlay_state values(1,?) on conflict(id) do update set value=excluded.value",
+                (json.dumps(value, sort_keys=True, ensure_ascii=False),))
+        return queued
+
     def pending_acks(self) -> list[Ack]:
-        kinds = {"settings": SettingsAck, "cancellation": CancellationAck}
+        kinds = {"settings": SettingsAck, "cancellation": CancellationAck, "endtime": EndtimeAck}
         from .models import ActionAck
         kinds["action"] = ActionAck
         return [kinds[a["kind"]].from_wire(a) for a in
@@ -317,6 +342,7 @@ class LocalStore:
         cutoff = retained_dates(parse_instant(now))[-1]
         with self._transaction():
             self.connection.execute("update days set source=NULL,digest=NULL,dirty=0,collected_at=NULL,recollect=1 where date<?", (cutoff,))
+            self.connection.execute("delete from endtime_receipts where date<?", (cutoff,))
             # Keep counters, settings, receipts and unknown cancellation IDs across midnight.
             from .clock import local_day_bounds
             self.connection.execute("delete from requests where created_at<?", (format_instant(local_day_bounds(cutoff)[0]),))

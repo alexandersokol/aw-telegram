@@ -32,9 +32,10 @@ local 15/10/5-minute warnings, a repeating reached-time overlay, and a
 companion-confirmed Telegram alert. The amendment also raises the active caregiver
 limit from two to ten and changes overlays to newest-due-wins. Amendment Tasks 1–5
 (contracts, ten caregivers, persisted endtime settings and generations, confirmed
-receipt alerts with retroactive suppression, `/endtime` command/menu logic) are
-implemented. The Telegram webhook that routes into the endtime controller (base
-Task 7) and local enforcement are not. See
+receipt alerts with retroactive suppression, `/endtime` command/menu logic, and
+the companion's offline endtime policy with newest-overlay-wins scheduling) are
+implemented. The Telegram webhook (base Task 7), the companion app loop and action
+executor (base Task 8), and physical Windows endtime checks are not. See
 [the endtime plan](docs/superpowers/plans/2026-10-29-endtime.md).
 
 ## Structure

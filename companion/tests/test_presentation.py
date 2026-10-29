@@ -322,3 +322,83 @@ def test_buttonless_close_is_ignored_until_duration(overlay, qtbot):
     overlay.close()
     assert overlay.isVisible()
     qtbot.waitUntil(lambda: not overlay.isVisible())
+
+
+class AcceptingDesktop:
+    """Boundary fake: Windows accepts the topmost request without proving pixels."""
+    def reveal_overlay(self, hwnd):
+        return PresentationResult("unconfirmed", "topmost_requested")
+
+
+@pytest.fixture
+def driven(qtbot, tmp_path):
+    from datetime import datetime
+    from aw_telegram.clock import KYIV, UTC
+    from aw_telegram.models import EndtimeAck, Settings
+    from aw_telegram.scheduler import Scheduler
+    from aw_telegram.storage import LocalStore
+    from aw_telegram.ui.presenter import PolicyPresenter
+    store = LocalStore(tmp_path / "presenter.sqlite", now=lambda: "2026-10-28T19:00:00.000Z")
+    def settings(**fields):
+        with store._transaction():
+            state = store._state()
+            state["settings"] = Settings(**{"revision": 1, "endtimeEnabled": True, "endtimeGeneration": 1, **fields}).to_wire()
+            store._save(state)
+    settings()
+    overlay, card = OverlayWindow(foreground_adapter=AcceptingDesktop()), NotificationCard()
+    qtbot.addWidget(overlay); qtbot.addWidget(card)
+    clock = {"now": None, "mono": 0.0}
+    at = lambda local: datetime.fromisoformat("2026-10-28T" + local).replace(tzinfo=KYIV).astimezone(UTC)
+    scheduler = Scheduler(store)
+    presenter = PolicyPresenter(scheduler, overlay, card, now=lambda: clock["now"], monotonic=lambda: clock["mono"])
+    def tick(local, slept=False):
+        if clock["now"] is not None and not slept:
+            clock["mono"] += (at(local) - clock["now"]).total_seconds()
+        clock["now"] = at(local)
+        presenter.tick()
+    receipts = lambda: [a for a in store.pending_acks() if isinstance(a, EndtimeAck)]
+    yield dict(tick=tick, overlay=overlay, card=card, scheduler=scheduler, at=at, settings=settings, receipts=receipts)
+    store.close()
+
+
+def test_policy_presenter_shows_warning_cards_then_the_endtime_overlay(driven, qtbot):
+    driven["tick"]("20:45:00")
+    assert driven["card"].isVisible() and "15 хв" in driven["card"].message.text()
+    assert not driven["overlay"].isVisible() and driven["receipts"]() == []
+    driven["tick"]("21:00:00")
+    assert driven["overlay"].isVisible() and "21:00" in driven["overlay"]._text
+    assert driven["overlay"].dismiss_button.isVisible() and len(driven["receipts"]()) == 1
+
+
+def test_policy_presenter_newest_overlay_replaces_and_dismissal_reports_back(driven, qtbot):
+    overlay = driven["overlay"]
+    driven["tick"]("21:00:00")
+    driven["scheduler"].add_manual("m1", "Перерва", driven["at"]("21:00:30"), repeat_minutes=1)
+    driven["tick"]("21:00:30")
+    assert overlay.isVisible() and overlay._text == "Перерва"
+    qtbot.mouseClick(overlay.dismiss_button, Qt.MouseButton.LeftButton)
+    assert not overlay.isVisible()
+    driven["tick"]("21:01:29")
+    assert not overlay.isVisible()
+    # The replaced endtime occurrence returns one minute after replacement, newest again.
+    driven["tick"]("21:01:30")
+    assert overlay.isVisible() and "21:00" in overlay._text
+    assert overlay.isVisible() and len(driven["receipts"]()) == 1
+
+
+def test_policy_presenter_suppression_clears_the_visible_endtime_overlay(driven):
+    driven["tick"]("21:00:00")
+    driven["settings"](revision=2, freeUseDate="2026-10-28")
+    driven["tick"]("21:00:05")
+    assert not driven["overlay"].isVisible()
+    driven["tick"]("21:05:00")
+    assert not driven["overlay"].isVisible()
+
+
+def test_policy_presenter_treats_a_wall_clock_jump_as_resume(driven):
+    driven["tick"]("20:40:00")
+    # Sleep across endtime: wall time advances while the monotonic clock does not.
+    driven["tick"]("21:10:00", slept=True)
+    assert not driven["overlay"].isVisible() and driven["receipts"]() == []
+    driven["tick"]("21:11:00")
+    assert not driven["overlay"].isVisible()

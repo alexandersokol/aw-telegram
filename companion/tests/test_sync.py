@@ -490,3 +490,19 @@ def test_r1_network_poll_and_summary_completion_clocks_never_regress(tmp_path):
     clock[0]+=timedelta(seconds=15);c.step(now(),15)
     assert network.calls==2 and c.health["lastSuccessAt"]==completions[-1]
     assert s.last_activity_success_at==completions[-1]
+
+
+def test_endtime_receipt_is_sent_once_per_date_generation_and_cleared_by_acknowledgement(tmp_path):
+    s = store(tmp_path); pair(s)
+    receipt = models.EndtimeAck(id="00000000-0000-4000-8000-0000000000e1", kind="endtime", date="2026-10-28",
+        settingsRevision=1, endtimeLocalTime="13:00", endtimeGeneration=1, presentedAt="2026-10-28T11:00:05.000Z")
+    assert s.commit_overlay_state({"visible": None}, receipt)
+    duplicate = models.EndtimeAck(**{**receipt.to_wire(), "id": "00000000-0000-4000-8000-0000000000e2"})
+    assert not s.commit_overlay_state({"visible": None}, duplicate)
+    request = s.prepare_request(HEALTH)
+    assert [a for a in request.acks if a["kind"] == "endtime"] == [receipt.to_wire()]
+    s.apply_sync(response(request, revision=1))
+    assert [a for a in s.pending_acks() if a.kind == "endtime"] == []
+    s.close(); s = store(tmp_path)
+    assert not s.commit_overlay_state({"visible": None}, duplicate) and s.overlay_state() == {"visible": None}
+    s.close()

@@ -165,6 +165,12 @@ claim it was shown and do not send the endtime alert until a later instance has
 confirmed presentation. If the companion was offline or asleep through endtime,
 the date is skipped and produces no delayed receipt.
 
+Owner decision, 2026-10-29: Windows never reports pixel visibility (the Task 1
+adapter returns `unconfirmed` for an accepted topmost request). "Shown" for the
+endtime receipt therefore means the companion's show request was accepted, any
+`PresentationResult` state except `failed`. This is not proof the overlay was
+visible over, for example, an exclusive-fullscreen game, nor that the child read it.
+
 ## Suppression
 
 Free-use mode and Clear-all suppression silence all endtime warning cards,

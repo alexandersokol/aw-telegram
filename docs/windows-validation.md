@@ -73,6 +73,17 @@ the result to `visible`. Optional `--capture .tmp/overlay.png` saves a primary
 desktop PNG after 250 ms; inspect it, and use an external photo if a protected
 surface is absent from capture. Do not commit private screenshots.
 
+Endtime ordering (real presenter/scheduler, temporary store, simulated clock 3 s
+before a 21:00 endtime; prints `card_shown`, `overlay_shown`, `overlay_completed` and
+the queued receipt count). Run both orders and dismiss with «Закрити»:
+
+```powershell
+.venv/Scripts/python.exe -m aw_telegram.manual_presentation --mode endtime-sequence --order manual-first --quit-after-ms 150000
+.venv/Scripts/python.exe -m aw_telegram.manual_presentation --mode endtime-sequence --order endtime-first --quit-after-ms 150000
+```
+
+Midnight and suppression removal are covered by automated tests only.
+
 ## Pending acceptance protocol
 
 Record game name/version, actual executable path, Windows build, token/elevation,
@@ -90,6 +101,9 @@ reference for every run. Do not mark a row passed from the automated suite.
 | Physical clicks | Clicking background cannot trigger an underlying test-app control; close button works once | Pending: physical run |
 | Buttonless duration | No close button; Alt+F4/close cannot dismiss early; expires at duration | Pending: physical run |
 | Monitor/primary/DPI change | Overlay follows primary with full DIP geometry; other monitors undimmed | Pending: hardware run |
+| Endtime: manual then endtime | Endtime replaces the manual overlay on primary; the manual family never returns | Pending: physical run (offscreen smoke only) |
+| Endtime: endtime then manual | Manual replaces endtime; endtime returns ~1 min later as newest; «Закрити» clickable | Pending: physical run (offscreen smoke only) |
+| Endtime recurrence/suppression | Dismissal recurs after one minute; no foreground oscillation with a fullscreen app | Pending: physical run |
 | Notification/countdown | Card lifetime and top-left countdown remain controllable on primary | Automated; physical run pending |
 
 For a fallback run, add the actual game's full path (example only):
