@@ -688,6 +688,35 @@ suppression, policy generation, and day reset.
 
 ## Task 9: Companion tray, setup window, named access, and packaging
 
+Checkpoints: 9a app shell, 9b enrollment wizard and «Налаштування», 9c «Доступ батьків»,
+9d PyInstaller packaging and the Windows smoke test.
+
+Checkpoint 9a (2026-10-29, local, not independently reviewed): the app shell.
+- **Entry point:** `main.main()` (gui-script `aw-telegram`) runs one instance per
+  Windows user. A later start hands over to the running one through a per-user
+  `QLocalServer`, which opens its window, and exits with 0.
+- **Data:** the database lives at `%LOCALAPPDATA%\AW Telegram\companion.sqlite`.
+  `CompanionApp` owns the window, tray and `CompanionRuntime`.
+- **Tray:** «Відкрити» and «Вийти». Closing the window only hides it.
+- **Window:** three sections. «Стан» is filled; «Доступ батьків» and «Налаштування»
+  come in 9b and 9c. An unenrolled laptop opens on «Налаштування», even with
+  `--background`.
+- **«Стан»:** `status.py` (pure) follows the bot's `/status` wording. It shows server
+  connection (online within 60 s of the last sync, rejected credentials, never
+  synced), whether a caregiver has paired, ActivityWatch health, today's usage against
+  the effective limit, endtime, free use and suppression. Missing data reads
+  «даних немає», never zero. With no selected category it points to `/categories`.
+  The IO worker publishes a title-free snapshot each step for this section.
+- **Autostart:** `windows/startup.py` writes the HKCU Run value «AW Telegram» as a
+  quoted absolute `.exe` plus `--background`, and only accepts an absolute `.exe`.
+  The registry wrapper is not exercised by tests; 9d checks it on Windows.
+- **Local settings:** `LocalStore.app_config` holds the ActivityWatch address,
+  defaulting to AW's own `127.0.0.1:5600`, which the worker uses to build its reader.
+- **Smoke run:** `main()` ran offscreen with app data redirected. It started, a second
+  start exited 0 in 0.6 s, and it created its database.
+
+Companion 369.
+
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
 companion/src/aw_telegram/windows/startup.py, companion/aw-telegram.spec,

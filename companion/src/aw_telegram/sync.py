@@ -63,6 +63,10 @@ class SyncCoordinator:
         self._backfill = []
         self._running = threading.Lock()
 
+    def snapshot(self):
+        """Title-free status for the companion window, read from the GUI thread."""
+        return dict(health=dict(self.health), auth_blocked=self.auth_blocked, last_error=self.last_error)
+
     def recover_credentials(self):
         self.auth_blocked = False
         self._failures = 0
@@ -220,6 +224,7 @@ class IOWorker:
         self.retry_delay = retry_delay
         self.failures = 0
         self.startup_failed = False
+        self.status = None  # the coordinator's latest snapshot; replaced whole, so other threads read it safely
         self._stop = threading.Event()
         self._thread = None
 
@@ -240,6 +245,8 @@ class IOWorker:
                 delay = 0.25
                 try:
                     coordinator.step(self.utc_clock(), self.monotonic())
+                    if hasattr(coordinator, "snapshot"):
+                        self.status = coordinator.snapshot()
                 except Exception:
                     self.failures += 1
                     delay = self.retry_delay

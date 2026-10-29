@@ -14,7 +14,8 @@ from .models import (Ack, ActionAck, CancellationAck, DaySummary, EndtimeAck, Se
     validate_activity_context, validate_contract, wire_bytes)
 
 
-_OCCURRENCE_ENDED = {"dismissed", "completed", "replaced", "failed", "expired", "canceled", "skipped"}
+APP_DEFAULTS = {"awHost": "127.0.0.1", "awPort": 5600}
+_OCCURRENCE_ENDED ={"dismissed", "completed", "replaced", "failed", "expired", "canceled", "skipped"}
 
 
 def utc_now():
@@ -171,6 +172,11 @@ class LocalStore:
 
     def _save(self, state):
         self.connection.execute("update state set value=? where id=1", (_json(state),))
+
+    @property
+    def app_config(self) -> dict:
+        """Local companion settings; ActivityWatch's own default address unless changed in «Налаштування»."""
+        return {**APP_DEFAULTS, **self._state().get("app", {})}
 
     @property
     def binding(self) -> dict | None:

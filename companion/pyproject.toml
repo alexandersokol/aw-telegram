@@ -15,6 +15,9 @@ test = ["pytest==9.1.1", "pytest-qt==4.5.0"]
 [project.scripts]
 aw-telegram-presentation = "aw_telegram.manual_presentation:main"
 
+[project.gui-scripts]
+aw-telegram = "aw_telegram.main:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
