@@ -22,6 +22,11 @@
         }
       ]
     },
+    "activeCaregivers": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    },
     "settings": {
       "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Settings"
     },
@@ -58,6 +63,7 @@
     "requestSequence",
     "serverNow",
     "collectionStartedAt",
+    "activeCaregivers",
     "settings",
     "cancellations",
     "summaryReceipts",

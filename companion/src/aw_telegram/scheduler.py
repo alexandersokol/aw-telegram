@@ -119,9 +119,10 @@ class Scheduler:
         commands: list = []
         events: list = []
         self._import(state, commands, now)
-        state["endtime"], decision = evaluate_endtime(settings, state["endtime"], now, resumed)
+        paused = self.store.active_caregivers == 0  # ACCESS-08; the store already ended open reminders
+        state["endtime"], decision = evaluate_endtime(settings, state["endtime"], now, resumed, paused)
         state["allowance"], verdict = evaluate_allowance(settings, state["allowance"],
-            self.store.selected_usage(kyiv_date(now)), self.store.activity, now)
+            self.store.selected_usage(kyiv_date(now)), self.store.activity, now, paused)
         endtime, allowance = state["endtime"], state["allowance"]
         visible = state["visible"]
         for hide, prefix in ((decision.hide, "endtime:"), (verdict.hide, "allowance:")):

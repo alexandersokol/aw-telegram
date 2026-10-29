@@ -75,5 +75,6 @@ request=obj({'schemaVersion':literal(2),'sequence':ref('Counter'),'summaries':ar
 request['required']=['schemaVersion','sequence','acks','health']
 save('sync-request',request)
 save('sync-response',obj({'schemaVersion':literal(2),'requestSequence':ref('Counter'),'serverNow':ref('Instant'),
-    'collectionStartedAt':nullable(ref('Instant')),'settings':ref('Settings'),'cancellations':ref('Cancellations'),
-    'summaryReceipts':array(ref('SummaryReceipt'),7),'deliveryOffers':array(ref('Action'),100),'acknowledgedAckIds':array(ref('Uuid'),100)}))
+    'collectionStartedAt':nullable(ref('Instant')),'activeCaregivers':integer(0,10),'settings':ref('Settings'),
+    'cancellations':ref('Cancellations'),'summaryReceipts':array(ref('SummaryReceipt'),7),'deliveryOffers':array(ref('Action'),100),
+    'acknowledgedAckIds':array(ref('Uuid'),100)}))

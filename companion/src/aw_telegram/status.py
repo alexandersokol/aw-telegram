@@ -25,6 +25,7 @@ class StatusInput:
     partial: bool
     last_sync_at: str | None
     sync: dict | None          # IO worker snapshot: health, auth_blocked
+    caregivers: int | None = None  # paired now, per the newest sync
 
 
 def duration(ms: int) -> str:
@@ -63,6 +64,9 @@ def status_lines(s: StatusInput) -> list[str]:
         lines.append("Батьки: ще ніхто не під’єднався. Створіть ключ у «Доступ батьків».")
         lines.append("ActivityWatch: облік почнеться після першого під’єднання батьків")
     else:
+        if s.caregivers == 0:
+            lines.append("Батьки: зараз ніхто не під’єднаний. Обмеження й нагадування призупинено, доки хтось "
+                         "не під’єднається в «Доступ батьків».")
         health = (s.sync or {}).get("health") or {}
         aw = AW_STATE.get(health.get("awState"), "невідомо")
         if health.get("reportError"):
@@ -96,4 +100,4 @@ def read_status(store, sync: dict | None, now: datetime) -> StatusInput:
     day = store.day(date)
     return StatusInput(now=now, enrolled=store.binding is not None, paired=store.collection_started_at is not None,
                        settings=store.settings, used_ms=store.selected_usage(date), partial=bool(day and day.partial),
-                       last_sync_at=store.last_successful_sync_at, sync=sync)
+                       last_sync_at=store.last_successful_sync_at, sync=sync, caregivers=store.active_caregivers)

@@ -53,6 +53,8 @@ export interface Health {observedAt: Instant; awState: 'unknown'|'ready'|'partia
 export interface SyncRequest {health: Health; schemaVersion: 2; sequence: Counter; summaries?: DaySummary[]; live?: LiveState; acks: Ack[]}
 export interface SyncResponse {
   schemaVersion: 2; requestSequence: Counter; serverNow: Instant; collectionStartedAt: Instant | null;
+  /** Currently paired caregivers; the laptop pauses every rule while this is 0 (ACCESS-08). */
+  activeCaregivers: number;
   summaryReceipts: {date:LocalDate;sequence:Counter}[]; settings: Settings; cancellations: Cancellations; deliveryOffers: Action[]; acknowledgedAckIds: string[];
 }
 export interface Evaluation {

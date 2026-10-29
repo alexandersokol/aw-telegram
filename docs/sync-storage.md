@@ -93,6 +93,11 @@ Task 9 adds two more state entries. `app` holds the local ActivityWatch address
 answers. The sync worker sends at most two after each successful sync. Neither entry
 holds a secret.
 
+`activeCaregivers` (ACCESS-08) is taken only from the newest applied response. When it
+is 0, every open action is canceled in the same `apply_sync` transaction; one waiting
+between repeats ends locally, as for fences. The scheduler then treats allowance and
+endtime as ineligible. Before any sync the value is unknown and the rules run.
+
 Verification uses synthetic sources and exact demo-aw-telegram loopback Firestore only.
 The guarded runner rejects non-demo/non-loopback/credentialed environments and disables
 metadata probing. Raw RED/GREEN evidence and scope limits are recorded in

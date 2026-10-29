@@ -25,8 +25,9 @@ def day(date="2026-10-28", total=1000, revision=0):
         selectedTotalMs=0,settingsRevision=revision,rulesRevision="r1",availableFrom=lo,availableThrough=hi,
         partial=False,sequence=0)
 
-def response(request, *, revision=0, receipts=None, started=START, canceled=None):
+def response(request, *, revision=0, receipts=None, started=START, canceled=None, caregivers=1):
     return dict(schemaVersion=2,requestSequence=request.sequence,serverNow=NOW,collectionStartedAt=started,
+        activeCaregivers=caregivers,
         settings={**models.Settings().to_wire(),"revision":revision},
         cancellations=canceled or dict(revision=0,throughActionSequence=0,canceledIds=[]), deliveryOffers=[],
         acknowledgedAckIds=[a["id"] for a in request.acks],summaryReceipts=receipts or [])

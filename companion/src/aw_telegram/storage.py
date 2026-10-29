@@ -213,6 +213,11 @@ class LocalStore:
             self._save(state)
 
     @property
+    def active_caregivers(self) -> int | None:
+        """Paired caregivers per the newest sync; None before any sync. At 0 every rule pauses (ACCESS-08)."""
+        return self._state().get("activeCaregivers")
+
+    @property
     def last_successful_sync_at(self) -> str | None:
         return self._state()["lastSuccessfulSyncAt"]
 
@@ -398,8 +403,11 @@ class LocalStore:
 
     def _cancel_covered(self, now):
         state = self._state()
+        self._cancel_open(lambda action: self._covered(action, state), now)
+
+    def _cancel_open(self, applies, now):
         for row in self.connection.execute("select id,body,occurrence,last_status from actions where terminal=0").fetchall():
-            if not self._covered(json.loads(row["body"]), state):
+            if not applies(json.loads(row["body"])):
                 continue
             if row["last_status"] in _OCCURRENCE_ENDED:
                 # Between repeats the latest occurrence already ended (dismissed); the backend applies the
@@ -528,7 +536,11 @@ class LocalStore:
                 state["lastAppliedResponseSequence"] = response["requestSequence"]
                 state["lastServerNow"] = response["serverNow"]
                 state["lastSuccessfulSyncAt"] = self.now()
+                state["activeCaregivers"] = response["activeCaregivers"]  # only the newest response counts
             self._save(state)
+            if state.get("activeCaregivers") == 0:
+                # ACCESS-08: nobody is paired, so every open reminder ends now, in this transaction.
+                self._cancel_open(lambda action: True, self.now())
 
     def prune(self, now=None):
         now = now or self.now()

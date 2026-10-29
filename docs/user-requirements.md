@@ -454,6 +454,11 @@ The complete approved design is
   An eleventh concurrent pairing fails without consuming its key; revocation frees
   a slot. Shared coordination reaches every other active caregiver, automatic
   alerts reach all active caregivers, and requested reports remain private.
+- ACCESS-08 (owner decision, 2026-10-29): while no caregiver is paired, the laptop
+  pauses every rule: allowance warnings and the expiry overlay, endtime, and any
+  still-scheduled reminders, which end as canceled. Usage is still recorded. When a
+  caregiver pairs again the rules resume at once from today's usage, like free use
+  ending; endtime follows its usual rule and resumes only if its time has not passed.
 - ENDTIME-01: Store one recurring daily endtime in exact 24-hour `HH:MM` format,
   limited to `00:15` through `23:59` in Europe/Kyiv. Default to disabled with
   `21:00` saved.

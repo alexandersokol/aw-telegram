@@ -135,7 +135,8 @@ def test_the_sync_worker_sends_pending_revocations_once_online(store):
             if self.fail:
                 raise SyncError(retryable=True)
             return models.SyncResponse.from_wire(dict(schemaVersion=2, requestSequence=request.sequence,
-                serverNow="2026-10-28T12:00:00.000Z", collectionStartedAt=None, settings=models.Settings().to_wire(),
+                serverNow="2026-10-28T12:00:00.000Z", collectionStartedAt=None, activeCaregivers=1,
+                settings=models.Settings().to_wire(),
                 cancellations=dict(revision=0, throughActionSequence=0, canceledIds=[]), deliveryOffers=[],
                 acknowledgedAckIds=[a["id"] for a in request.acks], summaryReceipts=[]))
 

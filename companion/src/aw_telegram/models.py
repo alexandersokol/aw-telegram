@@ -548,6 +548,7 @@ class SyncResponse(WireModel):
     requestSequence: int
     serverNow: str
     collectionStartedAt: str | None
+    activeCaregivers: int
     settings: dict
     cancellations: dict
     deliveryOffers: list[dict]

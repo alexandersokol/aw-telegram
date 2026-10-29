@@ -53,7 +53,9 @@ def eligible(settings: Settings, date: str) -> bool:
 
 
 def evaluate_endtime(settings: Settings, state: EndtimeState, now: datetime,
-                     resumed: bool = False) -> tuple[EndtimeState, EndtimeDecision]:
+                     resumed: bool = False, paused: bool = False) -> tuple[EndtimeState, EndtimeDecision]:
+    """paused: no caregiver is paired (ACCESS-08); handled like suppression, so pairing again re-runs the
+    first-evaluation rule."""
     date = kyiv_date(now)
     midnight = local_day_bounds(date)[1]
     fresh = state.date != date or state.generation != settings.endtimeGeneration
@@ -61,7 +63,7 @@ def evaluate_endtime(settings: Settings, state: EndtimeState, now: datetime,
     hide = state.visible and (fresh or not eligible(settings, date))
     if fresh:
         state = EndtimeState(date=date, generation=settings.endtimeGeneration)
-    if not eligible(settings, date):
+    if paused or not eligible(settings, date):
         # Recurrence is canceled; becoming eligible again re-runs the first-evaluation rule.
         state = replace(state, active=False, started=False, next_due=None, visible=False)
         return state, EndtimeDecision(hide=hide, wake_at=midnight)
@@ -170,7 +172,8 @@ def activity_gate(settings: Settings, activity: dict | None, now: datetime) -> t
 
 
 def evaluate_allowance(settings: Settings, state: AllowanceState, used_ms: int | None, activity: dict | None,
-                       now: datetime) -> tuple[AllowanceState, AllowanceDecision]:
+                       now: datetime, paused: bool = False) -> tuple[AllowanceState, AllowanceDecision]:
+    """paused: no caregiver is paired (ACCESS-08); like free use, pairing again resumes from today's usage."""
     date = kyiv_date(now)
     hide = False
     if state.date != date:
@@ -185,7 +188,7 @@ def evaluate_allowance(settings: Settings, state: AllowanceState, used_ms: int |
     exhausted = level == "expired"
     if not exhausted:
         state = replace(state, next_due=None)
-    eligible = settings.freeUseDate != date and settings.suppressedDate != date
+    eligible = not paused and settings.freeUseDate != date and settings.suppressedDate != date
     counted, observed = activity_gate(settings, activity, now)
     if state.visible:
         shown = parse_instant(state.shown_at)

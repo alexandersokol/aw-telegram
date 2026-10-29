@@ -227,9 +227,11 @@ of a clear request. These state transitions are requirements for Tasks 5/6/8.
 device/recipient ID, settings mutation, cloud path or collectionStartedAt. Authenticate
 the bearer outside JSON. Device scope comes from authentication, never the payload.
 
-`SyncResponse:{schemaVersion:2,requestSequence,serverNow,collectionStartedAt,
+`SyncResponse:{schemaVersion:2,requestSequence,serverNow,collectionStartedAt,activeCaregivers,
 settings,cancellations,deliveryOffers,acknowledgedAckIds,summaryReceipts}` correlates transport
-requests independently of each state stream. Acknowledged receipt IDs confirm
+requests independently of each state stream. `activeCaregivers` (0–10) is the number
+of currently paired caregivers. The companion keeps the value from the newest response
+and pauses every rule while it is 0 (ACCESS-08). Acknowledged receipt IDs confirm
 durably committed receipts; a successful HTTP status alone must not clear pending
 receipts. Replay stable IDs idempotently. Older request sequence must not discard a
 useful newer action receipt. Apply settings/fences/accepted actions/receipt removal

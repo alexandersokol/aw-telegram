@@ -849,6 +849,19 @@ plugins and Python's own OpenSSL.
 
 Companion 427.
 
+ACCESS-08 (2026-10-29, owner decision during the Task 9 review, local, not independently
+reviewed):
+- **Contract:** sync-response v2 now requires `activeCaregivers`, generated into
+  `contracts/v2` and the companion copy. All 12 `wire.json` sync responses carry it.
+  The bot sends `device.activeParentIds.length`.
+- **Companion:** it keeps the newest count. At 0 it cancels open reminders in the sync
+  transaction and pauses allowance and endtime, and «Стан» explains the pause. Pairing
+  again resumes the rules at once.
+- **Status gap closed:** «Стан» now shows when no caregiver is currently paired, the gap
+  the Task 9 review deferred.
+
+Companion 434, bot unit 284, emulator sync and delivery 27.
+
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
 companion/src/aw_telegram/windows/startup.py, companion/aw-telegram.spec,

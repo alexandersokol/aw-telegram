@@ -369,6 +369,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -419,6 +420,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": null,
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -2122,6 +2124,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -4416,6 +4419,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -4466,6 +4470,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -4516,6 +4521,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -4763,6 +4769,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -4813,6 +4820,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -4863,6 +4871,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -5110,6 +5119,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -5160,6 +5170,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],
@@ -5210,6 +5221,7 @@
       "requestSequence": 17,
       "serverNow": "2026-10-27T09:06:00.000Z",
       "collectionStartedAt": "2026-10-27T08:00:00.000Z",
+      "activeCaregivers": 1,
       "settings": {
         "revision": 0,
         "selectedPaths": [],

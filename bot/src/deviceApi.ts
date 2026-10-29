@@ -1,6 +1,6 @@
 /** Authenticated aggregate synchronization. No action producer, network or UI side effects. */
 import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
-import {BoundaryError,FirestoreRepository,digest,type DeviceIdentity} from './repository.js';
+import {BoundaryError,FirestoreRepository,MAX_ACTIVE_CAREGIVERS,digest,type DeviceIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,
   type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant,type EndtimeAck} from './contracts.js';
 import {applyPlan,type PlannedWrite} from './outbox.js';
@@ -26,7 +26,7 @@ export function boundedResponse(response:SyncResponse):SyncResponse {
 /** Reserve receipt/sequence overhead as well as mandatory controls before a settings commit. */
 export function checkSettingsCapacity(settings:Settings,cancellations:Cancellations,now:Instant,startedAt:Instant|null):void {
   boundedResponse({schemaVersion:2,requestSequence:Number.MAX_SAFE_INTEGER,serverNow:now,collectionStartedAt:startedAt,
-    settings,cancellations,deliveryOffers:[],
+    activeCaregivers:MAX_ACTIVE_CAREGIVERS,settings,cancellations,deliveryOffers:[],
     acknowledgedAckIds:Array.from({length:100},(_,i)=>`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`),
     summaryReceipts:retainedDates(now).map(date=>({date,sequence:Number.MAX_SAFE_INTEGER}))});
 }
@@ -113,7 +113,7 @@ export class DeviceApi {
         next.maxRequestSequence=request.sequence;next.serverReceivedAt=now;
       }
       const response=boundedResponse({schemaVersion:2,requestSequence:request.sequence,serverNow:now,
-        collectionStartedAt:startedAt,settings,cancellations,deliveryOffers:[],summaryReceipts,
+        collectionStartedAt:startedAt,activeCaregivers:device.activeParentIds.length,settings,cancellations,deliveryOffers:[],summaryReceipts,
         acknowledgedAckIds:request.acks.map(a=>a.id)});
       const changedToday=dayWrites.find(w=>w.value.source.date===retained[0])?.value;
       const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alertSnapshot,measurement(changedToday)):[];
