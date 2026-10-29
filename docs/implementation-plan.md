@@ -769,8 +769,10 @@ Checkpoint 9d (2026-10-29, local, not independently reviewed): packaging.
   Python's DLLs first and refuses foreign OpenSSL DLLs.
 - **Notices:** `tools/licenses.py` derives the runtime dependency closure from the
   declared dependencies, so test and build tools are excluded. `check` fails while a
-  required text is missing. `GPL-3.0.txt` is committed, copied verbatim from Git for
-  Windows; `LGPL-3.0.txt` is still missing, so builds are not yet distributable.
+  required text is missing. `GPL-3.0.txt` is copied verbatim from Git for Windows.
+  `LGPL-3.0.txt` was downloaded from gnu.org with the owner's approval and matches the
+  canonical SHA-256 `e3a994d8…5c5f23118`. The check passes, and both texts ship in
+  `licenses/texts`.
 - **`--self-check PATH`:** writes the status of the schemas, the Kyiv timezone, the
   Windows vault and Qt.
 - **`--uninstall`:** turns off autostart, optionally removes every parent's access,
@@ -783,8 +785,8 @@ Checkpoint 9d (2026-10-29, local, not independently reviewed): packaging.
   entry and a reboot, a clean machine without Python or Git, and a standard-user
   account. See setup.md.
 
-Companion 415. Task 9 code is complete. Remaining: the LGPL-3.0 text, the
-interactive and clean-machine checks above, and an independent review.
+Companion 415. Task 9 code is complete. Remaining: the interactive and clean-machine
+checks above, and an independent review.
 
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
