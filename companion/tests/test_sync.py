@@ -39,6 +39,58 @@ def pair(s):
     s.apply_sync(response(r))
     return r
 
+
+ENDTIME_DEFAULTS = dict(endtimeEnabled=False, endtimeLocalTime="21:00", endtimeGeneration=0)
+
+
+def test_legacy_settings_migrate_durably_without_changing_other_cached_state(tmp_path):
+    s = store(tmp_path); pair(s); s.commit_day(day(), NOW); s.prepare_request(HEALTH)
+    state = s._state()
+    state["settings"].update(revision=7, selectedPaths=[["Study", "Editor"]], selectedUncategorized=True,
+        defaultLimitMs=12345, todayOverride=dict(date="2026-10-28", limitMs=6789),
+        freeUseDate="2026-10-27", suppressedDate="2026-10-26")
+    for field in ENDTIME_DEFAULTS: del state["settings"][field]
+    s._save(state)
+    other_tables = {table:list(s.connection.execute(f"select * from {table}"))
+        for table in ["days", "acks", "canceled_ids", "requests"]}
+    s.close()
+    s = store(tmp_path)
+    expected = {**state, "settings":{**state["settings"], **ENDTIME_DEFAULTS}}
+    assert s._state() == expected
+    assert s.settings.to_wire() == expected["settings"]
+    assert {table:list(s.connection.execute(f"select * from {table}")) for table in other_tables} == other_tables
+    s.close()
+    s = store(tmp_path)
+    assert s._state() == expected
+    s.close()
+
+
+@pytest.mark.parametrize("mask", range(1, 7))
+@pytest.mark.parametrize("version", [1, 2])
+def test_partial_legacy_settings_fail_closed_and_roll_back_migration(tmp_path, mask, version):
+    s = store(tmp_path); pair(s); s.commit_day(day(), NOW); s.prepare_request(HEALTH)
+    state = s._state()
+    for index, field in enumerate(ENDTIME_DEFAULTS):
+        if not mask & (1 << index): del state["settings"][field]
+    s._save(state)
+    s.connection.execute("PRAGMA user_version=" + str(version))
+    s.connection.execute("update days set schema_version=1")
+    before = list(s.connection.iterdump()); s.close()
+    with pytest.raises(ValueError): store(tmp_path)
+    with sqlite3.connect(tmp_path / "sync.sqlite") as connection:
+        assert list(connection.iterdump()) == before
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == version
+
+
+def test_legacy_settings_are_rejected_on_sync_wire_without_altering_storage(tmp_path):
+    s = store(tmp_path); pair(s); request = s.prepare_request(HEALTH)
+    answer = response(request)
+    for field in ENDTIME_DEFAULTS: del answer["settings"][field]
+    before = list(s.connection.iterdump())
+    with pytest.raises(ValueError): s.apply_sync(answer)
+    assert list(s.connection.iterdump()) == before
+    s.close()
+
 def test_required_health_and_receipts_are_strict():
     request=dict(schemaVersion=2,sequence=1,acks=[],health=HEALTH)
     assert models.validate_contract("sync-request",request)==request

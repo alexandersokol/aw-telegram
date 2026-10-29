@@ -1,5 +1,5 @@
 /** Authenticated aggregate synchronization. No action producer, network or UI side effects. */
-import {decodeSettings} from './settingsCodec.js';
+import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,digest,type DeviceIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,
   type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant} from './contracts.js';
@@ -54,6 +54,7 @@ export class DeviceApi {
       const healthRef=root.collection('health').doc('current');
       const [settingsDoc,cancelDoc,syncDoc,liveDoc,healthDoc]=await tx.getAll(settingsRef,cancellationRef,syncRef,liveRef,healthRef);
       const settings=decodeSettings(settingsDoc!.data());
+      const migrateSettings=needsSettingsMigration(settingsDoc!.data());
       const cancellations=validateContract('cancellations',cancelDoc!.data()??emptyCancellations());
       const startedAt=device.collectionStartedAt===null?null:new Date(device.collectionStartedAt).toISOString();
       validateActivityContext(request,startedAt,now);
@@ -115,7 +116,7 @@ export class DeviceApi {
       for(;;){
         const selectedIds=new Set(selectedAcks.map(a=>a.id));
         const newReceipts=receiptDocs.filter((doc,i)=>!doc.exists&&selectedIds.has(request.acks[i]!.id)).length;
-        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length;
+        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length+(migrateSettings?1:0);
         response.acknowledgedAckIds=selectedAcks.map(a=>a.id);response.deliveryOffers=[];
         try{
           actionWrites=await planActionSync(this.repository,tx,actions,actionAcks,settings,cancellations,now,response,450-mandatoryWrites);
@@ -133,6 +134,7 @@ export class DeviceApi {
       // Physical cleanup is optional; it cannot displace controls, accepted receipts or source writes.
       const cleanup=dayDocs.docs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
       // All reads, validation and response capacity checks precede any protected write.
+      if(migrateSettings)tx.set(settingsRef,encodeSettings(settings));
       applyPlan(tx,[...actionWrites,...alertWrites]);
       for(const write of dayWrites) tx.set(write.ref,write.value);
       for(const doc of cleanup) tx.delete(doc.ref);

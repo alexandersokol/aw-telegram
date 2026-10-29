@@ -5,7 +5,9 @@ import {fixtureDb,resetFixture} from './emulator-fixture.js';
 import {FirestoreRepository,digest,type DeviceIdentity,type ParentIdentity} from '../src/repository.js';
 import {DeviceApi} from '../src/deviceApi.js';
 import {SettingsService} from '../src/settings.js';
-import {minimalHealth,type SyncRequest} from '../src/contracts.js';
+import {defaultSettings,minimalHealth,type SyncRequest} from '../src/contracts.js';
+import {encodeSettings} from '../src/settingsCodec.js';
+import {operationRef} from '../src/actions.js';
 import {createRouter} from '../src/index.js';
 const db=fixtureDb();
 const START='2026-10-28T10:00:00.000Z',NOW='2026-10-28T12:00:00.000Z';
@@ -27,6 +29,43 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await db.terminate();});
 describe('sync Firestore transactions',()=>{
+  test('concurrent legacy settings reads durably migrate without resetting state',async()=>{
+    const legacy:any=encodeSettings({...defaultSettings(),revision:7,selectedPaths:[['Study','Editor']],
+      defaultLimitMs:12345,freeUseDate:'2026-10-27'});
+    for(const field of ['endtimeEnabled','endtimeLocalTime','endtimeGeneration'])delete legacy[field];
+    await db.doc(path('settings/current')).set(legacy);
+    const [status,response]=await Promise.all([settings.status(p1),api.syncDevice(identity,request())]);
+    expect(status.settings).toEqual(response.settings);
+    expect((await db.doc(path('settings/current')).get()).data()).toEqual({...legacy,
+      endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0});
+    expect((await settings.status(p2)).settings.revision).toBe(7);
+  });
+  test('failed sync and partial stored settings leave migration and receipts uncommitted',async()=>{
+    const legacy:any=encodeSettings({...defaultSettings(),revision:7});
+    for(const field of ['endtimeEnabled','endtimeLocalTime','endtimeGeneration'])delete legacy[field];
+    await db.doc(path('settings/current')).set(legacy);
+    await expect(api.syncDevice(identity,{...request(),acks:[{id:randomUUID(),kind:'settings',revision:8,appliedAt:NOW}]})).rejects.toThrow('Unknown settings revision');
+    expect((await db.doc(path('settings/current')).get()).data()).toEqual(legacy);
+    expect((await db.collection(path('receipts')).get()).empty).toBe(true);
+    const partial={...legacy,endtimeEnabled:false};await db.doc(path('settings/current')).set(partial);
+    await expect(settings.updateSettings(p1,{kind:'setTodayLimit',ms:1000},'migration:invalid')).rejects.toThrow();
+    expect((await db.doc(path('settings/current')).get()).data()).toEqual(partial);
+    expect((await db.collection(path('operations')).get()).empty).toBe(true);
+  });
+  test('idempotent replay durably migrates its historical settings without repeating mutation',async()=>{
+    const change={kind:'setDefaultLimit' as const,ms:12345};
+    await settings.updateSettings(p1,change,'migration:replay');
+    const ref=operationRef(repo,p1,'migration:replay'),stored=(await ref.get()).data()!;
+    for(const field of ['endtimeEnabled','endtimeLocalTime','endtimeGeneration'])delete stored.result.settings[field];
+    await ref.set(stored);
+    await settings.updateSettings(p2,{kind:'setTodayLimit',ms:1000},'migration:newer');
+    const before=(await db.doc(path('settings/current')).get()).data();
+    const replay=await settings.updateSettings(p1,change,'migration:replay');
+    expect(replay.settings.revision).toBe(1);
+    expect((await ref.get()).data()).toEqual({...stored,result:{...stored.result,
+      settings:{...stored.result.settings,endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0}}});
+    expect((await db.doc(path('settings/current')).get()).data()).toEqual(before);
+  });
   test('concurrent replacements retain highest source and exact idempotent receipts',async()=>{
     await Promise.all([api.syncDevice(identity,{...request(1),summaries:[day(1)]}),api.syncDevice(identity,{...request(2),summaries:[day(2,2000)]})]);
     const doc=(await db.doc(path('days/2026-10-28')).get()).data()!;

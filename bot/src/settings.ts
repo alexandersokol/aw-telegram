@@ -1,5 +1,5 @@
 /** Closed parent intents; authority always includes the current pairing generation. */
-import {decodeSettings,encodeSettings} from './settingsCodec.js';
+import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,type ParentIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,type Settings,type Instant,type Counter} from './contracts.js';
 import {kyivDate,parseInstant,retainedDates} from './clock.js';
@@ -46,7 +46,12 @@ export class SettingsService {
       if(callback) await this.repository.requireCallback(tx,identity,callback.nonce,callback.version);
       else await this.repository.requireParent(tx,identity);
       const operation=await readOperation(this.repository,tx,identity,operationId,change);
-      if(operation.previous)return {...operation.previous.result,settings:decodeSettings(operation.previous.result.settings)};
+      if(operation.previous){
+        const result={...operation.previous.result,settings:decodeSettings(operation.previous.result.settings)};
+        if(needsSettingsMigration(operation.previous.result.settings))
+          tx.set(operation.ref,{...operation.previous,result:{...result,settings:encodeSettings(result.settings)}});
+        return result;
+      }
       const root=this.repository.db.doc(`devices/${identity.deviceId}`);
       const settingsRef=root.collection('settings').doc('current'),syncRef=root.collection('sync').doc('current');
       const dayRef=root.collection('days').doc(kyivDate(now));
@@ -97,7 +102,9 @@ export class SettingsService {
       await this.repository.requireParent(tx,identity);
       const root=this.repository.db.doc(`devices/${identity.deviceId}`);
       const [settings,sync]=await tx.getAll(root.collection('settings').doc('current'),root.collection('sync').doc('current'));
-      return {settings:decodeSettings(settings!.data()),acknowledgedRevision:sync!.data()?.settingsAckRevision??null};
+      const decoded=decodeSettings(settings!.data());
+      if(needsSettingsMigration(settings!.data()))tx.set(settings!.ref,encodeSettings(decoded));
+      return {settings:decoded,acknowledgedRevision:sync!.data()?.settingsAckRevision??null};
     });
   }
 }

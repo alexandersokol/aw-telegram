@@ -5,7 +5,7 @@ import { BoundaryError, FirestoreRepository, digest, MAX_ACTIVE_CAREGIVERS, type
 import { validateContract, validateActionReceipt, actionCanceled, type Action, type ActionAck, type Cancellations, type Settings, type SyncResponse } from './contracts.js';
 import { dayBounds, kyivDate, parseInstant, retainedDates, retentionStart } from './clock.js';
 import { canonical, checkSettingsCapacity, emptyCancellations, boundedResponse } from './deviceApi.js';
-import { decodeSettings, encodeSettings } from './settingsCodec.js';
+import { decodeSettings, encodeSettings, needsSettingsMigration } from './settingsCodec.js';
 import type { CallbackGuard } from './settings.js';
 import { applyPlan, planParentEvent, taskIntent, ensureTaskIntent, type PlannedWrite, type ParentEvent } from './outbox.js';
 export type ActionDraft = ({
@@ -167,6 +167,8 @@ export class ActionService {
             const events = await planParentEvent(this.repo, tx, eventFor(identity.deviceId, 'create:' + id, now, state === 'skipped' ? 'Команду пропущено: вільне користування' : 'Запит надіслано; очікуємо підтвердження', snapshot.parents));
             checkSettingsCapacity(settings, validateContract('cancellations', cancel!.data() ?? emptyCancellations()), now, device!.data()!.collectionStartedAt === null ? null : new Date(device!.data()!.collectionStartedAt).toISOString());
             const result = { action, state };
+            if (needsSettingsMigration(settingsDoc!.data()))
+                tx.set(settingsDoc!.ref, encodeSettings(settings));
             tx.set(root.collection('actions').doc(id), row);
             tx.set(this.repo.db.doc('actionLocations/' + id), { deviceId: identity.deviceId, createdAt: now });
             tx.set(root.collection('actionControls').doc('current'), { sequence: action.sequence });
@@ -206,7 +208,7 @@ export class ActionService {
             checkSettingsCapacity(settings, cancellations, now, d!.data()!.collectionStartedAt === null ? null : new Date(d!.data()!.collectionStartedAt).toISOString());
             tx.set(root.collection('policy').doc('current'), { ...snapshot.policy, fences });
             tx.set(root.collection('cancellations').doc('current'), cancellations);
-            if (scope === 'all')
+            if (scope === 'all' || needsSettingsMigration(s!.data()))
                 tx.set(root.collection('settings').doc('current'), encodeSettings(settings));
             tx.set(op.ref, { digest: op.hash, result: cancellations, at: now, expired: false });
             applyPlan(tx, events);
@@ -249,6 +251,8 @@ export class ActionService {
             const text = state === 'execution_unconfirmed' ? 'Очікуємо підтвердження виконання' : state === 'delivery_unconfirmed' ? 'Не вдалося підтвердити доставку' : state === 'skipped' ? 'Таймер пропущено: вільне користування' : 'Команду завершено';
             const events = state === row.state ? [] : await planParentEvent(this.repo, tx, eventFor(location.deviceId, 'deadline:' + action.id, now, text, parents));
             const familyIntent = open ? await ensureTaskIntent(this.repo, tx, 'deadline', location.deviceId + ':' + action.id, end, now) : [];
+            if (needsSettingsMigration(s!.data()))
+                tx.set(s!.ref, encodeSettings(settings));
             tx.set(ref, { ...row, state, open, version: row.version + 1 });
             applyPlan(tx, [...events, ...familyIntent]);
         });

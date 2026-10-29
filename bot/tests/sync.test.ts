@@ -3,6 +3,9 @@ import {describe,it,expect,vi} from 'vitest';
 import {existsSync} from 'node:fs';
 import {FirestoreRepository} from '../src/repository.js';
 import {defaultSettings,validateContract,minimalHealth} from '../src/contracts.js';
+import {decodeSettings,encodeSettings} from '../src/settingsCodec.js';
+import {ActionService,operationRef} from '../src/actions.js';
+import {draft} from './delivery-fixture.js';
 
 const NOW='2026-10-28T12:00:00.000Z', START='2026-10-28T10:00:00.000Z';
 const deviceId='00000000-0000-4000-8000-000000000001';
@@ -28,6 +31,85 @@ async function setup() {
   }
   return {db,repository,api:new DeviceApi(repository,()=>NOW),settings:new SettingsService(repository,()=>NOW)};
 }
+
+const endtimeFields=['endtimeEnabled','endtimeLocalTime','endtimeGeneration'] as const;
+function legacySettings() {
+  const stored:any=encodeSettings({...defaultSettings(),revision:7,selectedPaths:[['Study','Editor']],
+    selectedUncategorized:true,defaultLimitMs:12345,todayOverride:{date:'2026-10-28',limitMs:6789},
+    freeUseDate:'2026-10-27',suppressedDate:'2026-10-26'});
+  for(const field of endtimeFields)delete stored[field];
+  return stored;
+}
+
+describe('persisted endtime settings migration',()=>{
+  it('decodes only fully legacy storage while wire inputs remain strict',()=>{
+    const legacy=legacySettings(),before=structuredClone(legacy);
+    expect(decodeSettings(legacy)).toEqual({...legacy,selectedPaths:[['Study','Editor']],
+      endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0});
+    expect(legacy).toEqual(before);
+    expect(()=>validateContract('settings',{...legacy,selectedPaths:[['Study','Editor']]})).toThrow();
+    for(let mask=1;mask<7;mask++) {
+      const partial:any={...legacy};
+      for(let i=0;i<3;i++)if(mask&(1<<i))partial[endtimeFields[i]!]=defaultSettings()[endtimeFields[i]!];
+      expect(()=>decodeSettings(partial)).toThrow();
+    }
+    expect(()=>decodeSettings({...legacy,unknown:true})).toThrow();
+    expect(()=>decodeSettings({...encodeSettings(defaultSettings()),endtimeLocalTime:'00:14'})).toThrow();
+  });
+  it.each(['status','sync','update','create','clear'] as const)('%s durably migrates stored settings without losing policy fields',async path=>{
+    const {db,api,settings,repository}=await setup(),legacy=legacySettings();
+    db.data.set(root+'/settings/current',legacy);
+    const actions=new ActionService(repository,()=>NOW);
+    if(path==='status')expect((await settings.status(parent())).settings.revision).toBe(7);
+    if(path==='sync')expect((await api.syncDevice(identity,request())).settings.revision).toBe(7);
+    if(path==='update')await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:5678},'migration:update');
+    if(path==='create')await actions.createAction(parent(),draft,'migration:create');
+    if(path==='clear')await actions.clearActions(parent(),'manual','migration:clear');
+    expect(db.data.get(root+'/settings/current')).toEqual({...legacy,
+      ...(path==='update'?{revision:8,todayOverride:{date:'2026-10-28',limitMs:5678}}:{}),
+      endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0});
+    const before=structuredClone(db.data.get(root+'/settings/current'));
+    await settings.status(parent());
+    expect(db.data.get(root+'/settings/current')).toEqual(before);
+  });
+  it('deadline processing durably migrates the settings it reads',async()=>{
+    const {db,repository}=await setup();
+    const actions=new ActionService(repository,()=>NOW),created=await actions.createAction(parent(),draft,'migration:create');
+    const legacy=legacySettings();db.data.set(root+'/settings/current',legacy);
+    await new ActionService(repository,()=> '2026-10-28T12:02:00.000Z').expireAction(created.action.id);
+    expect(db.data.get(root+'/settings/current')).toEqual({...legacy,endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0});
+  });
+  it('migrates a replayed operation result without reapplying the change or replacing newer settings',async()=>{
+    const {db,settings,repository}=await setup(),change={kind:'setDefaultLimit' as const,ms:12345};
+    await settings.updateSettings(parent(),change,'migration:replay');
+    const ref=operationRef(repository,parent(),'migration:replay'),operation=db.data.get(ref.path);
+    const legacy=legacySettings();operation.result.settings=legacy;operation.result.acknowledgedRevision=6;
+    const current=encodeSettings({...defaultSettings(),revision:9,endtimeEnabled:true,endtimeLocalTime:'22:00',endtimeGeneration:2});
+    db.data.set(root+'/settings/current',current);
+    const before=structuredClone(db.data);
+    const result=await settings.updateSettings(parent(),change,'migration:replay');
+    expect(result.settings).toEqual({...legacy,selectedPaths:[['Study','Editor']],endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0});
+    expect(db.data.get(ref.path)).toEqual({...before.get(ref.path),result:{...before.get(ref.path).result,
+      settings:{...legacy,endtimeEnabled:false,endtimeLocalTime:'21:00',endtimeGeneration:0}}});
+    expect(db.data.get(root+'/settings/current')).toEqual(current);
+    expect([...db.data.keys()]).toEqual([...before.keys()]);
+  });
+  it('rolls migration back with a rejected sync and rejects partial storage before writes',async()=>{
+    const {db,api,settings}=await setup(),legacy=legacySettings();db.data.set(root+'/settings/current',legacy);
+    let before=structuredClone(db.data);
+    await expect(api.syncDevice(identity,{...request(),acks:[{id:'00000000-0000-4000-8000-000000000099',kind:'settings',revision:8,appliedAt:NOW}]})).rejects.toThrow('Unknown settings revision');
+    expect(db.data).toEqual(before);
+    for(let mask=1;mask<7;mask++) {
+      const partial:any={...legacy};
+      for(let i=0;i<3;i++)if(mask&(1<<i))partial[endtimeFields[i]!]=defaultSettings()[endtimeFields[i]!];
+      db.data.set(root+'/settings/current',partial);before=structuredClone(db.data);
+      await expect(settings.status(parent())).rejects.toThrow();
+      await expect(settings.updateSettings(parent(),{kind:'setTodayLimit',ms:1000},'migration:partial')).rejects.toThrow();
+      await expect(api.syncDevice(identity,request())).rejects.toThrow();
+      expect(db.data).toEqual(before);
+    }
+  });
+});
 
 describe('v2 authenticated sync',()=>{
   it('requires typed health, rejects future success and unique summary receipts',()=>{

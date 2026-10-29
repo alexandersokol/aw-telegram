@@ -136,6 +136,16 @@ class LocalStore:
                 # No conversion of category-only data into fabricated application rows.
                 self.connection.execute("update days set source=NULL,digest=NULL,dirty=0,recollect=1 where schema_version<>2")
                 self.connection.execute("delete from requests")
+            # Compatibility is confined to persisted state. Wire Settings stay strict.
+            state = self._state()
+            settings = state["settings"]
+            defaults = dict(endtimeEnabled=False, endtimeLocalTime="21:00", endtimeGeneration=0)
+            legacy = isinstance(settings, dict) and not defaults.keys() & settings.keys()
+            migrated = {**settings, **defaults} if legacy else settings
+            validate_contract("settings", migrated)
+            if legacy:
+                state["settings"] = migrated
+                self._save(state)
             self.connection.execute("PRAGMA user_version=2")
 
     def _state(self):
