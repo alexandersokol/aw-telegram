@@ -94,6 +94,40 @@ def test_runtime_starts_once_and_stop_is_idempotent(qtbot, tmp_path):
     assert runtime.stop() and runtime.stop()
 
 
+def test_restarting_sync_never_runs_two_workers_or_blocks_the_gui(qtbot, tmp_path):
+    import time
+    built, overlap = [], []
+
+    class Slow:
+        def __init__(self, store, on_update):
+            self.store = store
+            built.append(self)
+
+        def step(self, now, mono):
+            workers = [t for t in threading.enumerate() if t.name == "aw-telegram-io" and t.is_alive()]
+            overlap.append(len(workers))
+            time.sleep(0.4)
+
+    def presenter(scheduler):
+        widgets = OverlayWindow(foreground_adapter=AcceptingDesktop()), NotificationCard(), CountdownWindow()
+        for widget in widgets:
+            qtbot.addWidget(widget)
+        return PolicyPresenter(scheduler, *widgets)
+
+    runtime = CompanionRuntime(tmp_path / "companion.sqlite", Slow, presenter=presenter)
+    runtime.start()
+    try:
+        qtbot.waitUntil(lambda: len(built) == 1 and bool(overlap), timeout=3000)
+        started = time.monotonic()
+        runtime.restart_sync()
+        runtime.restart_sync()  # a second request while one is pending is harmless
+        assert time.monotonic() - started < 0.1
+        qtbot.waitUntil(lambda: len(built) == 2 and len(overlap) >= 3, timeout=5000)
+        assert max(overlap) == 1 and len(built) == 2
+    finally:
+        assert runtime.stop()
+
+
 def test_io_worker_survives_an_unexpected_step_failure():
     calls = []
 

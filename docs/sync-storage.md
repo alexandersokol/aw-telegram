@@ -87,6 +87,12 @@ is checked before companion-owned foreground, so walking away from the overlay i
 The scheduler reads today's selected total through `selected_usage(date)` under the
 current settings, without revalidating the stored body each second.
 
+Task 9 adds two more state entries. `app` holds the local ActivityWatch address
+(`awHost` loopback, `awPort`). `pendingRevocations` lists access removals, each
+`{id, name, requestedAt}`, saved before any DELETE and cleared only after the server
+answers. The sync worker sends at most two after each successful sync. Neither entry
+holds a secret.
+
 Verification uses synthetic sources and exact demo-aw-telegram loopback Firestore only.
 The guarded runner rejects non-demo/non-loopback/credentialed environments and disables
 metadata probing. Raw RED/GREEN evidence and scope limits are recorded in

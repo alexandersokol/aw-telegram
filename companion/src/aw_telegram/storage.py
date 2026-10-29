@@ -17,7 +17,7 @@ from .models import (Ack, ActionAck, CancellationAck, DaySummary, EndtimeAck, Se
 
 APP_DEFAULTS = {"awHost": "127.0.0.1", "awPort": 5600}
 _ACCESS_ID = re.compile(r"key:[0-9a-f-]{36}|parent:[1-9][0-9]{0,15}:[0-9a-f-]{36}")
-_OCCURRENCE_ENDED ={"dismissed", "completed", "replaced", "failed", "expired", "canceled", "skipped"}
+_OCCURRENCE_ENDED = {"dismissed", "completed", "replaced", "failed", "expired", "canceled", "skipped"}
 
 
 def utc_now():
@@ -211,6 +211,10 @@ class LocalStore:
             state = self._state()
             state["app"] = {**state.get("app", {}), "awHost": awHost, "awPort": awPort}
             self._save(state)
+
+    @property
+    def last_successful_sync_at(self) -> str | None:
+        return self._state()["lastSuccessfulSyncAt"]
 
     @property
     def binding(self) -> dict | None:

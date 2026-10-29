@@ -21,9 +21,13 @@ class EnrollmentError(RuntimeError):
 
 
 class SyncError(EnrollmentError):
-    def __init__(self, *, retryable=False, retry_after=None):
+    def __init__(self, *, retryable=False, retry_after=None, reason=None):
         super().__init__('Backend request failed')
-        self.retryable, self.retry_after = retryable, retry_after
+        self.retryable, self.retry_after, self.reason = retryable, retry_after, reason
+
+
+class VaultUnavailable(EnrollmentError):
+    """The local Windows credential vault could not supply the bearer; nothing was sent."""
 
 
 class CredentialError(SyncError):
@@ -154,6 +158,8 @@ class Transport:
             return response
         except SyncError:
             raise
+        except VaultUnavailable:
+            raise SyncError(retryable=True, reason='vault') from None
         except EnrollmentError:
             raise CredentialError() from None
         except (ValueError, TypeError):
@@ -202,7 +208,7 @@ class Transport:
         except Exception:
             pass
         if not _secret(secret):
-            raise EnrollmentError('Credential vault is unavailable')
+            raise VaultUnavailable('Credential vault is unavailable')
         body = wire_bytes(payload) if payload is not None else None
         if body is not None and len(body) > MAX_BODY_BYTES:
             raise EnrollmentError('Request exceeds transport bound')

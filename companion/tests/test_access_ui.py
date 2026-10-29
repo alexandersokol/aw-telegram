@@ -203,10 +203,9 @@ def test_list_shows_ten_caregivers_and_key_states(qtbot, store):
     client = Client([parent(n) for n in range(10)], [key(1), key(2, "expired"), key(3, "revoked")])
     widget = panel(qtbot, store, client)
     shown = rows(widget)
-    assert len(shown) == 13
+    assert len(shown) == 12  # the revoked key is history and not listed
     assert shown[0] == ("Батько 0", "підключено, Telegram ID 100", True)
-    assert shown[10:] == [("Ключ 1", "ключ чекає на підключення до 14:15", True),
-                          ("Ключ 2", "ключ прострочено", True), ("Ключ 3", "ключ скасовано", False)]
+    assert shown[10:] == [("Ключ 1", "ключ чекає на підключення до 14:15", True), ("Ключ 2", "ключ прострочено", True)]
 
 
 def test_removing_access_asks_first_and_reports_only_what_the_server_confirmed(qtbot, store):
@@ -280,3 +279,45 @@ def test_a_removal_the_sync_worker_sent_updates_the_open_list(qtbot, store):
     store.revocation_done(parent(1)["id"])
     widget.synced()
     assert rows(widget) == [("Тато", "підключено, Telegram ID 102", True)]
+
+
+def test_review_fixes_for_keys(qtbot, store):
+    client = Client([parent(n) for n in range(10)], [key(1, "revoked")])
+    widget = panel(qtbot, store, client)
+    assert not widget.create_button.isEnabled() and "10 із 10" in widget.capacity.text()
+    assert [r[0] for r in rows(widget)] == [f"Батько {n}" for n in range(10)]  # revoked keys are not listed
+    widget.bind(store, Client())
+    widget.name.setText("Мама")
+    qtbot.mouseClick(widget.create_button, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(widget.copy_button, Qt.MouseButton.LeftButton)
+    formats = QGuiApplication.clipboard().mimeData().formats()
+    assert any("CanIncludeInClipboardHistory" in f for f in formats)
+    qtbot.mouseClick(widget.done_button, Qt.MouseButton.LeftButton)
+    assert QGuiApplication.clipboard().text() == ""  # the copied key does not outlive «Готово»
+
+
+def test_a_key_from_a_server_ahead_or_behind_still_shows_for_its_lifetime(qtbot, store):
+    class Skewed(Client):
+        def create(self, name):
+            return dict(super().create(name), expiresAt=format_instant(NOW - timedelta(minutes=1)))
+
+    widget = panel(qtbot, store, Skewed())
+    widget.name.setText("Мама")
+    qtbot.mouseClick(widget.create_button, Qt.MouseButton.LeftButton)
+    widget.expire_key()
+    assert not widget.key_box.isHidden() and "до 14:15" in widget.key_note.text()
+
+
+def test_a_stale_listing_never_overwrites_a_newer_one(qtbot, store):
+    pending = []
+    widget = AccessPanel(runner=lambda fn, done: pending.append((fn, done)), confirm=lambda text: True, now=lambda: NOW)
+    qtbot.addWidget(widget)
+    client = Client([parent(1, "Мама")])
+    widget.bind(store, client)
+    client.parents = [parent(2, "Тато")]
+    widget.refresh()
+    newer_fn, newer_done = pending.pop()
+    newer_done(newer_fn(), None)
+    older_fn, older_done = pending.pop()
+    older_done(dict(parents=[parent(1, "Мама")], keys=[]), None)
+    assert [r[0] for r in rows(widget)] == ["Тато"]

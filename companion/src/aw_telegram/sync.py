@@ -70,7 +70,7 @@ class SyncCoordinator:
     def _send_revocations(self):
         """Removals saved while offline; the server answers 204 even for stale or unknown entries."""
         identity = getattr(self.transport, "identity", None)
-        for item in self.store.pending_revocations()[:5] if identity is not None else []:
+        for item in self.store.pending_revocations()[:2] if identity is not None else []:  # keeps a step short
             try:
                 self.transport.revoke_access(identity, item["id"])
             except EnrollmentError:
@@ -154,7 +154,8 @@ class SyncCoordinator:
                 self._failures += 1
                 delay = min(300, 15 * 2 ** min(self._failures - 1, 5)) * self.jitter()
                 self._sync_due = mono + max(15, min(300, max(delay, error.retry_after or 0)))
-                self.last_error = 'transient_sync_error' if error.retryable else 'invalid_sync_response'
+                self.last_error = ('credential_vault_unavailable' if error.reason == 'vault' else
+                                   'transient_sync_error' if error.retryable else 'invalid_sync_response')
             except ValueError:
                 self.live, self.last_error, self._sync_due = None, 'sync_context_error', mono + 60
         started = self.store.collection_started_at
@@ -264,6 +265,13 @@ class IOWorker:
                 self._stop.wait(delay)
         finally:
             coordinator.store.close()
+
+    def request_stop(self):
+        """Ask the loop to end after its current step, without waiting."""
+        self._stop.set()
+
+    def alive(self):
+        return self._thread is not None and self._thread.is_alive()
 
     def stop(self, timeout=15):
         self._stop.set()

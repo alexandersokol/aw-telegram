@@ -212,7 +212,8 @@ def test_enrolling_binds_the_store_and_restarts_sync(qtbot, tmp_path):
         qtbot.mouseClick(settings.check_button, Qt.MouseButton.LeftButton)
         qtbot.mouseClick(settings.connect_button, Qt.MouseButton.LeftButton)
         assert app.runtime.store.binding == dict(deviceId=DEVICE, backendUrl="https://backend.example")
-        assert app.runtime.worker is not first and not first._thread.is_alive()
+        qtbot.waitUntil(lambda: app.runtime.worker is not first, timeout=3000)
+        assert not first._thread.is_alive()
         assert app.window.status.text().startswith("Сервер: ще не синхронізувався")
         settings.aw_port.setValue(5666)
         qtbot.mouseClick(settings.aw_save, Qt.MouseButton.LeftButton)
@@ -232,3 +233,63 @@ def test_thread_runner_works_off_the_gui_thread_and_reports_back_on_it(qtbot):
     worker = next(s for s in seen if s[1] is None)
     assert worker[0] != main and all(s[2] == main for s in seen)
     assert any(s[1] is ZeroDivisionError for s in seen)
+
+
+def test_reconnecting_retires_the_old_enrollment_without_deleting_data(qtbot, tmp_path):
+    from aw_telegram.main import CompanionApp
+
+    class Coordinator:
+        def __init__(self, store, on_update):
+            self.store = store
+
+        def step(self, now, mono):
+            pass
+
+    path = tmp_path / "companion.sqlite"
+    LocalStore(path, identity=DeviceIdentity(DEVICE, "https://backend.example")).close()
+    forgotten, answers = [], [False, True]
+    app = CompanionApp(path, Coordinator, show=False, runner=sync_runner, probe=lambda host, port: READY,
+                       confirm=lambda text: answers.pop(0), forget=forgotten.append)
+    qtbot.addWidget(app.window)
+    app.start()
+    try:
+        panel = app.window.settings_panel
+        assert not panel.reconnect_button.isHidden()
+        qtbot.mouseClick(panel.reconnect_button, Qt.MouseButton.LeftButton)  # declined
+        assert app.runtime.store.binding is not None and forgotten == []
+        qtbot.mouseClick(panel.reconnect_button, Qt.MouseButton.LeftButton)
+        assert app.runtime.store.binding is None and not panel.code.isHidden()
+        assert forgotten == [dict(deviceId=DEVICE, backendUrl="https://backend.example")]
+        retired = [p.name for p in tmp_path.iterdir() if "retired" in p.name]
+        assert any(name.endswith(".sqlite") for name in retired)
+        assert app.window.tabs.currentIndex() == 2
+    finally:
+        assert app.quit()
+
+
+def test_a_mistyped_secret_is_caught_before_sending():
+    with pytest.raises(ValueError, match="Код підключення не розпізнано"):
+        parse_bundle(json.dumps({"backendUrl": "https://backend.example", "secret": "short"}))
+
+
+def test_a_failed_local_bind_does_not_claim_success(qtbot):
+    widget, calls = panel(qtbot)
+    widget._on_enrolled = lambda identity: (_ for _ in ()).throw(OSError("database is locked"))
+    widget.code.setPlainText(CODE)
+    qtbot.mouseClick(widget.check_button, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(widget.connect_button, Qt.MouseButton.LeftButton)
+    assert "не зміг зберегти підключення" in widget.connection_message.text() and calls["probe"] == []
+
+
+def test_vault_failure_during_sync_is_transient_not_a_rejection():
+    from aw_telegram.models import SyncRequest, minimal_health
+    from aw_telegram.transport import Transport
+
+    class Vault:
+        def load(self, *args):
+            raise OSError("vault")
+
+    request = SyncRequest(schemaVersion=2, sequence=1, acks=[], health=minimal_health("2026-10-28T12:00:00.000Z"))
+    with pytest.raises(SyncError) as raised:
+        Transport(Vault(), identity=DeviceIdentity(DEVICE, "https://backend.example"), request=lambda *a: 1 / 0).sync(request)
+    assert raised.value.retryable and raised.value.reason == "vault" and type(raised.value) is SyncError

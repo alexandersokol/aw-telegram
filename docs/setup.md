@@ -121,20 +121,31 @@ gcloud secrets add-iam-policy-binding TELEGRAM_WEBHOOK_SECRET --project=aw-teleg
 The companion is a portable folder, `aw-telegram\`, containing `aw-telegram.exe`. It
 runs as the signed-in Windows user and needs no Python or administrator rights.
 
-Build it on the owner's workstation from `companion\` with the locked virtual
-environment:
+Build it on the owner's workstation from `companion\`, in a separate virtual
+environment made from a python.org CPython 3.12 for Windows. Its `LICENSE.txt`
+carries the Windows-build terms, and the spec refuses any other base Python. The
+first build used python.org 3.12.6.
 
 ```powershell
-.venv\Scripts\python.exe -m pip install -r requirements.lock
-.venv\Scripts\python.exe tools\licenses.py check
-.venv\Scripts\pyinstaller.exe --clean --noconfirm aw-telegram.spec
+C:\Users\YOU\AppData\Local\Programs\Python\Python312\python.exe -m venv .venv-build
+.venv-build\Scripts\python.exe -m pip install -r requirements.lock
+.venv-build\Scripts\python.exe tools\licenses.py check
+.venv-build\Scripts\pyinstaller.exe --clean --noconfirm aw-telegram.spec
 ```
 
-`tools\licenses.py check` must pass before the folder is given to anyone. The
-PySide6 wheels name LGPL-3.0 but ship no license text, so `companion\licenses\` must
-hold `LGPL-3.0.txt` and `GPL-3.0.txt`. The spec resolves DLLs from the build
-Python first, and fails if an OpenSSL DLL would come from elsewhere on PATH (Git's
-copy broke `_ssl` at startup). To check a build, run
+`tools\licenses.py check` must pass before the folder is given to anyone.
+`companion\licenses\` must hold:
+- `LGPL-3.0.txt` and `GPL-3.0.txt`: the PySide6 wheels name LGPL-3.0 but ship no
+  license text.
+- `qt-third-party.txt`: Qt 6.12's "Licenses Used in Qt", for the third-party code
+  inside the Qt libraries.
+- `python-incorporated.txt`: Python's "Licenses and Acknowledgements for
+  Incorporated Software", for OpenSSL, expat, mpdecimal, zlib, SQLite and others.
+
+The spec resolves DLLs from the build Python first. It ships only Python's own OpenSSL
+(PyInstaller's Qt hook had picked Git's from PATH, which broke `_ssl`). It drops Qt
+parts a tray app does not use: software OpenGL, image formats, SVG, TLS and the
+network-information plugins. To check a build, run
 `dist\aw-telegram\aw-telegram.exe --self-check report.json`; every entry in the
 report must be `ok`.
 
@@ -145,7 +156,9 @@ On the laptop:
    start `aw-telegram.exe`. Local data lives in `%LOCALAPPDATA%\AW Telegram\`.
 2. In «Налаштування», paste the one-line code from `scripts/enroll.ts issue`, check
    the server name it shows, then press «Підключити». The window then checks
-   ActivityWatch at `127.0.0.1:5600`; change the port there if needed.
+   ActivityWatch at `127.0.0.1:5600`; change the port there if needed. If the owner
+   later revokes the laptop, «Підключити заново…» there accepts a new code. The old
+   database is kept beside the new one as `companion-retired-<time>.sqlite`.
 3. Tick «Запускати разом з Windows». This writes the current user's
    `HKCU\…\Run` value «AW Telegram» with the quoted executable and `--background`.
 4. In «Доступ батьків», create a key for each parent. Each parent sends the shown

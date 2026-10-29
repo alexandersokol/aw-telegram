@@ -7,7 +7,7 @@ SQLite (WAL), never objects, so presentation keeps working offline. Importing th
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
 from .aw_reader import AWReader, LocalAWClient
 from .scheduler import Scheduler
@@ -41,6 +41,9 @@ class CompanionRuntime(QObject):
         self.database = Path(database)
         self._coordinator, self._presenter, self._open, self._clock = coordinator, presenter, open_store, clock
         self.store = self.presenter = self.worker = None
+        self._restart = QTimer(self)
+        self._restart.setInterval(100)
+        self._restart.timeout.connect(self._resume_sync)
 
     def start(self) -> None:
         if self.worker is not None:
@@ -57,19 +60,26 @@ class CompanionRuntime(QObject):
         return IOWorker(lambda: self._coordinator(self._open(self.database), lambda *_: self.synced.emit()),
                         utc_clock=self._clock)
 
-    def restart_sync(self, timeout: float = 15) -> bool:
-        """Rebuild the worker after enrollment or an ActivityWatch address change; True when the old one exited.
+    def restart_sync(self) -> None:
+        """Rebuild the worker after enrollment or an ActivityWatch address change, without blocking the GUI.
 
-        Blocks the GUI thread until the old worker finishes its current step (network calls are bounded)."""
+        The old worker finishes its current step first; the new one starts only after it has exited, so two
+        workers never sync the same store at once. The new worker reads the binding and config when built."""
         if self.worker is None:
             raise RuntimeError("runtime has not started")
-        stopped = self.worker.stop(timeout)
+        self.worker.request_stop()
+        self._restart.start()
+
+    def _resume_sync(self) -> None:
+        if self.worker is not None and self.worker.alive():
+            return
+        self._restart.stop()
         self.worker = self._new_worker()
         self.worker.start()
-        return stopped
 
     def stop(self, timeout: float = 15) -> bool:
         """Stop presenting, then join the worker; True when the worker has exited. Safe to repeat."""
+        self._restart.stop()  # a pending restart never starts a worker after stop
         if self.presenter is not None:
             self.presenter.stop()
             self.synced.disconnect(self.presenter.tick)

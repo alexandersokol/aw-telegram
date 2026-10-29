@@ -46,7 +46,13 @@ def status_lines(s: StatusInput) -> list[str]:
         return ["Сервер: ноутбук не підключено. Введіть код підключення в «Налаштування»."]
     lines = []
     if s.sync is not None and s.sync["auth_blocked"]:
-        lines.append("Сервер: доступ ноутбука відхилено. Попросіть власника видати новий код підключення.")
+        lines.append("Сервер: доступ ноутбука відхилено. Попросіть власника видати новий код і натисніть "
+                     "«Підключити заново» в «Налаштування».")
+    elif s.sync is not None and s.sync.get("last_error") == "startup_failed":
+        lines.append("Сервер: синхронізація не запустилася. Закрийте програму через «Вийти» і запустіть знову.")
+    elif s.sync is not None and s.sync.get("last_error") == "credential_vault_unavailable":
+        lines.append("Сервер: не вдалося прочитати облікові дані ноутбука зі сховища Windows; "
+                     "синхронізацію буде повторено.")
     elif s.last_sync_at is None:
         lines.append("Сервер: ще не синхронізувався")
     elif s.now - parse_instant(s.last_sync_at) <= ONLINE:
@@ -90,4 +96,4 @@ def read_status(store, sync: dict | None, now: datetime) -> StatusInput:
     day = store.day(date)
     return StatusInput(now=now, enrolled=store.binding is not None, paired=store.collection_started_at is not None,
                        settings=store.settings, used_ms=store.selected_usage(date), partial=bool(day and day.partial),
-                       last_sync_at=store._state()["lastSuccessfulSyncAt"], sync=sync)
+                       last_sync_at=store.last_successful_sync_at, sync=sync)

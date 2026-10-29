@@ -74,7 +74,10 @@ def test_connection_states():
         "Сервер: немає зв’язку, остання синхронізація 27.10 о 14:00"
     assert line(status(last_sync_at=None), "Сервер") == "Сервер: ще не синхронізувався"
     assert line(status(sync=dict(health=dict(awState="ready", reportError=None), auth_blocked=True)), "Сервер") == \
-        "Сервер: доступ ноутбука відхилено. Попросіть власника видати новий код підключення."
+        "Сервер: доступ ноутбука відхилено. Попросіть власника видати новий код і натисніть «Підключити заново» в «Налаштування»."
+    assert line(status(sync=dict(health=dict(awState="ready", reportError=None), auth_blocked=False,
+                                 last_error="credential_vault_unavailable")), "Сервер") == \
+        "Сервер: не вдалося прочитати облікові дані ноутбука зі сховища Windows; синхронізацію буде повторено."
     assert status(enrolled=False, paired=False, last_sync_at=None, sync=None) == [
         "Сервер: ноутбук не підключено. Введіть код підключення в «Налаштування».",
     ]
@@ -137,6 +140,20 @@ def test_a_second_instance_hands_over_and_exits(qtbot):
         assert third.acquire()  # released names are reusable
     finally:
         third.release()
+
+
+def test_a_racing_start_loses_even_before_the_winner_listens(qtbot):
+    from aw_telegram.single_instance import SingleInstance
+    name = f"aw-telegram-race-{threading.get_ident()}-{datetime.now().timestamp()}"
+    first, second = SingleInstance(name), SingleInstance(name)
+    try:
+        assert first.acquire()
+        first._server.close()  # as if the winner had not started listening yet
+        first._server = None
+        assert not second.acquire()  # the mutex decides, not the pipe
+    finally:
+        first.release()
+        second.release()
 
 
 # Window and tray

@@ -788,6 +788,63 @@ Checkpoint 9d (2026-10-29, local, not independently reviewed): packaging.
 Companion 415. Task 9 code is complete. Remaining: the interactive and clean-machine
 checks above, and an independent review.
 
+Task 9 review (2026-10-29, independent, over 706b8ad..170b224). Verdict: with fixes. No
+critical findings. Secret handling, host acceptance and PAIR-03 durability were
+confirmed sound.
+
+Fixed:
+- **Single instance:** two `QLocalServer`s can listen on one pipe name on Windows,
+  so racing starts could both run. A session-local named mutex now decides, and the
+  pipe, named per session, only carries "show".
+- **Sync restart:** `restart_sync` blocked the GUI for up to 15 s and could start a
+  second worker. It now returns at once, and the new worker starts only after the old
+  one exits. The worker sends at most two queued removals per step.
+- **LANG-01:** Qt's own buttons and menus were English. `qtbase_uk` is now installed,
+  and the self-check verifies it.
+- **Uninstall:** it could crash on an unavailable vault and advised a Telegram
+  removal the bot does not offer. Every step is now independent, the report counts
+  removals, and it points to the owner's `revoke-device`, which also invalidates every
+  parent and key.
+- **Re-enrollment:** there was no way to enter a new code after revocation. Added
+  «Підключити заново…»: the old database is renamed, never deleted, and the old
+  credential is forgotten. A local vault failure is now transient
+  (`credential_vault_unavailable`), not "the server rejected the laptop".
+- **Notices and provenance:**
+  - The build now uses a python.org Python, enforced by the spec.
+  - PySide's commercial-license file is dropped, and PySide6 and shiboken6 carry the
+    LGPL-3.0 text. Exact Qt and PySide source locations are pinned.
+  - PySide's Python files stay on disk.
+  - Unused Qt parts and setuptools are excluded (104 to 75 MB).
+  - The check now also requires `qt-third-party.txt` and `python-incorporated.txt`,
+    which are not yet present.
+- **Minor:**
+  - The pair key is kept out of Windows clipboard history and cleared at «Готово» or
+    expiry.
+  - A mistyped enrollment secret is caught before sending. A timeout keeps the code,
+    with `revoke-enrollment` advice.
+  - The key display survives clock skew and caps its timer.
+  - «Створити ключ» is disabled at ten caregivers.
+  - Removing a key says it can no longer be used.
+  - Stale list refreshes are ignored, and revoked keys are hidden.
+  - Status refreshes only while visible and reports a worker that failed to start.
+  - `--self-check` without a path exits 2, and a startup failure shows a Ukrainian
+    message instead of a traceback.
+  - A failed local bind no longer claims success.
+  - The notice file is written to the work path.
+
+Deferred:
+- No caregiver currently paired, after collection started, is not shown in «Стан»
+  (it needs the access list).
+- `main()`, `_uninstall` and the QMessageBox paths are exercised only by the frozen
+  smoke, not unit tests.
+- `RunKey` remains untested.
+
+Frozen smoke after the fixes: the self-check passed for all five entries, a second start
+handed over in 0.4 s, and the bundle has only the `qwindows`, `qoffscreen` and style
+plugins and Python's own OpenSSL.
+
+Companion 427.
+
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
 companion/src/aw_telegram/windows/startup.py, companion/aw-telegram.spec,

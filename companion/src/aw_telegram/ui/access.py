@@ -6,7 +6,9 @@ sync worker keeps retrying it while offline (PAIR-03). Network work runs off the
 """
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QTimer
+from datetime import timedelta
+
+from PySide6.QtCore import QMimeData, Qt, QTimer
 from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtWidgets import (QAbstractItemView, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
@@ -17,7 +19,19 @@ from .presenter import utc_now
 from .settings import ThreadRunner
 
 MAX_CAREGIVERS = 10
+KEY_LIFETIME = timedelta(minutes=15)  # PAIR-06; also bounds a laptop clock that runs behind the server
 WAITING = "видалення чекає на підтвердження сервера"
+_NO_HISTORY = b"\x00\x00\x00\x00"  # DWORD 0
+
+
+def copy_secret(text: str) -> None:
+    """Copy without Windows clipboard history or cloud clipboard sync."""
+    data = QMimeData()
+    data.setText(text)
+    data.setData('application/x-qt-windows-mime;value="ExcludeClipboardContentFromMonitorProcessing"', _NO_HISTORY)
+    data.setData('application/x-qt-windows-mime;value="CanIncludeInClipboardHistory"', _NO_HISTORY)
+    data.setData('application/x-qt-windows-mime;value="CanUploadToCloudClipboard"', _NO_HISTORY)
+    QGuiApplication.clipboard().setMimeData(data)
 
 
 class AccessClient:
@@ -70,6 +84,7 @@ class AccessPanel(QWidget):
         self._entries: list[dict] = []
         self._key_expires = None
         self._waiting: set[str] = set()
+        self._generation = 0  # only the latest listing request may update the table
         layout = QVBoxLayout(self)
 
         self.message = QLabel()
@@ -96,7 +111,7 @@ class AccessPanel(QWidget):
         self.key_note.setWordWrap(True)
         buttons = QHBoxLayout()
         self.copy_button = QPushButton("Копіювати команду")
-        self.copy_button.clicked.connect(lambda: QGuiApplication.clipboard().setText(self.key_command.text()))
+        self.copy_button.clicked.connect(lambda: copy_secret(self.key_command.text()))
         self.done_button = QPushButton("Готово")
         self.done_button.clicked.connect(self._clear_key)
         buttons.addWidget(self.copy_button)
@@ -139,9 +154,13 @@ class AccessPanel(QWidget):
     def refresh(self) -> None:
         if self._client is None:
             return
-        self._run(self._client.list_all, self._listed)
+        self._generation += 1
+        generation, client = self._generation, self._client
+        self._run(client.list_all, lambda result, error: self._listed(result, error, generation, client))
 
-    def _listed(self, result, error) -> None:
+    def _listed(self, result, error, generation=None, client=None) -> None:
+        if generation is not None and (generation != self._generation or client is not self._client):
+            return  # a newer refresh or a rebind superseded this answer
         if error is not None:
             self.message.setText("Список недоступний: немає зв’язку з сервером.")
         else:
@@ -157,7 +176,7 @@ class AccessPanel(QWidget):
         pending = {item["id"]: item for item in (self._store.pending_revocations() if self._store else [])}
         self._waiting = set(pending)
         now = self._now()
-        rows = [(e, e["id"] in pending) for e in self._entries]
+        rows = [(e, e["id"] in pending) for e in self._entries if e.get("status") != "revoked"]  # revoked keys are history
         known = {e["id"] for e in self._entries}
         rows += [(dict(id=i, name=item["name"]), True) for i, item in pending.items() if i not in known]
         self.table.setRowCount(len(rows))
@@ -170,9 +189,10 @@ class AccessPanel(QWidget):
                 button.clicked.connect(lambda _=False, access_id=entry["id"]: self.remove(access_id))
                 self.table.setCellWidget(row, 2, button)
         active = sum(1 for e, waiting in rows if e["id"].startswith("parent:") and not waiting)
-        self.capacity.setText("" if active < MAX_CAREGIVERS else
-                              f"Підключено {MAX_CAREGIVERS} із {MAX_CAREGIVERS} облікових записів: "
-                              "щоб додати новий, спершу видаліть один.")
+        full = active >= MAX_CAREGIVERS
+        self.capacity.setText(f"Підключено {MAX_CAREGIVERS} із {MAX_CAREGIVERS} облікових записів: "
+                              "щоб додати новий, спершу видаліть один." if full else "")
+        self.create_button.setEnabled(self._client is not None and not full)  # a new key could not pair
 
     # Keys
     def create_key(self) -> None:
@@ -192,12 +212,17 @@ class AccessPanel(QWidget):
         self.name.clear()
         self.message.setText("")
         self.key_command.setText(f"/pair {result['secret']}")
+        # A laptop clock ahead of the server must not hide the key at once, nor one behind keep it too long.
+        now = self._now()
+        self._key_expires = min(parse_instant(result["expiresAt"]), now + KEY_LIFETIME)
+        if self._key_expires <= now:
+            self._key_expires = now + KEY_LIFETIME
+        local = self._key_expires.astimezone(KYIV).strftime("%H:%M")
         self.key_note.setText("Надішліть цю команду боту в особистому чаті Telegram. "
-                              f"Ключ діє до {_local_time(result['expiresAt'])} і підключає один обліковий запис.")
+                              f"Ключ діє до {local} і підключає один обліковий запис.")
         self.key_box.setVisible(True)
-        self._key_expires = parse_instant(result["expiresAt"])
-        remaining = int((self._key_expires - self._now()).total_seconds() * 1000)
-        QTimer.singleShot(max(0, remaining) + 500, self.expire_key)
+        remaining = int((self._key_expires - now).total_seconds() * 1000)
+        QTimer.singleShot(min(max(0, remaining), int(KEY_LIFETIME.total_seconds() * 1000)) + 500, self.expire_key)
         self.refresh()
 
     def expire_key(self) -> None:
@@ -205,6 +230,9 @@ class AccessPanel(QWidget):
             self._clear_key()
 
     def _clear_key(self) -> None:
+        clipboard = QGuiApplication.clipboard()
+        if self.key_command.text() and clipboard.text() == self.key_command.text():
+            clipboard.clear()
         self.key_command.setText("")
         self.key_note.setText("")
         self.key_box.setVisible(False)
@@ -230,5 +258,6 @@ class AccessPanel(QWidget):
             self._render()
             return
         self._store.revocation_done(access_id)
-        self.message.setText(f"Ключ «{name}» видалено." if is_key else f"Доступ «{name}» видалено.")
+        # A key redeemed meanwhile is a paired parent now; the refreshed list shows it.
+        self.message.setText(f"Ключ «{name}» більше не можна використати." if is_key else f"Доступ «{name}» видалено.")
         self.refresh()

@@ -9,11 +9,11 @@ import threading
 from urllib.parse import urlsplit
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPlainTextEdit,
-                               QPushButton, QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
+                               QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from ..credentials import CredentialError as VaultUnavailable
-from ..transport import EnrollmentBundle, EnrollmentError, SyncError, canonical_backend
+from ..transport import EnrollmentBundle, EnrollmentError, SyncError, _secret, canonical_backend
 from ..windows.startup import set_startup, startup_enabled
 
 UNRECOGNIZED = "Код підключення не розпізнано. Вставте повністю рядок, який видала команда власника."
@@ -28,8 +28,8 @@ def parse_bundle(text: str) -> tuple[EnrollmentBundle, str]:
     except ValueError:
         raise ValueError(UNRECOGNIZED) from None
     if (not isinstance(value, dict) or set(value) != {"backendUrl", "secret"}
-            or not all(isinstance(value[k], str) for k in value)):
-        raise ValueError(UNRECOGNIZED)
+            or not all(isinstance(value[k], str) for k in value) or not _secret(value["secret"])):
+        raise ValueError(UNRECOGNIZED)  # a mistyped secret is caught here, before anything is sent
     try:
         backend = canonical_backend(value["backendUrl"])
     except EnrollmentError:
@@ -43,7 +43,10 @@ def enrollment_error(error: Exception) -> str:
         return "Сховище облікових даних Windows недоступне. Код не використано; спробуйте ще раз."
     if isinstance(error, SyncError):
         if error.retryable:
-            return "Немає зв’язку з сервером. Перевірте інтернет і спробуйте ще раз."
+            # A timeout or server error may come after the server used the code; consumption is final.
+            return ("Немає зв’язку з сервером або він не відповів. Перевірте інтернет і спробуйте ще раз. "
+                    "Якщо код більше не приймається, попросіть власника скасувати це підключення "
+                    "(revoke-enrollment) і видати новий код.")
         return "Код недійсний, прострочений або вже використаний. Попросіть власника видати новий код."
     if isinstance(error, EnrollmentError) and ("owner recovery" in str(error) or "Credential storage" in str(error)):
         return ("Код використано, але ноутбук не зміг завершити підключення. Попросіть власника "
@@ -103,10 +106,13 @@ class ThreadRunner:
 
 
 class SettingsPanel(QWidget):
-    def __init__(self, *, enroll, probe, on_enrolled, on_aw_changed, executable, registry=None, runner=None):
+    def __init__(self, *, enroll, probe, on_enrolled, on_aw_changed, executable, registry=None, runner=None,
+                 on_reset=None, confirm=None):
         super().__init__()
         self._enroll, self._probe = enroll, probe
-        self._on_enrolled, self._on_aw_changed = on_enrolled, on_aw_changed
+        self._on_enrolled, self._on_aw_changed, self._on_reset = on_enrolled, on_aw_changed, on_reset
+        self._confirm = confirm or (lambda text: QMessageBox.question(self, "AW Telegram", text)
+                                    == QMessageBox.StandardButton.Yes)
         self._executable, self._registry = executable, registry
         self._run = runner or ThreadRunner()
         self._pending = None  # (bundle, host) confirmed for sending; holds the one-time secret briefly
@@ -125,8 +131,12 @@ class SettingsPanel(QWidget):
         self.connect_button = QPushButton("Підключити")
         self.connect_button.clicked.connect(self._connect)
         self.connect_button.setVisible(False)
+        self.reconnect_button = QPushButton("Підключити заново…")
+        self.reconnect_button.clicked.connect(self._reconnect)
+        self.reconnect_button.setVisible(False)
         buttons.addWidget(self.check_button)
         buttons.addWidget(self.connect_button)
+        buttons.addWidget(self.reconnect_button)
         buttons.addStretch()
         self.connection_message = QLabel()
         self.connection_message.setWordWrap(True)
@@ -170,6 +180,7 @@ class SettingsPanel(QWidget):
         for widget in (self.code_hint, self.code, self.check_button):
             widget.setVisible(not enrolled)
         self.connect_button.setVisible(False)
+        self.reconnect_button.setVisible(enrolled and self._on_reset is not None)
         if enrolled:
             host = urlsplit(binding["backendUrl"]).netloc
             self.connection_message.setText(f"Підключено до сервера {host}. Ноутбук: {binding['deviceId'][:8]}…")
@@ -220,9 +231,19 @@ class SettingsPanel(QWidget):
             self.connection_message.setText(enrollment_error(error))
             return
         self.code.clear()
+        try:
+            self._on_enrolled(identity)
+        except Exception:
+            self.connection_message.setText("Код використано, але ноутбук не зміг зберегти підключення. Попросіть "
+                                            "власника скасувати це підключення і видати новий код.")
+            return
         self.connection_message.setText(f"Ноутбук підключено до {host}.")
-        self._on_enrolled(identity)
         self._check_aw()  # SETUP-03: check ActivityWatch right after connecting
+
+    def _reconnect(self):
+        if self._confirm("Підключити ноутбук заново? Поточне підключення буде забуто. Локальні дані збережуться "
+                         "в окремому файлі, а для нового підключення потрібен новий код від власника."):
+            self._on_reset()
 
     # ActivityWatch
     def _save_aw(self):

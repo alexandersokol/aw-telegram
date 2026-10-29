@@ -29,6 +29,14 @@ def test_every_runtime_dependency_ships_its_license():
     assert all(Path(src).is_file() for src, _ in files)
 
 
+def test_qt_ships_lgpl_not_commercial_terms_and_needs_its_third_party_notices():
+    files = licenses.license_files()
+    qt = [Path(src).name for src, dest in files if dest.startswith("licenses/pyside6-essentials")]
+    assert "LicenseRef-Qt-Commercial.txt" not in qt
+    assert "qt-third-party.txt" in licenses.REQUIRED_TEXTS
+    assert "download.qt.io/official_releases/qt/6.12/6.12.0/" in licenses.notices()
+
+
 def test_notices_name_python_the_bootloader_and_each_package():
     text = licenses.notices()
     assert "Python" in text and "PyInstaller" in text and "PySide6" in text and "LGPL" in text
@@ -40,8 +48,8 @@ def test_notices_name_python_the_bootloader_and_each_package():
 def test_self_check_reports_each_bundle_requirement(qtbot):
     from aw_telegram.main import self_check
     report = self_check()
-    assert set(report) == {"schemas", "timezone", "vault", "qt"}
-    assert report["schemas"] == report["timezone"] == report["qt"] == "ok"
+    assert set(report) == {"schemas", "timezone", "vault", "qt", "translations"}
+    assert report["schemas"] == report["timezone"] == report["qt"] == report["translations"] == "ok"
 
 
 # Uninstall
@@ -113,7 +121,8 @@ def test_uninstall_can_first_remove_every_parent_and_pending_key(store, tmp_path
 def test_uninstall_reports_what_could_not_be_done(store, tmp_path):
     report = uninstall(store, registry=Registry(), vault=Vault(fail=True), access=Access(offline=True),
                        revoke_parents=True, data=tmp_path)
-    assert "Не вдалося видалити доступ батьків: немає зв’язку з сервером. Видаліть його пізніше в Telegram або попросіть власника." in report
+    assert ("Не вдалося видалити доступ батьків (видалено записів: 0). Його скасує відкликання ноутбука "
+            "власником — команда нижче.") in report
     assert "Не вдалося видалити облікові дані з Windows." in report
 
 
@@ -125,3 +134,41 @@ def test_uninstall_of_an_unenrolled_laptop_only_turns_off_autostart(tmp_path):
         assert vault.deleted == [] and report[0] == "Автозапуск вимкнено." and len(report) == 2
     finally:
         s.close()
+
+
+def test_uninstall_survives_an_unavailable_vault_and_a_failure_midway(store, tmp_path):
+    from aw_telegram.credentials import CredentialError
+
+    class Broken(Access):
+        def list_all(self):
+            raise CredentialError("Windows credential vault is unavailable")
+
+    class Midway(Access):
+        def revoke(self, access_id):
+            if self.revoked:
+                raise RuntimeError("socket")
+            self.revoked.append(access_id)
+
+    registry = Registry()
+    report = uninstall(store, registry=registry, vault=None, access=Broken(), revoke_parents=True, data=tmp_path)
+    assert registry.values == {} and "Не вдалося видалити облікові дані з Windows." in report
+    report = uninstall(store, registry=Registry(), vault=Vault(), access=Midway(), revoke_parents=True, data=tmp_path)
+    assert any("видалено записів: 1" in line for line in report)
+
+
+def test_qt_dialog_buttons_are_ukrainian(qtbot):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from aw_telegram.ui.i18n import install_translations
+    app = QApplication.instance()
+    assert install_translations(app)
+    try:
+        box = QMessageBox(QMessageBox.Icon.Question, "AW Telegram", "?",
+                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        qtbot.addWidget(box)
+        texts = sorted(b.text().replace("&", "") for b in box.buttons())
+        assert texts == ["Ні", "Так"]
+    finally:
+        from PySide6.QtCore import QTranslator
+        for translator in app.findChildren(QTranslator):
+            app.removeTranslator(translator)
+            translator.deleteLater()
