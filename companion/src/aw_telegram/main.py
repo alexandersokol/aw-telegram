@@ -1,12 +1,13 @@
 """Companion entry point: one tray instance per Windows user running the sync and presentation loop."""
 import getpass
 import hashlib
+import json
 import os
 import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from .aw_reader import AWReader, LocalAWClient
 from .runtime import CompanionRuntime, build_coordinator
@@ -139,11 +140,66 @@ class CompanionApp(QObject):
         return stopped
 
 
+def self_check() -> dict:
+    """What a frozen build must carry: contract schemas, the Kyiv timezone, the Windows vault and Qt."""
+    from .clock import endtime_at
+    from .credentials import WindowsVault
+    from .models import Settings
+    report = {}
+    for name, check in (("schemas", lambda: Settings().to_wire()), ("timezone", lambda: endtime_at("2026-10-28", "21:00")),
+                        ("vault", WindowsVault), ("qt", lambda: QApplication.instance() or QApplication([]))):
+        try:
+            check()
+            report[name] = "ok"
+        except Exception as error:
+            report[name] = type(error).__name__
+    return report
+
+
+def _uninstall(app: QApplication) -> int:
+    from .credentials import WindowsVault
+    from .storage import LocalStore
+    from .uninstall import uninstall
+    title = "AW Telegram"
+    guard = SingleInstance(instance_name())
+    if not guard.acquire():
+        QMessageBox.warning(None, title, "Спершу закрийте AW Telegram: значок у треї → «Вийти».")
+        return 1
+    store = None
+    try:
+        yes = QMessageBox.StandardButton.Yes
+        if QMessageBox.question(None, title, "Вимкнути AW Telegram на цьому ноутбуці? Автозапуск буде вимкнено, "
+                                "а облікові дані ноутбука видалено з Windows.") != yes:
+            return 0
+        revoke = QMessageBox.question(None, title, "Також видалити доступ усіх батьків? Потрібен зв’язок із сервером.") == yes
+        directory = data_directory()
+        database = directory / "companion.sqlite"
+        store = LocalStore(database) if database.exists() else None
+        try:
+            vault = WindowsVault()
+        except Exception:
+            vault = None  # reported as not deleted
+        report = uninstall(store, registry=None, vault=vault, access=access_client(store.binding if store else None),
+                           revoke_parents=revoke, data=directory)
+        QMessageBox.information(None, title, "\n\n".join(report))
+        return 0
+    finally:
+        if store is not None:
+            store.close()
+        guard.release()
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv if argv is None else argv
     app = QApplication(argv)
     app.setApplicationName("AW Telegram")
     app.setQuitOnLastWindowClosed(False)
+    if "--self-check" in argv:  # packaging check: writes a JSON report to the given path
+        report = self_check()
+        Path(argv[argv.index("--self-check") + 1]).write_text(json.dumps(report), encoding="utf-8")
+        return 0 if set(report.values()) == {"ok"} else 1
+    if "--uninstall" in argv:
+        return _uninstall(app)
     guard = SingleInstance(instance_name())
     if not guard.acquire():
         return 0  # the running instance opens its window

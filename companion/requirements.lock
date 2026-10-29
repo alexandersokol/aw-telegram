@@ -1,5 +1,6 @@
-# Python 3.12 / Windows x64. Exact runtime, test and editable-build versions.
+# Python 3.12 / Windows x64. Exact runtime, test, editable-build and packaging versions.
 # Install with: python -m pip install -r requirements.lock
+altgraph==0.17.5
 attrs==26.1.0
 colorama==0.4.6
 iniconfig==2.3.1
@@ -11,8 +12,11 @@ jsonschema-specifications==2025.9.1
 keyring==25.7.0
 more-itertools==11.2.1
 packaging==26.3
+pefile==2024.8.26
 pluggy==1.7.0
 Pygments==2.21.0
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
 PySide6_Essentials==6.12.0
 pytest==9.1.1
 pytest-qt==4.5.0

@@ -115,3 +115,45 @@ Grant `aw-backend` read access to these two secrets only:
 gcloud secrets add-iam-policy-binding TELEGRAM_BOT_TOKEN --project=aw-telegram --member=serviceAccount:aw-backend@aw-telegram.iam.gserviceaccount.com --role=roles/secretmanager.secretAccessor
 gcloud secrets add-iam-policy-binding TELEGRAM_WEBHOOK_SECRET --project=aw-telegram --member=serviceAccount:aw-backend@aw-telegram.iam.gserviceaccount.com --role=roles/secretmanager.secretAccessor
 ```
+
+## Companion laptop
+
+The companion is a portable folder, `aw-telegram\`, containing `aw-telegram.exe`. It
+runs as the signed-in Windows user and needs no Python or administrator rights.
+
+Build it on the owner's workstation from `companion\` with the locked virtual
+environment:
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe tools\licenses.py check
+.venv\Scripts\pyinstaller.exe --clean --noconfirm aw-telegram.spec
+```
+
+`tools\licenses.py check` must pass before the folder is given to anyone. The
+PySide6 wheels name LGPL-3.0 but ship no license text, so `companion\licenses\` must
+hold `LGPL-3.0.txt` and `GPL-3.0.txt`. The spec resolves DLLs from the build
+Python first, and fails if an OpenSSL DLL would come from elsewhere on PATH (Git's
+copy broke `_ssl` at startup). To check a build, run
+`dist\aw-telegram\aw-telegram.exe --self-check report.json`; every entry in the
+report must be `ok`.
+
+On the laptop:
+
+1. Copy `dist\aw-telegram\` to a folder the child's Windows account can read, for
+   example `C:\Program Files\AW Telegram\` (installed by an administrator), and
+   start `aw-telegram.exe`. Local data lives in `%LOCALAPPDATA%\AW Telegram\`.
+2. In «Налаштування», paste the one-line code from `scripts/enroll.ts issue`, check
+   the server name it shows, then press «Підключити». The window then checks
+   ActivityWatch at `127.0.0.1:5600`; change the port there if needed.
+3. Tick «Запускати разом з Windows». This writes the current user's
+   `HKCU\…\Run` value «AW Telegram» with the quoted executable and `--background`.
+4. In «Доступ батьків», create a key for each parent. Each parent sends the shown
+   `/pair` command to the bot in a private chat within 15 minutes.
+
+To retire a laptop, quit the companion from the tray, then run
+`aw-telegram.exe --uninstall`. It turns off autostart, optionally removes every
+parent's access, deletes the laptop's credential from Windows, and shows the
+owner's `revoke-device` command for the server. It never deletes
+`%LOCALAPPDATA%\AW Telegram\`; remove that folder by hand if wanted. Code signing
+and automatic updates are not provided in this version.

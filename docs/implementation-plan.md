@@ -759,6 +759,33 @@ Checkpoint 9c (2026-10-29, local, not independently reviewed): «Доступ б
 
 Companion 408.
 
+Checkpoint 9d (2026-10-29, local, not independently reviewed): packaging.
+- **Build:** `companion/aw-telegram.spec` (PyInstaller 6.22.3, pinned with its
+  dependencies in `requirements.lock`) builds a 101 MB portable one-folder windowed
+  app. It bundles the contract schemas, `tzdata`, every runtime dependency's license
+  files, Python's license, the bootloader notice and `THIRD-PARTY-NOTICES.txt`.
+- **Packaging bug found and fixed:** the build had picked up Git's `libcrypto-3-x64.dll`
+  from PATH, so the frozen app failed at startup in `_ssl`. The spec now resolves this
+  Python's DLLs first and refuses foreign OpenSSL DLLs.
+- **Notices:** `tools/licenses.py` derives the runtime dependency closure from the
+  declared dependencies, so test and build tools are excluded. `check` fails while a
+  required text is missing. `GPL-3.0.txt` is committed, copied verbatim from Git for
+  Windows; `LGPL-3.0.txt` is still missing, so builds are not yet distributable.
+- **`--self-check PATH`:** writes the status of the schemas, the Kyiv timezone, the
+  Windows vault and Qt.
+- **`--uninstall`:** turns off autostart, optionally removes every parent's access,
+  deletes the vault credential, reports the owner's `revoke-device` command and leaves
+  local data for manual deletion. A laptop cannot revoke itself on the server.
+- **Frozen smoke, offscreen, PATH without Python, app data redirected:** the self-check
+  passed for all four. A background start ran, a second start exited 0 in 0.4 s, and
+  the database was created.
+- **Not yet verified:** an interactive run on a visible desktop, the real HKCU Run
+  entry and a reboot, a clean machine without Python or Git, and a standard-user
+  account. See setup.md.
+
+Companion 415. Task 9 code is complete. Remaining: the LGPL-3.0 text, the
+interactive and clean-machine checks above, and an independent review.
+
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
 companion/src/aw_telegram/windows/startup.py, companion/aw-telegram.spec,
