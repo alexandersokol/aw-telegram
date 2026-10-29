@@ -1,6 +1,7 @@
 # Companion window and tray
 
-Status: agreed initial interface, recorded 2026-10-27. Not implemented.
+Status: agreed initial interface recorded 2026-10-27; endtime and newest-overlay
+amendment approved 2026-10-29. Not implemented.
 All built-in interface text is Ukrainian.
 
 ## Window and tray behavior
@@ -15,7 +16,8 @@ All built-in interface text is Ukrainian.
 ## Стан
 
 Show ActivityWatch connectivity, backend connectivity, last synchronization,
-remaining daily allowance, and active free-use/reminder-suppression modes.
+remaining daily allowance, configured endtime state/time, and active
+free-use/reminder-suppression modes.
 Distinguish disconnected services from zero usage and from a confirmed power-off.
 
 ## Доступ батьків
@@ -59,3 +61,19 @@ with fully opaque white text through per-pixel transparency. Keep its existing
 layout, primary-screen position and timing lifecycle. Mouse clicks pass through
 the countdown to the app underneath while the timer stays on top. The fullscreen
 overlay continues to capture clicks.
+
+## Endtime presentation
+
+The companion evaluates endtime locally in Europe/Kyiv. With the feature enabled,
+show companion notification cards at 15, 10, and 5 minutes before the saved time.
+At endtime show the standard dismissible fullscreen overlay; after dismissal or
+replacement, a new endtime occurrence is due one minute later until local midnight.
+Free use, Clear all, turning endtime off, or changing its time removes the current
+endtime overlay and cancels its pending occurrence before reevaluation.
+
+Only overlays use newest-due-wins: a newly due overlay replaces the visible overlay
+regardless of source, records the displaced item as terminal `replaced`, and cancels
+an entire displaced manual repeat family. Notification cards and countdowns keep
+their separate slots. A confirmed first endtime presentation for a date/settings
+generation is queued for backend acknowledgement; it is not proof that the child
+read the message.

@@ -1,8 +1,9 @@
 # Bot buttons and navigation
 
-Status: agreed navigation and reminder flow, recorded 2026-10-27. This is a
-user-interface specification, not implemented behavior. All built-in text is
-Ukrainian. See user-requirements.md for timing, privacy, pairing, and delivery rules.
+Status: base navigation and reminder flow recorded 2026-10-27; Endtime Settings
+flow approved 2026-10-29. This is a user-interface specification, not implemented
+behavior. All built-in text is Ukrainian. See user-requirements.md for timing,
+privacy, pairing, and delivery rules.
 
 ## General behavior
 
@@ -11,7 +12,7 @@ Ukrainian. See user-requirements.md for timing, privacy, pairing, and delivery r
 - Each submenu provides «← Назад»; unfinished input flows provide «Скасувати».
 - Canceling an unfinished flow does not submit a laptop command.
 - Report requests stay private. Shared-laptop actions and settings changes notify
-  the other parent, with accurate pending/acknowledged/completed status.
+  every other active caregiver, with accurate pending/acknowledged/completed status.
 - Show an action summary before submission, explaining the effects of shared
   settings changes. Free-use mode blocks reminder creation with an explanation.
 
@@ -71,12 +72,37 @@ when needed. Category selections include descendants and do not double-count.
 
 ```text
 [ Щогодинні звіти: увімкнено/вимкнено ]
+[ Час завершення: вимкнено/21:00 ]
 [ Допомога ]
 [ ← Назад ]
 ```
 
 Hourly updates are per parent. No language selector. Named pairing-key creation,
 listing, and revocation stay in the companion app.
+
+### Endtime
+
+The Endtime row opens a status and editing submenu. `/endtime` and
+`/endtime status` render the same status; `/endtime set HH:MM`, `/endtime on`,
+and `/endtime off` provide the direct command equivalents.
+
+```text
+🌙 Час завершення
+
+Стан: вимкнено
+Збережений час: 21:00
+Ноутбук: очікує застосування / застосовано
+
+[ Увімкнути ]
+[ Змінити час ]
+[ ← Назад ]
+```
+
+When enabled, replace «Увімкнути» with «Вимкнути». Changing the time accepts
+exact `HH:MM` from `00:15` through `23:59`, shows a review, and enables endtime
+on confirmation. Status also identifies active free-use or Clear-all suppression.
+Confirm saved state separately from companion acknowledgement and notify every
+other active caregiver of set/on/off changes.
 
 ## Reminder menu
 
@@ -171,7 +197,7 @@ Overlay presentation acknowledged:
 
 Presentation does not prove reading. For ordinary OS notifications, report
 submission to Windows if visibility cannot be confirmed. Report failures/expiry
-accurately. Notify the other parent of the requesting parent's identity, message,
+accurately. Notify every other active caregiver of the requesting caregiver's identity, message,
 schedule, and status. Retries must not create duplicate actions.
 
 ### Active and scheduled list
@@ -253,4 +279,13 @@ suppression without recreating canceled manual actions. Evaluate today's usage
 when reminders become enabled. Free-use mode is separate: if still enabled,
 explain that reminders remain paused until it is disabled. Allowance/category
 edits and disabling free use do not silently undo Clear-all suppression.
-Notify the other parent of restoration.
+Notify every other active caregiver of restoration.
+
+## Endtime automatic messages
+
+The 15/10/5-minute endtime warnings are laptop-only. At the configured time, the
+companion shows the endtime overlay. Only a durable receipt confirming actual
+presentation creates one Telegram alert to all currently authorized caregivers
+for that date/settings generation. Repeating instances do not send more alerts;
+a deliberate same-day reschedule may earn a new alert. Free use or Clear all
+cancels undelivered endtime alerts as well as local warning/presentation behavior.

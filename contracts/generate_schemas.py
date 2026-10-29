@@ -23,6 +23,7 @@ defs = {
  'Counter':integer(), 'DurationMs':integer(),
  'LocalDate':{'type':'string','format':'local-date','pattern':'^(?:19[7-9][0-9]|20[0-9]{2})-[0-9]{2}-[0-9]{2}$'},
  'Instant':{'type':'string','format':'utc-instant'},
+ 'EndtimeLocalTime':{'type':'string','pattern':r'^(?:00:(?:1[5-9]|[2-5][0-9])|(?:0[1-9]|1[0-9]|2[0-3]):[0-5][0-9])(?![\s\S])'},
  # Unlike $, this portable assertion cannot match before a final line ending.
  'TelegramId':{'type':'string','pattern':r'^[1-9][0-9]{0,19}(?![\s\S])'},
  'Uuid':{'type':'string','pattern':r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\s\S])'},
@@ -34,7 +35,8 @@ defs = {
  'Settings':obj({'revision':ref('Counter'),'selectedPaths':array(ref('CategoryPath'),256),
     'selectedUncategorized':{'type':'boolean'},'defaultLimitMs':ref('DurationMs'),
     'todayOverride':nullable(obj({'date':ref('LocalDate'),'limitMs':ref('DurationMs')})),
-    'freeUseDate':nullable(ref('LocalDate')),'suppressedDate':nullable(ref('LocalDate'))}),
+    'freeUseDate':nullable(ref('LocalDate')),'suppressedDate':nullable(ref('LocalDate')),
+    'endtimeEnabled':{'type':'boolean'},'endtimeLocalTime':ref('EndtimeLocalTime'),'endtimeGeneration':ref('Counter')}),
  'DaySummary':obj({'date':ref('LocalDate'),'leafTotalsMs':array(ref('LeafTotal'),1024),'appLeafTotalsMs':array(ref('AppLeafTotal'),4096),
     'totalActiveMs':ref('DurationMs'),'selectedTotalMs':ref('DurationMs'),'settingsRevision':ref('Counter'),
     'rulesRevision':string(1,128),'availableFrom':nullable(ref('Instant')),'availableThrough':nullable(ref('Instant')),
@@ -54,7 +56,11 @@ defs['Action']={'oneOf':[
  obj({**common,'kind':literal('overlay'),'options':{'oneOf':[
    obj({**presentation,'dismissible':literal(True),'repeatEveryMinutes':nullable(integer(1,1439))}),
    obj({**presentation,'dismissible':literal(False),'durationSeconds':integer(1,3600)})]}})]}
+defs['EndtimeAck']=obj({'id':ref('Uuid'),'kind':literal('endtime'),'date':ref('LocalDate'),
+    'settingsRevision':ref('Counter'),'endtimeLocalTime':ref('EndtimeLocalTime'),
+    'endtimeGeneration':ref('Counter'),'presentedAt':ref('Instant')})
 defs['Ack']={'oneOf':[
+ ref('EndtimeAck'),
  obj({'id':ref('Uuid'),'kind':literal('settings'),'revision':ref('Counter'),'appliedAt':ref('Instant')}),
  obj({'id':ref('Uuid'),'kind':literal('cancellation'),'revision':ref('Counter'),'throughActionSequence':ref('Counter'),'appliedAt':ref('Instant')}),
  obj({'id':ref('Uuid'),'kind':literal('action'),'actionId':ref('Uuid'),'eventSequence':ref('Counter'),

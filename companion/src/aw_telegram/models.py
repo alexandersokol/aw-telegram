@@ -12,7 +12,7 @@ from typing import Any, ClassVar, Literal, Self
 
 from jsonschema import Draft7Validator, FormatChecker
 from referencing import Registry, Resource
-from .clock import parse_date, parse_instant, local_day_bounds, retained_dates, kyiv_date
+from .clock import parse_date, parse_instant, local_day_bounds, retained_dates, kyiv_date, endtime_at
 from .windows.foreground import PresentationResult  # shared existing domain type
 
 MAX_SAFE_INTEGER = 9007199254740991
@@ -250,6 +250,10 @@ def _semantics(name: str, v: dict) -> None:
             valid = 60000 <= delay <= 1439*60000 and delay % 60000 == 0 and expires-target == timedelta(seconds=5)
         if not valid:
             raise ValueError('invalid original action delivery/execution window')
+    elif name == 'ack' and v['kind'] == 'endtime':
+        shown = parse_instant(v['presentedAt'])
+        if not endtime_at(v['date'], v['endtimeLocalTime']) <= shown < local_day_bounds(v['date'])[1]:
+            raise ValueError('endtime presentation outside due time and Kyiv date')
     elif name == 'ack' and v['kind'] == 'action':
         accepted = None if v['acceptedAt'] is None else parse_instant(v['acceptedAt'])
         at = parse_instant(v['at'])
@@ -355,6 +359,20 @@ def action_canceled(action: dict, cancellations: dict) -> bool:
     return action['sequence'] <= fence['throughActionSequence'] or action['id'] in fence['canceledIds']
 
 
+def validate_endtime_receipt(settings: dict, receipt: dict) -> None:
+    """Match proof against the known historical settings, not today's policy.
+
+    Authentication, trusted revision lookup, suppression, arrival freshness and
+    device/date/generation deduplication belong to the later delivery handler.
+    """
+    settings, receipt = validate_contract('settings', settings), validate_contract('ack', receipt)
+    if (receipt['kind'] != 'endtime' or not settings['endtimeEnabled']
+            or receipt['settingsRevision'] != settings['revision']
+            or receipt['endtimeLocalTime'] != settings['endtimeLocalTime']
+            or receipt['endtimeGeneration'] != settings['endtimeGeneration']):
+        raise ValueError('endtime receipt does not match known settings')
+
+
 def validate_action_receipt(action: dict, receipt: dict) -> None:
     action, receipt = validate_contract('action', action), validate_contract('ack', receipt)
     if receipt['kind'] != 'action' or receipt['actionId'] != action['id']:
@@ -402,6 +420,9 @@ class Settings(WireModel):
     todayOverride: dict | None = None
     freeUseDate: str | None = None
     suppressedDate: str | None = None
+    endtimeEnabled: bool = False
+    endtimeLocalTime: str = '21:00'
+    endtimeGeneration: int = 0
 
 
 @dataclass(frozen=True)
@@ -488,7 +509,19 @@ class CancellationAck(WireModel):
     appliedAt: str
 
 
-Ack = ActionAck | SettingsAck | CancellationAck
+@dataclass(frozen=True)
+class EndtimeAck(WireModel):
+    contract: ClassVar[str] = 'ack'
+    id: str
+    kind: Literal['endtime']
+    date: str
+    settingsRevision: int
+    endtimeLocalTime: str
+    endtimeGeneration: int
+    presentedAt: str
+
+
+Ack = ActionAck | SettingsAck | CancellationAck | EndtimeAck
 
 
 @dataclass(frozen=True)

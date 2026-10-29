@@ -10,6 +10,7 @@ with files('tzdata.zoneinfo.Europe').joinpath('Kyiv').open('rb') as _zone_file:
 UTC = timezone.utc
 _DATE = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
 _INSTANT = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$')
+_ENDTIME = re.compile(r'(?:00:(?:1[5-9]|[2-5][0-9])|(?:0[1-9]|1[0-9]|2[0-3]):[0-5][0-9])')
 
 
 def parse_date(value: str) -> date:
@@ -42,6 +43,18 @@ def local_day_bounds(value: str) -> tuple[datetime, datetime]:
     # Construct consecutive local midnights separately; DST days are not 24 hours.
     return (datetime.combine(day, time(), KYIV).astimezone(UTC),
             datetime.combine(day + timedelta(days=1), time(), KYIV).astimezone(UTC))
+
+
+def endtime_at(value: str, local_time: str) -> datetime:
+    """Resolve each Kyiv date independently, returning an aware UTC instant.
+
+    fold=0 chooses the first repeated time. In a gap it uses the pre-transition
+    offset, shifting the resulting wall time forward by the gap, as in Node.
+    """
+    day = parse_date(value)
+    if not isinstance(local_time, str) or not _ENDTIME.fullmatch(local_time):
+        raise ValueError('expected exact endtime HH:MM from 00:15 through 23:59')
+    return datetime.combine(day, time.fromisoformat(local_time), KYIV).replace(fold=0).astimezone(UTC)
 
 
 def kyiv_date(now: datetime) -> str:

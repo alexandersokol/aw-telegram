@@ -21,6 +21,10 @@
       "type": "string",
       "format": "utc-instant"
     },
+    "EndtimeLocalTime": {
+      "type": "string",
+      "pattern": "^(?:00:(?:1[5-9]|[2-5][0-9])|(?:0[1-9]|1[0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])"
+    },
     "TelegramId": {
       "type": "string",
       "pattern": "^[1-9][0-9]{0,19}(?![\\s\\S])"
@@ -173,6 +177,15 @@
               "type": "null"
             }
           ]
+        },
+        "endtimeEnabled": {
+          "type": "boolean"
+        },
+        "endtimeLocalTime": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/EndtimeLocalTime"
+        },
+        "endtimeGeneration": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
         }
       },
       "required": [
@@ -182,7 +195,10 @@
         "defaultLimitMs",
         "todayOverride",
         "freeUseDate",
-        "suppressedDate"
+        "suppressedDate",
+        "endtimeEnabled",
+        "endtimeLocalTime",
+        "endtimeGeneration"
       ],
       "additionalProperties": false
     },
@@ -594,8 +610,47 @@
         }
       ]
     },
+    "EndtimeAck": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Uuid"
+        },
+        "kind": {
+          "const": "endtime"
+        },
+        "date": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/LocalDate"
+        },
+        "settingsRevision": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
+        },
+        "endtimeLocalTime": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/EndtimeLocalTime"
+        },
+        "endtimeGeneration": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Counter"
+        },
+        "presentedAt": {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/Instant"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "date",
+        "settingsRevision",
+        "endtimeLocalTime",
+        "endtimeGeneration",
+        "presentedAt"
+      ],
+      "additionalProperties": false
+    },
     "Ack": {
       "oneOf": [
+        {
+          "$ref": "https://aw-telegram.invalid/contracts/v2/shared.schema.json#/$defs/EndtimeAck"
+        },
         {
           "type": "object",
           "properties": {

@@ -1,0 +1,1400 @@
+{
+  "defaults": {
+    "revision": 0,
+    "selectedPaths": [],
+    "selectedUncategorized": false,
+    "defaultLimitMs": 14400000,
+    "todayOverride": null,
+    "freeUseDate": null,
+    "suppressedDate": null,
+    "endtimeEnabled": false,
+    "endtimeLocalTime": "21:00",
+    "endtimeGeneration": 0
+  },
+  "wire": [
+    {
+      "name": "disabled initial saved time",
+      "contract": "settings",
+      "value": {
+        "revision": 0,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
+      },
+      "valid": true
+    },
+    {
+      "name": "exact valid time 00:15",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "00:15",
+        "endtimeGeneration": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "exact valid time 00:59",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "00:59",
+        "endtimeGeneration": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "exact valid time 01:00",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "01:00",
+        "endtimeGeneration": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "exact valid time 03:30",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "exact valid time 21:00",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "exact valid time 23:59",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "23:59",
+        "endtimeGeneration": 2
+      },
+      "valid": true
+    },
+    {
+      "name": "invalid exact time 0",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "00:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 1",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "00:14",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 2",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "24:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 3",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "23:60",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 4",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "9:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 5",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "09:0",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 6",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": " 21:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 7",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00 ",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 8",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00\n",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 9",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00\r\n",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 10",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 11",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21.00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 12",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "２１:００",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 13",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00Z",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 14",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 15",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": null,
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 16",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": 2100,
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid exact time 17",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": true,
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "missing endtimeEnabled",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "missing endtimeLocalTime",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "missing endtimeGeneration",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid endtimeEnabled 1",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": 1,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid endtimeGeneration -1",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": -1
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid endtimeGeneration 9007199254740992",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 9007199254740992
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid endtimeGeneration True",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": true
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid unknown True",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "unknown": true
+      },
+      "valid": false
+    },
+    {
+      "name": "maximum generation",
+      "contract": "settings",
+      "value": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 9007199254740991
+      },
+      "valid": true
+    },
+    {
+      "name": "confirmed endtime",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "later confirmed instance",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T21:59:59.999Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "receipt missing id",
+      "contract": "ack",
+      "value": {
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "receipt missing kind",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "receipt missing date",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "receipt missing settingsRevision",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "receipt missing endtimeLocalTime",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "receipt missing endtimeGeneration",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "receipt missing presentedAt",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt date 2026-10-28",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-28",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt presentedAt 2026-10-29T18:59:59.999Z",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T18:59:59.999Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt presentedAt 2026-10-29T22:00:00.000Z",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T22:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt presentedAt None",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": null
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt presentedAt 2026-10-29T19:00:00Z",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt settingsRevision -1",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": -1,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt endtimeGeneration -1",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": -1,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt endtimeLocalTime 00:14",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "00:14",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt status presented",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z",
+        "status": "presented"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt actionId 00000000-0000-4000-8000-000000000099",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z",
+        "actionId": "00000000-0000-4000-8000-000000000099"
+      },
+      "valid": false
+    },
+    {
+      "name": "invalid receipt kind endtime-warning",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime-warning",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "DST confirmed 2026-03-29T01:30:00.000Z",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-03-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-03-29T01:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "DST confirmed 2026-10-25T00:30:00.000Z",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-25",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-25T00:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "DST confirmed 2026-10-25T01:30:00.000Z",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-25",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-25T01:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "gap receipt before shifted due time",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-03-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-03-29T01:29:59.999Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "endtime nested in sync",
+      "contract": "sync-request",
+      "value": {
+        "schemaVersion": 2,
+        "sequence": 1,
+        "acks": [
+          {
+            "id": "00000000-0000-4000-8000-000000000099",
+            "kind": "endtime",
+            "date": "2026-10-29",
+            "settingsRevision": 7,
+            "endtimeLocalTime": "21:00",
+            "endtimeGeneration": 2,
+            "presentedAt": "2026-10-29T19:00:00.000Z"
+          }
+        ],
+        "health": {
+          "observedAt": "2026-10-29T20:00:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "nested receipt still checks date",
+      "contract": "sync-request",
+      "value": {
+        "schemaVersion": 2,
+        "sequence": 1,
+        "acks": [
+          {
+            "id": "00000000-0000-4000-8000-000000000099",
+            "kind": "endtime",
+            "date": "2026-10-28",
+            "settingsRevision": 7,
+            "endtimeLocalTime": "21:00",
+            "endtimeGeneration": 2,
+            "presentedAt": "2026-10-29T19:00:00.000Z"
+          }
+        ],
+        "health": {
+          "observedAt": "2026-10-29T20:00:00.000Z",
+          "awState": "unknown",
+          "lastSuccessAt": null,
+          "reportError": null
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "historic gap confirmed",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1981-04-01",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "00:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1981-03-31T21:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "historic gap earlier local date rejected",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1981-04-01",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "00:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1981-03-31T20:30:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "historic gap before shifted due rejected",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1981-04-01",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "00:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1981-03-31T21:29:59.999Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "historic overlap first confirmed",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1991-09-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "02:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1991-09-28T23:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "historic overlap second confirmed",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1991-09-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "02:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1991-09-29T00:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "historic unique time confirmed",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1991-09-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1991-09-29T01:30:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "historic unique time earlier instant rejected",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1991-09-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "03:30",
+        "endtimeGeneration": 2,
+        "presentedAt": "1991-09-29T00:30:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "before midnight transition last minute valid",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1981-03-31",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "23:59",
+        "endtimeGeneration": 2,
+        "presentedAt": "1981-03-31T20:59:59.999Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "midnight transition next date rejected",
+      "contract": "ack",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "1981-03-31",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "23:59",
+        "endtimeGeneration": 2,
+        "presentedAt": "1981-03-31T21:00:00.000Z"
+      },
+      "valid": false
+    }
+  ],
+  "resolutions": [
+    {
+      "date": "2026-01-15",
+      "localTime": "21:00",
+      "instant": "2026-01-15T19:00:00.000Z"
+    },
+    {
+      "date": "2026-07-15",
+      "localTime": "21:00",
+      "instant": "2026-07-15T18:00:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "localTime": "00:15",
+      "instant": "2026-03-28T22:15:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "localTime": "02:59",
+      "instant": "2026-03-29T00:59:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "localTime": "03:00",
+      "instant": "2026-03-29T01:00:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "localTime": "03:30",
+      "instant": "2026-03-29T01:30:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "localTime": "03:59",
+      "instant": "2026-03-29T01:59:00.000Z"
+    },
+    {
+      "date": "2026-03-29",
+      "localTime": "04:00",
+      "instant": "2026-03-29T01:00:00.000Z"
+    },
+    {
+      "date": "2026-10-25",
+      "localTime": "03:00",
+      "instant": "2026-10-25T00:00:00.000Z"
+    },
+    {
+      "date": "2026-10-25",
+      "localTime": "03:30",
+      "instant": "2026-10-25T00:30:00.000Z"
+    },
+    {
+      "date": "2026-10-25",
+      "localTime": "03:59",
+      "instant": "2026-10-25T00:59:00.000Z"
+    },
+    {
+      "date": "2026-10-25",
+      "localTime": "04:00",
+      "instant": "2026-10-25T02:00:00.000Z"
+    },
+    {
+      "date": "2026-10-25",
+      "localTime": "23:59",
+      "instant": "2026-10-25T21:59:00.000Z"
+    },
+    {
+      "date": "1970-01-01",
+      "localTime": "00:15",
+      "instant": "1969-12-31T21:15:00.000Z"
+    },
+    {
+      "date": "2099-12-31",
+      "localTime": "23:59",
+      "instant": "2099-12-31T21:59:00.000Z"
+    },
+    {
+      "date": "1981-04-01",
+      "localTime": "00:15",
+      "instant": "1981-03-31T21:15:00.000Z"
+    },
+    {
+      "date": "1981-04-01",
+      "localTime": "00:30",
+      "instant": "1981-03-31T21:30:00.000Z"
+    },
+    {
+      "date": "1981-04-01",
+      "localTime": "00:45",
+      "instant": "1981-03-31T21:45:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "02:00",
+      "instant": "1991-09-28T23:00:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "02:30",
+      "instant": "1991-09-28T23:30:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "02:45",
+      "instant": "1991-09-28T23:45:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "03:00",
+      "instant": "1991-09-29T01:00:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "03:15",
+      "instant": "1991-09-29T01:15:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "03:30",
+      "instant": "1991-09-29T01:30:00.000Z"
+    },
+    {
+      "date": "1991-09-29",
+      "localTime": "03:45",
+      "instant": "1991-09-29T01:45:00.000Z"
+    }
+  ],
+  "invalidTimes": [
+    "00:00",
+    "00:14",
+    "24:00",
+    "23:60",
+    "9:00",
+    "09:0",
+    " 21:00",
+    "21:00 ",
+    "21:00\n",
+    "21:00\r\n",
+    "21:00:00",
+    "21.00",
+    "２１:００",
+    "21:00Z",
+    "",
+    null,
+    2100,
+    true
+  ],
+  "context": [
+    {
+      "name": "matching historical settings",
+      "settings": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": true
+    },
+    {
+      "name": "settings mismatch revision",
+      "settings": {
+        "revision": 8,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "settings mismatch endtimeGeneration",
+      "settings": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 3
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "settings mismatch endtimeLocalTime",
+      "settings": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "20:00",
+        "endtimeGeneration": 2
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "settings mismatch endtimeEnabled",
+      "settings": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": false
+    },
+    {
+      "name": "unrelated date suppression does not change proof",
+      "settings": {
+        "revision": 7,
+        "selectedPaths": [],
+        "selectedUncategorized": false,
+        "defaultLimitMs": 14400000,
+        "todayOverride": null,
+        "freeUseDate": null,
+        "suppressedDate": "2026-10-28",
+        "endtimeEnabled": true,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2
+      },
+      "receipt": {
+        "id": "00000000-0000-4000-8000-000000000099",
+        "kind": "endtime",
+        "date": "2026-10-29",
+        "settingsRevision": 7,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 2,
+        "presentedAt": "2026-10-29T19:00:00.000Z"
+      },
+      "valid": true
+    }
+  ]
+}

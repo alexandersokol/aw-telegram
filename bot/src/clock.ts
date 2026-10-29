@@ -3,6 +3,24 @@ import moment from 'moment-timezone';
 const ZONE = 'Europe/Kyiv';
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const INSTANT = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$/;
+const ENDTIME = /^(?:00:(?:1[5-9]|[2-5][0-9])|(?:0[1-9]|1[0-9]|2[0-3]):[0-5][0-9])(?![\s\S])/;
+const KYIV_ZONE = moment.tz.zone(ZONE)!;
+
+function resolveKyiv(value: string, localTime: string): string {
+  const wall = Date.parse(`${value}T${localTime}:00.000Z`);
+  // Do not use moment's local parser: historical adjacent transitions can make
+  // it return an instant whose wall time does not match the requested value.
+  const candidates = [...new Set(KYIV_ZONE.offsets)].map(offset => ({offset, at:wall+offset*60000}))
+    .filter(({offset, at}) => KYIV_ZONE.utcOffset(at) === offset).map(({at}) => at);
+  if (candidates.length) return formatInstant(new Date(Math.min(...candidates)));
+  // A missing time uses the pre-transition offset, moving forward by the gap.
+  for (let i=0; i<KYIV_ZONE.untils.length-1; i++) {
+    const transition=KYIV_ZONE.untils[i]!, before=KYIV_ZONE.offsets[i]!, after=KYIV_ZONE.offsets[i+1]!;
+    if (after < before && wall >= transition-before*60000 && wall < transition-after*60000)
+      return formatInstant(new Date(wall+before*60000));
+  }
+  throw new Error('unable to resolve Kyiv wall time');
+}
 
 export function parseDate(value: string): string {
   if (typeof value !== 'string' || !DATE.test(value)) throw new Error('expected calendar date');
@@ -32,9 +50,17 @@ export function dayBounds(value: string): {start: string; end: string} {
   parseDate(value);
   const next = moment.utc(value, 'YYYY-MM-DD', true).add(1, 'day').format('YYYY-MM-DD');
   return {
-    start: formatInstant(moment.tz(value, 'YYYY-MM-DD', true, ZONE).toDate()),
-    end: formatInstant(moment.tz(next, 'YYYY-MM-DD', true, ZONE).toDate()),
+    start: resolveKyiv(value, '00:00'),
+    end: resolveKyiv(next, '00:00'),
   };
+}
+
+/** Resolve independently per Kyiv date: first repeated time, gaps shifted forward. */
+export function endtimeAt(value: string, localTime: string): string {
+  parseDate(value);
+  if (typeof localTime !== 'string' || !ENDTIME.test(localTime))
+    throw new Error('expected exact endtime HH:MM from 00:15 through 23:59');
+  return resolveKyiv(value, localTime);
 }
 
 export function kyivDate(now: string): string {

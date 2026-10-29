@@ -68,6 +68,9 @@ export class DeviceApi {
         const ack=request.acks[i]!,previous=receiptDocs[i]!.data();
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='action') continue;
+        // Task 2 defines the wire receipt; later delivery work must validate and
+        // persist it before it can be acknowledged to the companion.
+        if(ack.kind==='endtime') throw new BoundaryError('Endtime receipt delivery is not implemented');
         if(ack.appliedAt>now) throw new BoundaryError('Invalid receipt');
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='settings') {

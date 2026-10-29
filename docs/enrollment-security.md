@@ -116,8 +116,14 @@ cannot establish provenance by itself and must never become a public HTTP route.
 `authorizeParent(actor)` resolves `{deviceId,userId,chatId,pairingId}` from the
 current binding. Each successful pairing creates a new random pairingId and
 atomically updates the key, parent, binding and device `activeParentIds`. The
-device document serializes the maximum of two active parents. Named keys do not
+device document serializes the maximum of ten active caregivers. Named keys do not
 reserve parent slots. Re-pairing requires revoking the current access first.
+
+The ten-account limit supersedes Task 4's implemented two-account guard. Follow-up
+work must update `activeDevice`, the pairing transaction, recipient reads, outbox
+bounds, and emulator races together. The eleventh concurrent pairing must fail
+without consuming its key; revocation frees a slot. Existing generation-bound
+authorization and revocation behavior is unchanged.
 
 Callbacks must store the same pairingId with chat, nonce, version and expiry, then
 call `requireCallback(tx, identity, nonce, version)` inside their protected

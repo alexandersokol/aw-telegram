@@ -1,7 +1,7 @@
 /** Shape validation is not authorization or trusted-clock proof. No payload logging. */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { Ajv, type ValidateFunction } from 'ajv';
-import { dayBounds, kyivDate, parseDate, parseInstant, retainedDates } from './clock.js';
+import { dayBounds, kyivDate, parseDate, parseInstant, retainedDates, endtimeAt } from './clock.js';
 
 export type Counter = number;
 export type Instant = string;
@@ -14,6 +14,7 @@ export interface AppTotal {app: string; totalMs: number}
 export interface Settings {
   revision: Counter; selectedPaths: CategoryPath[]; selectedUncategorized: boolean; defaultLimitMs: number;
   todayOverride: {date: LocalDate; limitMs: number} | null; freeUseDate: LocalDate | null; suppressedDate: LocalDate | null;
+  endtimeEnabled: boolean; endtimeLocalTime: string; endtimeGeneration: Counter;
 }
 export interface DaySummary {
   date: LocalDate; leafTotalsMs: LeafTotal[]; appLeafTotalsMs: AppLeafTotal[]; totalActiveMs: number; selectedTotalMs: number;
@@ -41,7 +42,11 @@ export interface ActionAck {
   id: string; kind: 'action'; actionId: string; eventSequence: Counter; occurrence: Counter;
   status: ActionStatus; at: Instant; acceptedAt: Instant | null; presentedAt: Instant | null; reason: Reason | null;
 }
-export type Ack = ActionAck | {id: string; kind: 'settings'; revision: Counter; appliedAt: Instant} |
+export interface EndtimeAck {
+  id: string; kind: 'endtime'; date: LocalDate; settingsRevision: Counter;
+  endtimeLocalTime: string; endtimeGeneration: Counter; presentedAt: Instant;
+}
+export type Ack = ActionAck | EndtimeAck | {id: string; kind: 'settings'; revision: Counter; appliedAt: Instant} |
   {id: string; kind: 'cancellation'; revision: Counter; throughActionSequence: Counter; appliedAt: Instant};
 export interface Cancellations {revision: Counter; throughActionSequence: Counter; canceledIds: string[]}
 export interface Health {observedAt: Instant; awState: 'unknown'|'ready'|'partial'|'stale'|'unavailable'|'unsupported'; lastSuccessAt: Instant|null; reportError: null|'report_capacity_exceeded'}
@@ -131,7 +136,8 @@ export function parseJson(raw: string | Uint8Array): unknown {
 
 export function defaultSettings(): Settings {
   return {revision: 0, selectedPaths: [], selectedUncategorized: false, defaultLimitMs: 14400000,
-    todayOverride: null, freeUseDate: null, suppressedDate: null};
+    todayOverride: null, freeUseDate: null, suppressedDate: null,
+    endtimeEnabled: false, endtimeLocalTime: '21:00', endtimeGeneration: 0};
 }
 
 export function categoryKey(path: CategoryPath): string {
@@ -245,6 +251,11 @@ function action(v: Action): void {
 }
 
 function ack(v: Ack): void {
+  if (v.kind === 'endtime') {
+    if (v.presentedAt < endtimeAt(v.date, v.endtimeLocalTime) || v.presentedAt >= dayBounds(v.date).end)
+      throw new Error('endtime presentation outside due time and Kyiv date');
+    return;
+  }
   if (v.kind !== 'action') return;
   if (v.acceptedAt === null) {
     if (!['expired','skipped','canceled','failed'].includes(v.status) || v.presentedAt !== null || v.occurrence !== 0)
@@ -338,6 +349,14 @@ export function validateActivityContext(input: unknown, startedAt: Instant | nul
 export function actionCanceled(input: unknown, cancellationInput: unknown): boolean {
   const a = validateContract('action', input), fence = validateContract('cancellations', cancellationInput);
   return a.sequence <= fence.throughActionSequence || fence.canceledIds.includes(a.id);
+}
+
+/** Match historical settings proof; delivery owns authorization, suppression and deduplication. */
+export function validateEndtimeReceipt(input: unknown, receiptInput: unknown): void {
+  const s = validateContract('settings', input), r = validateContract('ack', receiptInput);
+  if (r.kind !== 'endtime' || !s.endtimeEnabled || r.settingsRevision !== s.revision ||
+      r.endtimeLocalTime !== s.endtimeLocalTime || r.endtimeGeneration !== s.endtimeGeneration)
+    throw new Error('endtime receipt does not match known settings');
 }
 
 export function validateActionReceipt(input: unknown, receiptInput: unknown): void {

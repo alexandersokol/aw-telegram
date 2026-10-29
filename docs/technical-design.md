@@ -1,6 +1,7 @@
 # AW Telegram technical design
 
-Date: 2026-10-27. Status: technical design approved by the owner.
+Date: 2026-10-27. Status: base technical design approved by the owner;
+endtime/caregiver/overlay amendment approved 2026-10-29.
 Presentation, contracts and local AW reader checkpoints exist; backend reporting,
 synchronization and deployment remain pending. User behavior is defined
 by user-requirements.md, bot-navigation.md, and companion-navigation.md. This design
@@ -8,7 +9,7 @@ resolves implementation choices; it does not silently replace agreed behavior.
 
 ## Goal and boundaries
 
-One Windows laptop, up to two paired parent accounts, private Telegram chats only.
+One Windows laptop, up to ten active paired parent/caregiver accounts, private Telegram chats only.
 Ukrainian built-in text; unchanged English command names. Today/yesterday application
 names/durations filtered by selected categories and seven-day daily totals, text only.
 Keep today plus six previous Kyiv calendar dates. No pre-pairing historical import,
@@ -152,7 +153,7 @@ No admin SDK credentials or Telegram bot token on the laptop.
 The enrolled companion requests a named parent key (16 random bytes, base64url,
 single-use, expires after 15 minutes). /pair validates private chat and consumes
 it transactionally, binding to the numeric sender ID and private chat ID. Cap at
-two parents, including concurrent pairing attempts. Labels are descriptive only.
+ten active caregivers, including concurrent pairing attempts. Labels are descriptive only.
 Show plaintext key once, then only label/account/status. Remove access atomically,
 clear pending sessions, recheck authorization on every callback/command/send, and
 prevent outbox sends after revocation. Paired access has no inactivity expiry.
@@ -222,8 +223,8 @@ operation. A transactional settings edit increments revision. Companion ignores
 older revisions, persists new settings before acknowledging, and evaluates them
 immediately. Concurrent parent edits serialize; confirmations include effective
 values/revision and name the actor. Latest committed edit wins, never silently
-merges conflicting choices. Personal hourly preferences do not notify the other
-parent; shared laptop edits/actions do. Requested reports remain private.
+merges conflicting choices. Personal hourly preferences do not notify other
+caregivers; shared laptop edits/actions do. Requested reports remain private.
 
 Today-only allowance overrides expire at Kyiv midnight; changing recurring default
 replaces today's override. Category selection includes descendants; new selection
@@ -232,15 +233,14 @@ date, not a timer assumed to fire while asleep. Free-use date and clear-all
 suppression date are independent. Auto reminders require both to be inactive;
 restore clears only suppression, not free use or canceled manual actions.
 
-A presentation queue does not extend deadlines. Immediate actions must begin
-presentation before expiresAt; delayed actions must begin by targetAt+5s during
-normal operation. If another manual overlay blocks presentation until that bound,
-mark expired with reason display_busy and notify the parents; do not interrupt
-an existing manual overlay or replay later. For repeats of an already presented
-manual overlay, keep only one pending repeat, show when the overlay slot is free
-(before midnight), and never accumulate multiple repeats. Normal notifications
-use their own visible slot; newer notification cards replace older ones with an
-accurate dismissed/replaced status.
+A presentation deadline is not extended. Immediate actions must begin presentation
+before expiresAt; delayed actions must begin by targetAt+5s during normal operation.
+A due overlay never waits behind another overlay: it replaces the visible one and
+records the displaced presentation as terminal `replaced`. For equal due instants,
+the higher durable action/policy sequence is newest. Replacement cancels a manual
+repeat family; endtime may create a new policy occurrence one minute later. Normal
+notifications use their own visible slot; newer notification cards replace older
+ones with an accurate dismissed/replaced status.
 
 Local scheduler uses UTC deadlines with a monotonic clock for short waits and
 reconciles on wake/clock change. Persist actions before acknowledgement. For a
@@ -289,13 +289,15 @@ Clear commands/settings are durable control changes, not ephemeral reminders.
 A revisioned cancellation fence plus explicit canceled IDs stops current/pending
 manual actions across reconnects; a request acknowledgement is distinct from a
 confirmed local clear. Clear all also suppresses automatic reminders until midnight.
-Presentation ordering: one overlay at a time, manual before automatic, FIFO for
-simultaneous manual actions; all countdowns/notifications are separately tracked.
-A visible manual overlay pauses automatic presentation, not time accounting.
+Presentation ordering: one overlay at a time; the newest due overlay replaces and
+permanently finishes the visible overlay regardless of source. Replacement cancels
+an entire manual repeat family. Endtime remains daily policy and may create its
+next occurrence one minute after replacement. All countdowns/notifications are
+separately tracked, and clear/suppression takes precedence over presentation.
 
 ## Alerts, Telegram delivery, and menus
 
-At 15/10/5 minutes remaining and expiry, both parents receive allowance alerts
+At 15/10/5 minutes remaining and expiry, all active caregivers receive allowance alerts
 unless suppressed. Local warnings can continue offline; cloud alerts can only use
 received data and include freshness. On catch-up/limit edits emit one most relevant
 current warning, not all missed thresholds. Deduplicate by date/revision/threshold;
@@ -315,7 +317,7 @@ Telegram sendMessage has no general idempotency key: a crash after Telegram acce
 but before saving response may duplicate a Telegram message. Document this honest
 at-least-once limitation; laptop actions still deduplicate separately. Do not claim
 exactly-once Telegram delivery. Treat 403 (parent blocked bot) as undeliverable and
-continue the other parent's delivery without revoking their data accidentally.
+continue other caregivers' delivery without revoking their data accidentally.
 
 Task6's injected backend factory composes the separate OIDC task route, bounded
 post-sync repair and protected sweeper. It performs no network/credential lookup
@@ -331,9 +333,44 @@ Use the agreed button tree, 5/10/15/30 minute presets + custom input and review 
 submission. Command spellings: /start, /pair, /help, /status, /settings,
 /usage [today|yesterday|week], /categories, /add_category, /remove_category,
 /limit [duration today|daily], /notify, /overlay, /pending,
-/clear manual|all, /restore, /free on|off, /hourly on|off.
+/clear manual|all, /restore, /free on|off, /hourly on|off,
+/endtime [status|set HH:MM|on|off].
 Parse notification options before the remaining plain-text message and reject
 conflicting repeat/no-dismiss options. No Markdown interpretation of parent text.
+
+## Endtime policy amendment
+
+The owner approved the complete
+[endtime design](superpowers/specs/2026-10-29-endtime-design.md) on 2026-10-29.
+Extend active strict v2 `Settings` with an enabled flag, exact local time, and a
+dedicated generation counter that advances only when the effective endtime pair changes;
+default to disabled/`21:00`, accept only `00:15`–`23:59`, and migrate pre-amendment
+persisted settings without changing archived v1. `/endtime set` saves the time and
+enables it. Settings acknowledgements and Telegram confirmations retain the existing
+saved-versus-applied distinction.
+
+The companion resolves the configured wall time for each Europe/Kyiv date and
+persists per-date/per-settings-generation warning and presentation state. It shows
+local notification cards at minus 15/10/5 minutes. Start/resume and eligible policy
+changes before endtime emit at most the most urgent crossed warning; first eligible
+evaluation strictly after endtime skips the date. Equality is due. At endtime,
+show a dismissible overlay and schedule another occurrence one minute after each
+dismissal or replacement until local midnight.
+
+Add a strict idempotent endtime acknowledgement carrying local date, settings
+revision, configured time, and confirmed presentation timestamp. The backend
+validates it against bounded retained endtime policy generations and creates one
+deterministic parent event per device/date/generation. The 15/10/5 warnings remain
+laptop-only. A same-day deliberate reschedule is a new generation and may earn a
+new alert after presentation. Repeated occurrences do not. Offline/missed endtimes
+do not create cloud-clock alerts or late receipts.
+
+Free use and Clear all suppress endtime locally and cancel undelivered endtime
+outbox rows retroactively. The delivery worker rechecks recipient authority and
+current date suppression immediately before sending. The existing unavoidable
+crash-after-Telegram-acceptance uncertainty still applies. Shared setting changes
+coordinate to every other active caregiver; automatic endtime alerts target all
+active caregivers, bounded by the ten-account device cap.
 
 ## Overlay and notifications
 

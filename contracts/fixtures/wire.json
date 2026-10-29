@@ -9,7 +9,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": true
   },
@@ -23,7 +26,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": true
   },
@@ -42,7 +48,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": true
   },
@@ -56,7 +65,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": "2026-10-27",
-      "suppressedDate": "2026-10-27"
+      "suppressedDate": "2026-10-27",
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": true
   },
@@ -73,7 +85,10 @@
         "limitMs": 0
       },
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": true
   },
@@ -361,7 +376,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -408,7 +426,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -1001,7 +1022,10 @@
       "defaultLimitMs": -1,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1015,7 +1039,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1029,7 +1056,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1043,7 +1073,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1057,7 +1090,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1071,7 +1107,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1092,7 +1131,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1110,7 +1152,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1144,7 +1189,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1162,7 +1210,10 @@
         "admin": true
       },
       "freeUseDate": null,
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -1176,7 +1227,10 @@
       "defaultLimitMs": 14400000,
       "todayOverride": null,
       "freeUseDate": "2025-02-29",
-      "suppressedDate": null
+      "suppressedDate": null,
+      "endtimeEnabled": false,
+      "endtimeLocalTime": "21:00",
+      "endtimeGeneration": 0
     },
     "valid": false
   },
@@ -2075,7 +2129,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -4366,7 +4423,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -4413,7 +4473,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -4460,7 +4523,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -4704,7 +4770,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -4751,7 +4820,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -4798,7 +4870,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -5042,7 +5117,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -5089,7 +5167,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,
@@ -5136,7 +5217,10 @@
         "defaultLimitMs": 14400000,
         "todayOverride": null,
         "freeUseDate": null,
-        "suppressedDate": null
+        "suppressedDate": null,
+        "endtimeEnabled": false,
+        "endtimeLocalTime": "21:00",
+        "endtimeGeneration": 0
       },
       "cancellations": {
         "revision": 4,

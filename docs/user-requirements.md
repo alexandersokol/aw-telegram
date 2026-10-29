@@ -3,13 +3,15 @@
 Status: user requirements established through discussion on 2026-10-27.
 Later explicit decisions supersede earlier proposals; technical defaults are
 listed separately in technical-design.md for review.
+The endtime/caregiver/overlay amendment was approved on 2026-10-29.
 Presentation, strict contracts and the local AW reader have implementation
 checkpoints; backend reports and synchronization remain pending.
 
 ## Purpose and initial scope
 
-Let two parents review their son's Windows laptop activity and manage time
-reminders through Telegram, including when the laptop is unavailable.
+Let up to ten authorized parents/caregivers review a child's Windows laptop
+activity and manage time reminders through Telegram, including when the laptop
+is unavailable.
 
 The initial scope is one Windows laptop with ActivityWatch. Android, Family Link,
 and combined allowances across devices are outside this version. Use existing
@@ -25,8 +27,10 @@ currently expected. Prefer Firebase and free hosting.
 - ACCESS-02: Pair a computer with authorized bot users using a security key.
   Each parent pairs in their own private chat using the companion-generated
   named keys specified below; group authorization is outside scope.
-- ACCESS-03: Only the two authorized parents may access this family's data or
-  issue control commands. Starting a chat with the bot must not itself grant access.
+- ACCESS-03: Only currently authorized parents/caregivers may access this family's
+  data or issue control commands. Starting a chat with the bot must not itself
+  grant access. A laptop supports zero to ten active authorized accounts;
+  revocation frees a slot.
 
 ### Reports
 
@@ -73,7 +77,7 @@ currently expected. Prefer Firebase and free hosting.
 - LIMIT-03: Show laptop warnings with 15, 10, and 5 minutes remaining.
 - LIMIT-04: At expiry, show a default overlay asking the child to turn off the
   computer. Automatic shutdown or enforced locking has not been requested here.
-- LIMIT-05: Notify both paired parents through Telegram at 15, 10, and 5 minutes
+- LIMIT-05: Notify all paired parents/caregivers through Telegram at 15, 10, and 5 minutes
   remaining and when the daily allowance expires. Free-use mode and today's
   automatic-reminder suppression silence these alerts; hourly milestone
   preferences do not affect allowance alerts.
@@ -121,7 +125,7 @@ currently expected. Prefer Firebase and free hosting.
 - PROPOSE-09: Give the child a visible remaining allowance and a clear explanation
   of each reminder. Provide a parent-controlled way to stop an overlay.
 - PROPOSE-10: Provide Telegram buttons, help, current settings, and clear command
-  confirmations so both parents can use the bot without memorizing commands.
+  confirmations so authorized caregivers can use the bot without memorizing commands.
 - PROPOSE-11: Avoid repeated threshold alerts after restarts, retries, or refreshed
   summaries. Define when allowance edits should produce a new warning.
 
@@ -134,7 +138,9 @@ Implementation checkpoints and pending work are recorded in the implementation p
 
 Technical choices, bounded retry/queue behavior, security contracts, and Windows
 validation gates are now specified in [technical-design.md](technical-design.md).
-The phased work is in [implementation-plan.md](implementation-plan.md). The owner approved these technical documents on 2026-10-27.
+The phased work is in [implementation-plan.md](implementation-plan.md). The owner
+approved the base technical documents on 2026-10-27 and the endtime amendment on
+2026-10-29.
 
 ## Privacy and technical boundaries
 
@@ -195,8 +201,8 @@ These decisions supersede conflicting statements elsewhere in this draft.
 
 ### Private chats only
 
-- ACCESS-05: Remove all group-chat functionality from this version. Both parents
-  use separate private chats and obtain access through pairing codes. No group
+- ACCESS-05: Remove all group-chat functionality from this version. Authorized
+  caregivers use separate private chats and obtain access through pairing codes. No group
   setup, invitations to groups, or group membership management is required.
 - ACCESS-06: Reports and control commands must be rejected in groups, even when
   the sender is an otherwise authorized parent.
@@ -244,18 +250,18 @@ These decisions supersede conflicting statements elsewhere in this draft.
 - FREE-06: Free-use mode also silences automatic Telegram reminder and allowance
   warnings. It does not prevent hourly usage updates, requested reports, or
   command/status confirmations.
-- COORD-01: When either authorized parent issues a command affecting the shared
-  laptop, notify the other paired parent in their private chat. Include who issued
+- COORD-01: When an authorized parent/caregiver issues a command affecting the shared
+  laptop, notify every other paired caregiver in their private chat. Include who issued
   it, which laptop it affects, the action/settings, and its status. This covers
   manual and delayed reminders, category/allowance changes, clearing reminders,
   and enabling/disabling free use. Such coordination messages remain enabled
   during free use.
-- COORD-02: Distinguish a parent's request or saved setting from the companion's
-  acknowledgement/execution. Do not tell the other parent that an action was
+- COORD-02: Distinguish a caregiver's request or saved setting from the companion's
+  acknowledgement/execution. Do not tell the other caregivers that an action was
   displayed when it is only pending.
 - COORD-03: Requested reports are private to the requesting parent. Do not send
-  the report or a report-request notification to the other parent. Shared-laptop
-  actions and settings changes still notify the other parent. Automatic usage
+  the report or a report-request notification to other caregivers. Shared-laptop
+  actions and settings changes still notify all other caregivers. Automatic usage
   milestones and allowance alerts follow their separately defined recipient rules.
 
 ## Usage milestones and Ukrainian interface
@@ -265,7 +271,7 @@ These decisions supersede conflicting statements elsewhere in this draft.
   usage thresholds, not notifications at the top of each clock hour.
 - MILESTONE-02: Each parent independently enables or disables milestone
   notifications through a bot command. Changing this personal preference does
-  not change the other parent's notifications.
+  not change any other caregiver's notifications.
 - MILESTONE-03: Send enabled milestone updates to each parent using the current
   day's selected-category totals. Hourly usage updates remain enabled during
   free-use mode and after clearing reminders, subject to each parent's own
@@ -302,7 +308,7 @@ These decisions supersede conflicting statements elsewhere in this draft.
   mode is on and the reminder will be skipped. Do not queue that command for
   execution after free use ends, and do not present it as successfully displayed.
 - FREE-10: Skipped reminders are not replayed when free-use mode is disabled.
-  The other parent receives the action/status notification under COORD-01,
+  All other caregivers receive the action/status notification under COORD-01,
   identifying that the request was skipped because of free-use mode.
 
 
@@ -423,7 +429,7 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
   implicitly disable free use; explain any remaining suppression to the parent.
 - SUPPRESS-04: Restoring allowance reminders does not recreate manual actions
   canceled by clearing. Hourly updates remain governed by personal preferences.
-- SUPPRESS-05: Notify the other parent when reminders are explicitly restored,
+- SUPPRESS-05: Notify all other caregivers when reminders are explicitly restored,
   just as for other shared-laptop setting changes.
 
 ## Automatic overlay activity gating
@@ -438,6 +444,42 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
   options, independently of application category and AFK status. All previously
   agreed free-use, clearing, expiry, and midnight rules still apply.
 
+## Endtime and caregiver amendment approved on 2026-10-29
+
+This section supersedes the earlier two-parent cap and overlay ordering rules.
+The complete approved design is
+[2026-10-29-endtime-design.md](superpowers/specs/2026-10-29-endtime-design.md).
+
+- ACCESS-07: Support zero to ten active authorized parents/caregivers per laptop.
+  An eleventh concurrent pairing fails without consuming its key; revocation frees
+  a slot. Shared coordination reaches every other active caregiver, automatic
+  alerts reach all active caregivers, and requested reports remain private.
+- ENDTIME-01: Store one recurring daily endtime in exact 24-hour `HH:MM` format,
+  limited to `00:15` through `23:59` in Europe/Kyiv. Default to disabled with
+  `21:00` saved.
+- ENDTIME-02: Support `/endtime`, `/endtime status`, `/endtime set HH:MM`,
+  `/endtime on`, and `/endtime off`, plus a button-driven Telegram Settings flow.
+  Setting a time also enables the policy; turning it off preserves the saved time.
+- ENDTIME-03: Show laptop-only notification cards at 15, 10, and 5 minutes before
+  endtime. On start/resume or an eligible policy change before endtime, show only
+  the most urgent crossed warning, then continue normally. If eligibility begins
+  strictly after endtime, skip that date; equality is due.
+- ENDTIME-04: At endtime, show a dismissible overlay that returns one minute after
+  dismissal or replacement until Kyiv midnight. A time edit removes the current
+  endtime overlay and reevaluates today; moving to a future time reschedules it,
+  while moving to a passed time skips today.
+- ENDTIME-05: After the companion confirms an endtime overlay was actually shown,
+  send one Telegram alert to all currently authorized caregivers for that local
+  date and settings generation. Repeats do not alert again; a deliberate same-day
+  reschedule may earn another alert. A laptop that misses endtime sends no late alert.
+- ENDTIME-06: Free-use mode and Clear all silence endtime warnings, overlays,
+  recurrences, receipts, and undelivered Telegram alerts. Suppression is retroactive
+  until Telegram has accepted a send and remains independent between the two modes.
+- OVERLAY-06: The newest due overlay always replaces the visible overlay, regardless
+  of source. The displaced overlay is terminal with status `replaced`; a manual
+  repeat family is canceled. Endtime recurrence remains daily policy and may create
+  a new occurrence one minute after its prior occurrence was dismissed or replaced.
+
 ## Category-selection changes
 
 - CATEGORY-02: Adding or removing a counted category recalculates today's counted
@@ -448,7 +490,7 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
   not previously filtered app totals, using the same selection and deduplication.
 - CATEGORY-03: Evaluate the updated remaining allowance and automatic-overlay
   eligibility after recalculation. Preserve free-use/Clear-all suppression and
-  notify the other parent of the category change.
+  notify all other caregivers of the category change.
 
 ## Milestones after category recalculation
 
@@ -457,7 +499,7 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
   milestones. Continue with the next milestone above the recalculated total,
   without repeating hourly milestones already delivered to that parent today.
   Honor each parent's hourly-update preference for milestone messages; the shared
-  category-change confirmation still reaches both parents under COORD-01 and can
+  category-change confirmation still reaches all caregivers under COORD-01 and can
   include the updated total to avoid duplicate messages.
 
 ## Immediate-command delivery retries
@@ -465,8 +507,8 @@ in [bot-navigation.md](bot-navigation.md). Time entry uses preset buttons plus
 - DELIVERY-01: If an immediate notification/overlay cannot be delivered, retry
   briefly a limited number of times instead of retaining it for a later laptop
   session: make up to three delivery attempts within one minute, then stop.
-  Notify the issuing parent if delivery still has no confirmation. Preserve the
-  other parent's agreed action/status updates. Do not replay the expired action
+  Notify the issuing caregiver if delivery still has no confirmation. Preserve
+  every other caregiver's agreed action/status updates. Do not replay the expired action
   when the laptop reconnects later. The previously suggested five-minute
   lifetime is not used.
 - DELIVERY-02: Retries refer to the same action ID and must not create duplicate

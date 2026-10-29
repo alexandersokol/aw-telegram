@@ -1,25 +1,29 @@
 # AW Telegram Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved design/plan on 2026-10-27. Task 1 presentation code is committed at b69714d; complete fullscreen acceptance remains pending. Task 2 contracts/time policy are committed at 138bb66. Task 3 adapter/counting corrections passed independent scoped review; 74 focused tests and 127 full native tests after the timer amendment pass. Included in the reviewed implementation checkpoint.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Owner approved the base design/plan on 2026-10-27 and the endtime/caregiver/overlay amendment on 2026-10-29. Task 1 presentation code is committed at b69714d; complete fullscreen acceptance remains pending. Task 2 contracts/time policy are committed at 138bb66. Task 3 adapter/counting corrections passed independent scoped review; 74 focused tests and 127 full native tests after the timer amendment pass. Included in the reviewed implementation checkpoint.
 
-**Goal:** Build the agreed private-parent Telegram reports, allowance reminders, and Windows companion without changing ActivityWatch.
+**Goal:** Build the agreed private-caregiver Telegram reports, allowance and endtime reminders, and Windows companion without changing ActivityWatch.
 
 **Architecture:** A Python/Qt signed-in-session companion queries local AW and persists schedules offline. Authenticated outbound exchanges synchronize summaries, revisioned settings, and commands with a TypeScript Firebase webhook backend. Firestore plus Cloud Tasks provide durable commands and parent messages; no always-running cloud bot or direct device database access.
 
 **Tech Stack:** Python 3.12, PySide6, aw-client, SQLite, requests, keyring, PyInstaller; Node.js 22, TypeScript, grammY, Firebase Functions v2, Firestore, Cloud Tasks/Scheduler, Vitest, pytest/pytest-qt.
 
-**Spec:** [technical-design.md](technical-design.md), [user-requirements.md](user-requirements.md), [bot-navigation.md](bot-navigation.md), [companion-navigation.md](companion-navigation.md).
+**Spec:** [technical-design.md](technical-design.md), [user-requirements.md](user-requirements.md), [bot-navigation.md](bot-navigation.md), [companion-navigation.md](companion-navigation.md), and the approved [endtime design](superpowers/specs/2026-10-29-endtime-design.md).
 
 ## Global constraints
 
-- One Windows laptop; two parents maximum; private Telegram chats only.
+- One Windows laptop; zero to ten active authorized caregivers; private Telegram chats only.
 - Ukrainian built-in text; English command identifiers; today/yesterday app names/durations filtered by selected categories; no graphs/window-title history.
 - Europe/Kyiv calendar days; retain today plus six previous dates; no pre-pairing import.
 - Active foreground time only; no audible/always-active AFK exceptions; category descendants deduplicated.
 - Four hours default; 15/10/5-minute warnings; hourly updates independent per parent.
 - Report freshness target one minute; immediate command target 30 seconds; three offers/60s maximum.
 - Free use and Clear-all suppression independent; hourly updates survive both.
+- Endtime defaults disabled/`21:00`, accepts exact `00:15`–`23:59`, warns the
+  laptop at 15/10/5 minutes, and alerts Telegram only after confirmed presentation.
 - Primary monitor only, click-capturing translucent overlay; default dismissible once for manual actions.
+- Newest due overlay replaces and permanently finishes the visible overlay;
+  replacement cancels a manual repeat family while endtime remains daily policy.
 - Mandatory buttonless duration; repeat after dismissal, end at Kyiv midnight; no OS lock/tamper resistance.
 - No bot token or cloud admin credentials on laptop; cloud reports only, latest title overwritten in place.
 - Daily app names/durations may be retained as category-attributed aggregates for retained dates; app rows sum to selected total for complete data, otherwise explicitly partial/unknown.
@@ -34,6 +38,10 @@
 - Late/out-of-order sync and opposite parent edits must not revive canceled reminders (Tasks 5, 6, 8).
 - Local midnight, DST, sleep/wake and clock corrections must not replay expired timers (Tasks 2, 8).
 - Missing AW data and stale titles must not look like zero usage or fresh live activity (Tasks 3, 5, 7).
+- Endtime restart/resume/edit/suppression must not replay a missed date or leak an
+  undelivered Telegram alert after suppression (Tasks 2, 6, 8).
+- Ten-caregiver pairing races and fan-out must enforce the boundary without
+  consuming the eleventh key or bypassing per-recipient revocation (Tasks 4, 6).
 
 ## File layout and responsibilities
 
@@ -52,7 +60,7 @@ companion/src/aw_telegram/windows/{foreground,startup}.py
 companion/tests/test_*.py
 bot/package.json, package-lock.json, tsconfig.json, vitest.config.ts
 bot/src/{index,contracts,clock,repository,auth,enrollment,pairing}.ts
-bot/src/{deviceApi,settings,actions,deadlines,alerts,outbox,tasks,cleanup}.ts
+bot/src/{deviceApi,settings,actions,deadlines,alerts,endtime,outbox,tasks,cleanup}.ts
 bot/src/telegram/{webhook,commands,menus,sessions,reports,uk}.ts
 bot/scripts/{enroll,webhook,purge}.ts
 bot/tests/*.test.ts
@@ -138,6 +146,27 @@ probe exposed moment's finite packed-transition horizon; UTC instants remain
 0001–9999. This arithmetic/transport bound does not authorize historical import.
 Authentication, persistence, ActivityWatch and scheduler behavior remain later tasks.
 
+### Approved Task 2 endtime contract amendment
+
+**Interfaces:** active v2 `Settings` adds `endtimeEnabled: boolean`,
+`endtimeLocalTime: string`, and `endtimeGeneration: Counter`; `Ack` adds a strict endtime-presentation variant with
+date, settings revision, configured time, and confirmed presentation timestamp.
+
+- [x] Add shared fixtures/tests for disabled/`21:00` defaults, exact
+  `00:15`–`23:59` parsing, invalid boundary/format values, DST date resolution,
+  strict unknown fields, receipt timestamp/date/revision consistency, and identical
+  Python/TypeScript validation. Regenerate checked-in v2/package schemas; never edit v1.
+- [x] Add `endtime_at(date, local_time)` / `endtimeAt(date, localTime)` clock helpers
+  and typed `EndtimeAck` models. Run focused contract suites, builds, and bundle checks.
+
+Checkpoint: implemented and independently reviewed. Full companion suite: 233 passed;
+Node suite: 73 passed; focused contracts: Python 13 and TypeScript 12 passed;
+build and isolated bundle checks passed. Historical Kyiv gaps resolve forward and
+overlaps use the earliest instant; independent comparison covered all supported
+day boundaries and transition-adjacent times. Existing persisted settings still
+require the Task 5 migration; the backend rejects endtime receipts until the Task 6
+delivery amendment is implemented.
+
 ## Task 3: Real ActivityWatch adapter and summary calculation
 
 **Files:** create companion/src/aw_telegram/{aw_reader,category_settings,counting}.py,
@@ -220,7 +249,7 @@ companion/src/aw_telegram/{credentials,transport}.py, companion/tests/test_enrol
 `Transport.enroll(bundle: EnrollmentBundle) -> DeviceIdentity` stores secret in vault.
 
 - [x] Write emulator tests for one-time/15-minute expiry, concurrent consume,
-  two-parent cap, numeric IDs, group rejection, guessed/forged device ID,
+  the original caregiver cap, numeric IDs, group rejection, guessed/forged device ID,
   revoked access on old callbacks/outbox, and generic throttled invalid-key responses.
   Python tests assert no secret enters SQLite/config/log output.
 - [x] Run `npm run test:emulator -- auth pairing` and `python -m pytest tests/test_enrollment.py -q`;
@@ -236,6 +265,15 @@ Checkpoint: implementation and focused verification complete; independent review
 22 emulator checks (separate Admin transactions and client deny-all rules), 29 Python enrollment tests,
 6 existing Node contract groups, build/bundle checks and native synthetic vault write/read/delete pass.
 See [enrollment-security.md](enrollment-security.md) for interfaces, recovery, IAM, timeout and tooling limits.
+
+### Approved Task 4 caregiver-cap amendment (pending)
+
+- [ ] Replace the implemented two-parent guard with one shared constant of ten in
+  device validation, pairing, access listing, recipient reads, and durable event
+  bounds. Add an emulator race with eleven valid keys proving exactly ten pairings
+  succeed, the eleventh key remains unused, and revocation admits a replacement.
+- [ ] Verify callbacks, report privacy, per-caregiver preferences, and queued
+  recipient authorization remain generation-bound at the ten-account boundary.
 
 ## Task 5: Durable local storage and authenticated synchronization
 
@@ -253,7 +291,7 @@ companion/tests/test_sync.py, bot/src/{deviceApi,settings}.ts, bot/tests/sync.te
 `SettingsService.updateSettings(identity: ParentIdentity, change: SettingsChange): Promise<SettingsUpdateResult>` (authority rechecked inside the transaction).
 
 - [x] Write tests for stale/out-of-order snapshot rejection, reconnect backfill
-  within retained dates, missing-data flags, settings revision races, two parents'
+  within retained dates, missing-data flags, settings revision races, caregivers'
   opposite edits, title replacement only, canceled-ID fences, credential errors,
   and midnight retention without deleting AW source data.
 - [x] Run `python -m pytest tests/test_sync.py -q` and `npm test -- sync.test.ts`; verify failures.
@@ -265,6 +303,16 @@ companion/tests/test_sync.py, bot/src/{deviceApi,settings}.ts, bot/tests/sync.te
 - [x] Commit sync and storage checkpoint.
 
 Checkpoint: independent review approved after one correction round. Focused Python: 182 passed; Node: 19 passed; local Firestore sync emulator: 5 passed; build and isolated bundle passed. See [sync-storage.md](sync-storage.md) for interfaces and remaining integration limits.
+
+### Approved Task 5 endtime settings amendment (pending)
+
+- [ ] Migrate pre-amendment persisted cloud/SQLite settings to disabled/`21:00`
+  while keeping wire v2 strict. Add closed settings changes for set-and-enable,
+  enable saved time, and disable while retaining time; every mutation increments
+  revision and records a bounded retained endtime policy generation for later
+  receipt validation.
+- [ ] Test reordered sync, same-revision conflicts, changing a visible endtime,
+  acknowledgement status, and old persisted state without fabricating a wire default.
 
 ## Task 6: Backend command lifecycle, alert policy, and reliable parent messages
 
@@ -298,6 +346,26 @@ Implementation is locally verified and approved by independent review. Final che
 Task 7 is unstarted, and Task 8 LocalStore still rejects nonempty offers. Stop after
 Task 6's reviewed checkpoint; this status update does not start the next task.
 
+### Approved Task 6 endtime delivery amendment (pending)
+
+**Files:** add bot/src/endtime.ts and endtime unit/emulator cases; integrate
+deviceApi, settings, outbox, alert planning, and ten-recipient bounds.
+
+**Interfaces:** `planEndtimeAck(...) -> Promise<PlannedWrite[]>` validates one
+presentation receipt against retained policy generation and current suppression;
+`cancelEndtimeDelivery(...)` marks matching unsent rows canceled during free use
+or Clear all; delivery rechecks suppression after leasing and before Telegram send.
+
+- [ ] Test first confirmed presentation, failed/unconfirmed presentation, duplicate
+  sync receipt, repeats in one generation, deliberate later same-day generation,
+  receipt after a later edit, missed/offline date, ten-recipient fan-out, revocation,
+  and suppression before event creation, while queued, leased, and retrying.
+- [ ] Implement deterministic device/date/revision event identity, bounded policy
+  history validation, all-caregiver recipient snapshots, retroactive cancellation,
+  and repairable outbox/task intents. Preserve the documented post-send uncertainty.
+- [ ] Run delivery/sync unit and emulator suites plus build/bundle checks; update
+  backend checkpoint evidence without rewriting the already approved Task 6 history.
+
 ## Task 7: Telegram private-chat commands and approved button navigation
 
 **Prerequisite:** complete/review the application-name usage checkpoint above.
@@ -319,13 +387,17 @@ bot/tests/{telegram,reports,menus}.test.ts; finish bot/src/index.ts, bot/scripts
   duplicate updates after partial failure, stale session buttons, escaped Ukrainian
   text/HTML-like titles, report privacy, personal preference privacy, seven dates,
   partial first day, old titles marked stale, presets/custom values, mandatory
-  duration, conflicting options, review/cancel, free-use skip and restore action.
+  duration, conflicting options, review/cancel, free-use skip and restore action;
+  `/endtime` status equivalence, exact time bounds, set-enables, saved-time on/off,
+  suppression status, acknowledgement state, and stale/duplicate menu callbacks.
 - [ ] Run `npm test -- telegram reports menus`; verify failures.
-- [ ] Implement grammY webhook routing, command set from design, persisted session
-  state machine, exact agreed navigation and Ukrainian templates. Use Task 6 for
+- [ ] Implement grammY webhook routing, command set from design including
+  `/endtime [status|set HH:MM|on|off]`, persisted session state machine, Endtime
+  Settings submenu/review, and Ukrainian templates. Use Task 6 for
   mutation/outbox effects, not direct sends inside Firestore transactions.
 - [ ] Run suites using recorded Telegram fixtures, mocked Bot API and emulator;
-  verify every navigation leaf has back/cancel and all shared actions notify the other parent.
+  verify every navigation leaf has back/cancel and all shared actions notify every
+  other active caregiver without exposing private report requests.
 - [ ] Commit usable bot interface.
 
 ## Task 8: Offline scheduler, allowance engine, and presentation integration
@@ -337,19 +409,24 @@ companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate 
 `Scheduler.accept(action: Action) -> Ack`; `Scheduler.tick(now: datetime, resumed: bool) -> list[Presentation]`;
 `Scheduler.clear(scope: str, revision: int) -> list[Ack]`;
 `Scheduler.dismiss(action_id: str, now: datetime) -> None`.
-Evaluation includes allowance warning/overlay eligibility, current suppression and day reset.
+Evaluation includes allowance and endtime warning/overlay eligibility, current
+suppression, policy generation, and day reset.
 
 - [ ] Write fake-clock tests for countdown to UTC target, wake past target skip,
   wake before target resume, 5s running tolerance, crash after presenting marked
   uncertain, one-time dismissal, repeat interval from dismissal, midnight removal,
   buttonless auto-close, free-use timers, queue-busy expiry without interruption,
   one pending repeat without backlog, independent suppression, clear fences,
-  counted/uncounted app/AFK gating and overlay foreground self-oscillation.
+  counted/uncounted app/AFK gating and overlay foreground self-oscillation; endtime
+  defaults/bounds, 15/10/5 thresholds, one-warning catch-up, exact-time due,
+  after-time skip, same-day reschedule, midnight stop, confirmed receipt dedupe,
+  suppression, and restart/clock-change behavior.
 - [ ] Run `python -m pytest tests/test_policy.py tests/test_scheduler.py tests/test_action_recovery.py -q`;
   verify failures.
 - [ ] Implement SQLite-persisted state transitions, source-aware foreground tracking,
-  Qt timers on UI thread, immediate acknowledgements, manual-before-auto presentation,
-  date-based reset and normal-operation local warnings independent of internet.
+  Qt timers on UI thread, immediate acknowledgements, newest-overlay-wins replacement,
+  terminal manual-family replacement, endtime policy recurrence/receipts, date-based
+  reset and normal-operation local warnings independent of internet.
 - [ ] Run tests plus Windows resume/fullscreen manual cases from Task 1. Verify
   cancellation after reconnect cannot replay old offers. Record real AW foreground
   behavior during overlays and minimization, not only mocked foreground names.
@@ -367,7 +444,8 @@ companion/tests/test_companion_ui.py, docs/setup.md.
 acknowledged entries, pending revocations and one-time key values.
 
 - [ ] Write pytest-qt tests for enrollment wizard, status health vs missing data,
-  no-selected-category guidance, named keys/expiry/revocation, close-to-tray,
+  no-selected-category guidance, endtime enabled/time/suppression status,
+  named keys/expiry/revocation with ten active caregivers, close-to-tray,
   cancellation on free use, and two instances attempting to start.
 - [ ] Run `python -m pytest tests/test_companion_ui.py -q`; verify failures.
 - [ ] Implement agreed three-section window, QSystemTrayIcon, single-instance guard,
@@ -397,10 +475,12 @@ and requires explicit confirmation. Scheduler and task handlers use cloud identi
   minInstances=0/maxInstances=2, rate limits, log redaction and artifact cleanup.
   Document costs beyond Firestore, alerts versus spend caps, cold-start targets,
   access recovery, token rotation, data deletion and deployment rollback.
-- [ ] Run complete automated suites once, then staging E2E with two parent chats:
+- [ ] Run complete automated suites once, then staging E2E with at least two caregiver chats:
   pairing, reports/offline report, limit/category edits, suppress/restore/free,
   milestones, manual/delayed/countdown/clear, deadline failure while off,
-  reboot/offline local policy, named access revoke. Perform Windows fullscreen gate.
+  reboot/offline local policy, named access revoke. Add a ten-caregiver synthetic
+  fan-out boundary and endtime warning/catch-up/missed-day/reschedule/suppression/
+  receipt/replacement cases. Perform Windows fullscreen gate.
 - [ ] Review requirements coverage; record actual evidence and unresolved platform
   limitations. Commit deployment docs/package only after checks pass. Production
   deployment and sending real Telegram messages require the owner's deployment/test

@@ -5,6 +5,12 @@ started. Task 8's local offer store/executor is not implemented: existing LocalS
 intentionally rejects nonempty offers. No production deployment, Telegram send or
 Google service behavior is claimed.
 
+The 2026-10-29 approved [endtime amendment](superpowers/specs/2026-10-29-endtime-design.md)
+requires a follow-up to this completed checkpoint: recipient fan-out rises from
+two to ten, device sync accepts strict endtime presentation receipts, and free
+use/Clear all retroactively cancel undelivered endtime events. None of that
+follow-up is implemented by the checkpoint described below.
+
 ## Entry points and authority
 
 - `ActionService.createAction(identity, draft, operationId, callback?)` and
@@ -55,6 +61,14 @@ observed/reserved/delivered highwaters belong to each parent pairing generation.
 Unknown coverage at hourly enablement records a pending baseline; the first usable
 projection establishes its floor. Category coordination includes the updated total
 and reserves milestones. Free use/suppression leave hourly and coordination enabled.
+
+Endtime follow-up adds one deterministic automatic event per
+device/local-date/settings-generation only after confirmed overlay presentation.
+The backend must retain enough bounded policy-generation history to validate a
+receipt that arrives after a later settings edit. Repeated occurrences do not
+create more events; an intentional later same-day generation may. Suppression
+mutation cancels matching pending/uncertain endtime rows, and the delivery lease
+transaction rechecks current free-use/Clear-all state before sending.
 
 ## Delivery, recovery and limits
 

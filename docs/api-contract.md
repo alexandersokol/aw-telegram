@@ -62,10 +62,19 @@ path. Catalogs expose references, never AW regex/URL rules.
 
 `Settings` fields: `revision`, `selectedPaths`, `selectedUncategorized`,
 `defaultLimitMs`, `todayOverride:{date,limitMs}|null`, `freeUseDate:null|date`,
-`suppressedDate:null|date`. Domain defaults are revision 0, no selected paths,
-uncategorized false, 14400000 ms and null date-scoped settings. Every field is
+`suppressedDate:null|date`, `endtimeEnabled`, `endtimeLocalTime`, and
+`endtimeGeneration`. Domain defaults are revision 0, no selected paths,
+uncategorized false, 14400000 ms, null date-scoped settings, disabled endtime,
+`21:00`, and generation 0. Endtime accepts exact `00:15`–`23:59` wall times.
+Every field is
 explicit on the wire. Empty selection counts nothing. Ancestor selections compare
 segments; overlapping selected ancestors include each disjoint leaf once.
+
+The dedicated endtime presentation receipt carries its date, settings revision,
+configured time, generation, and confirmed presentation instant. Both runtimes
+resolve Kyiv overlaps to the earliest instant and shift nonexistent local times
+forward across the gap. Receipt delivery and persisted-settings migration remain
+later checkpoints; the current backend explicitly rejects endtime receipts.
 
 Cloud settings revisions are durable. Task 5 transactional handlers increment
 with overflow rejection, set date-scoped values using the server Kyiv date, and clear

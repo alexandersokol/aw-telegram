@@ -9,6 +9,32 @@ async function api() {
   return { models: await import('../src/contracts.js'), clock: await import('../src/clock.js') };
 }
 describe('shared v2 contract', () => {
+  it('uses strict endtime settings and dedicated confirmed presentation receipts', async () => {
+    const {models} = await api(), data = fixture('endtime');
+    expect(models.defaultSettings()).toEqual(data.defaults);
+    for (const c of data.wire) {
+      if (c.valid) expect(models.validateContract(c.contract, c.value), c.name).toEqual(c.value);
+      else expect(() => models.validateContract(c.contract, c.value), c.name).toThrow();
+    }
+  });
+  it('resolves endtime per Kyiv date with earlier overlap and forward gap', async () => {
+    const {clock} = await api(), data = fixture('endtime');
+    expect(clock.endtimeAt, 'endtime wall-time resolution is not implemented').toBeTypeOf('function');
+    for (const c of data.resolutions) expect(clock.endtimeAt(c.date, c.localTime)).toBe(c.instant);
+    for (const value of data.invalidTimes) expect(() => clock.endtimeAt('2026-10-29', value)).toThrow();
+    for (const value of ['2026-02-30', '1969-12-31', '2100-01-01', '2026-1-01', null])
+      expect(() => clock.endtimeAt(value!, '21:00')).toThrow();
+  });
+  it('matches endtime receipts against the known settings revision and generation', async () => {
+    const {models} = await api(), data = fixture('endtime');
+    expect(models.validateEndtimeReceipt, 'endtime receipt context validation is not implemented').toBeTypeOf('function');
+    for (const c of data.context) {
+      if (c.valid) expect(() => models.validateEndtimeReceipt(c.settings, c.receipt), c.name).not.toThrow();
+      else expect(() => models.validateEndtimeReceipt(c.settings, c.receipt), c.name).toThrow();
+    }
+    expect(() => models.validateEndtimeReceipt(data.context[0].settings,
+      {id:data.context[0].receipt.id,kind:'settings',revision:7,appliedAt:'2026-10-29T19:00:00.000Z'})).toThrow();
+  });
   it('accepts and rejects identical shared wire cases without mutation', async () => {
     const {models} = await api();
     for (const c of fixture('wire')) {

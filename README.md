@@ -1,7 +1,8 @@
 # AW Telegram
 
-A companion in development for ActivityWatch that lets two parents review their child's
-Windows laptop activity and send reminders through Telegram.
+A companion in development for ActivityWatch that lets up to ten authorized
+parents/caregivers review a child's Windows laptop activity and send reminders
+through Telegram.
 
 Requirements and the implementation plan are approved. Tasks 1–2 provide the
 Windows/Qt presentation shell, strict contracts and Kyiv calendar helpers. Task 3's
@@ -25,6 +26,13 @@ approved. Archived v1 remains immutable and category-only. Durable storage/sync 
 formatting remains pending. Task 4 enrollment/access stays protocol v1. The countdown
 uses a 70% #242424 background with opaque white text.
 
+The owner approved the [endtime design amendment](docs/superpowers/specs/2026-10-29-endtime-design.md)
+on 2026-10-29. It adds a disabled-by-default daily `21:00` endtime setting,
+local 15/10/5-minute warnings, a repeating reached-time overlay, and a
+companion-confirmed Telegram alert. The amendment also raises the active caregiver
+limit from two to ten and changes overlays to newest-due-wins. These are planned
+amendments; they are not yet implemented.
+
 ## Structure
 
 - `docs/`: approved requirements, design, plan, and validation evidence.
@@ -41,8 +49,8 @@ Start with [the user requirements](docs/user-requirements.md) and the
 - [Technical design and decisions](docs/technical-design.md)
 - [Phased implementation plan](docs/implementation-plan.md)
 
-The owner approved these documents on 2026-10-27. Windows fullscreen validation
-is an explicit release gate.
+The owner approved the base documents on 2026-10-27 and the endtime amendment on
+2026-10-29. Windows fullscreen validation is an explicit release gate.
 
 See [companion setup and the local harness](companion/README.md) and
 [Windows evidence and pending acceptance](docs/windows-validation.md).

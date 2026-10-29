@@ -13,6 +13,11 @@ LocalStore deliberately rejects nonempty offers. Task 10 owns deployment/IAM/Sch
 Stop after the Task 6 reviewed checkpoint; this handoff does not authorize next-task
 implementation, production service calls or additional Windows/game work.
 
+The owner approved the endtime/caregiver/overlay-ordering amendment on 2026-10-29.
+It is documented in
+[the design](superpowers/specs/2026-10-29-endtime-design.md) and planned as
+follow-up work; it is not part of the reviewed Task 4/6 implementations.
+
 ## Earlier Windows evidence and integration context
 
 Requirements and technical implementation plan are approved. Task 1 now has a
@@ -159,7 +164,7 @@ bucket IDs, and never expose AW publicly. Do not reset/delete the existing AW da
 
 ## Important product decisions — preserve these
 
-- One laptop, two parents maximum, private chats only. Ukrainian built-in UI and
+- One laptop, up to ten active authorized caregivers, private chats only. Ukrainian built-in UI and
   messages; English command identifiers. No language chooser or groups.
 - `/usage` = today; `/usage today`, `/usage yesterday` show AW app names and
   durations sorted descending from exactly selected categories/descendants once,
@@ -176,23 +181,30 @@ bucket IDs, and never expose AW publicly. Do not reset/delete the existing AW da
   recalculate today's app rows and total from unfiltered category-attributed app
   aggregates, not previously filtered app totals. Default-limit edits also replace today's override; today-only
   changes expire at Europe/Kyiv midnight. Seven-calendar-date cloud retention.
-- Both parents get 15/10/5-minute and expiry alerts; optional hourly milestones
+- All active caregivers get allowance 15/10/5-minute and expiry alerts; optional hourly milestones
   are independent per parent. Hourly updates continue in free use and after clear.
 - Free use skips laptop and Telegram allowance reminders; tracking continues.
   New manual reminder commands are skipped with immediate explanation. Old future
   timers keep deadlines; timers due during free use are skipped, not replayed.
 - Clear manual cancels manual actions. Clear all also suppresses automatic allowance
-  reminders until midnight. `/restore` explicitly removes that suppression;
+  and endtime reminders until midnight. `/restore` explicitly removes that suppression;
   changing limits/categories or turning free use off does NOT remove it.
 - Exhausted allowance overlay repeats one minute after dismissal, only during
   active counted use; hide on AFK or switching to schoolwork. Manual overlays use
   their own timing, optional repeat, and stop repeating at midnight.
-- Immediate actions: at most three delivery offers in 60s, IDs deduplicated. Issuing
-  parent receives failure/unconfirmed delivery notice; other parent receives status.
+- Endtime defaults off with `21:00` saved, accepts `00:15`–`23:59`, warns only the
+  laptop at minus 15/10/5 minutes, then repeats its overlay each minute until
+  midnight. A companion-confirmed first presentation per settings generation
+  alerts every active caregiver; free use/Clear all cancels undelivered alerts.
+- The newest due overlay always replaces and finishes the visible overlay. A
+  replaced manual repeat family is canceled; endtime remains eligible as daily
+  policy for a later occurrence.
+- Immediate actions: at most three delivery offers in 60s, IDs deduplicated. The
+  issuing caregiver receives failure/unconfirmed delivery notice; all other caregivers receive status.
   No stale action on next boot. Delayed timers run offline if already accepted;
   cloud silence means execution unconfirmed, not proof of expiry/failure.
-- Requests for reports stay private. Shared laptop actions/settings notify the
-  other parent. Bot replies distinguish queued/accepted/presented/failed/unconfirmed.
+- Requests for reports stay private. Shared laptop actions/settings notify all
+  other active caregivers. Bot replies distinguish queued/accepted/presented/failed/unconfirmed.
 - Named parent keys generated/listed/revoked in companion; unused expiry 15min;
   single-use, bound to Telegram numeric ID. No paired-access inactivity expiry.
 - Companion tray window: status, parent access, settings; close-to-tray and autostart.

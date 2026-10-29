@@ -9,6 +9,50 @@ import pytest
 FIXTURES = Path(__file__).resolve().parents[2] / 'contracts' / 'fixtures'
 
 
+def test_shared_endtime_strict_settings_and_confirmed_receipts():
+    models, _ = api()
+    data = json.loads((FIXTURES / 'endtime.json').read_text(encoding='utf-8'))
+    assert models.Settings().to_wire() == data['defaults']
+    for case in data['wire']:
+        if case['valid']:
+            assert models.validate_contract(case['contract'], case['value']) == case['value'], case['name']
+            if case['contract'] == 'ack':
+                assert models.EndtimeAck.from_wire(case['value']).to_wire() == case['value']
+        else:
+            with pytest.raises(ValueError, match='.+'):
+                models.validate_contract(case['contract'], case['value'])
+
+
+def test_endtime_resolves_each_kyiv_date_with_earlier_overlap_and_forward_gap():
+    _, clock = api()
+    assert hasattr(clock, 'endtime_at'), 'endtime wall-time resolution is not implemented'
+    data = json.loads((FIXTURES / 'endtime.json').read_text(encoding='utf-8'))
+    for case in data['resolutions']:
+        assert clock.format_instant(clock.endtime_at(case['date'], case['localTime'])) == case['instant']
+    for value in data['invalidTimes']:
+        with pytest.raises(ValueError):
+            clock.endtime_at('2026-10-29', value)
+    for value in ['2026-02-30', '1969-12-31', '2100-01-01', '2026-1-01', None]:
+        with pytest.raises(ValueError):
+            clock.endtime_at(value, '21:00')
+
+
+def test_endtime_receipt_matches_known_settings_revision_and_generation():
+    models, _ = api()
+    assert hasattr(models, 'validate_endtime_receipt'), 'endtime receipt context validation is not implemented'
+    data = json.loads((FIXTURES / 'endtime.json').read_text(encoding='utf-8'))
+    for case in data['context']:
+        if case['valid']:
+            models.validate_endtime_receipt(case['settings'], case['receipt'])
+        else:
+            with pytest.raises(ValueError):
+                models.validate_endtime_receipt(case['settings'], case['receipt'])
+    with pytest.raises(ValueError):
+        models.validate_endtime_receipt(data['context'][0]['settings'],
+            dict(id=data['context'][0]['receipt']['id'], kind='settings', revision=7,
+                 appliedAt='2026-10-29T19:00:00.000Z'))
+
+
 def api():
     assert importlib.util.find_spec('aw_telegram.models'), 'Shared contract validator is not implemented'
     assert importlib.util.find_spec('aw_telegram.clock'), 'Kyiv calendar helpers are not implemented'
@@ -192,6 +236,10 @@ def test_archived_v1_stays_immutable_and_rejects_app_fields_after_generation():
     archived=Draft7Validator(next(s for s in schemas if s['$id'].endswith('/day.schema.json')),registry=registry)
     day=app_day(); assert not archived.is_valid(day)
     del day['appLeafTotalsMs']; assert archived.is_valid(day)
+    endtime=json.loads((FIXTURES/'endtime.json').read_text(encoding='utf-8'))
+    for name,value in [('settings',endtime['defaults']),('ack',endtime['context'][0]['receipt'])]:
+        schema=next(s for s in schemas if s['$id'].endswith('/'+name+'.schema.json'))
+        assert not Draft7Validator(schema,registry=registry).is_valid(value)
     packaged=Path(importlib.import_module('aw_telegram').__file__).parent/'schemas'
     for p in (root/'contracts/v2').glob('*.json'):
         assert p.read_bytes()==(packaged/p.name).read_bytes()
