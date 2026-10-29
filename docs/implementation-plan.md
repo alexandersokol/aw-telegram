@@ -815,8 +815,12 @@ Fixed:
     LGPL-3.0 text. Exact Qt and PySide source locations are pinned.
   - PySide's Python files stay on disk.
   - Unused Qt parts and setuptools are excluded (104 to 75 MB).
-  - The check now also requires `qt-third-party.txt` and `python-incorporated.txt`,
-    which are not yet present.
+  - The check now also requires `qt-third-party.txt` and `python-incorporated.txt`.
+    Both were added with the owner's approval. `python-incorporated.txt` comes from
+    docs.python.org/3.12/license.html. `qt-third-party.txt` is the 44 doc.qt.io
+    attribution pages for the Qt Core, GUI and Network components shipped on Windows,
+    converted to text with their wording unchanged. The check passes, and the rebuilt
+    app passed the frozen smoke test again.
 - **Minor:**
   - The pair key is kept out of Windows clipboard history and cleared at «Готово» or
     expiry.
