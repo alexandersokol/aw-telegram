@@ -84,6 +84,21 @@ the queued receipt count). Run both orders and dismiss with «Закрити»:
 
 Midnight and suppression removal are covered by automated tests only.
 
+Endtime evidence, 2026-10-29, Windows 11 build 10.0.26300, owner's development
+desktop (not the son's laptop), standard user context:
+
+- Owner runs (A, B, B with `--delay-ms 15000`): the manual overlay appeared with
+  native `topmost_requested`, «Закрити» dismissed it, and it recurred one minute
+  later. The endtime overlay never appeared and receipts were 0. Cause: a harness
+  defect, since fixed. The simulated clock ran during `--delay-ms`, so the first tick
+  landed after endtime and the policy correctly skipped the date. These runs therefore
+  do not verify replacement ordering.
+- Controller real-desktop run after diagnosis (`manual-first`, `--delay-ms 0`, no
+  clicks, event log only, pixels not inspected): manual shown, then `cleared` and
+  replaced by endtime at endtime, both `topmost_requested`, receipt count 1.
+- Pending: owner re-run of both orders with the fixed harness, observing the
+  replacement visually and clicking «Закрити».
+
 ## Pending acceptance protocol
 
 Record game name/version, actual executable path, Windows build, token/elevation,
@@ -103,7 +118,7 @@ reference for every run. Do not mark a row passed from the automated suite.
 | Monitor/primary/DPI change | Overlay follows primary with full DIP geometry; other monitors undimmed | Pending: hardware run |
 | Endtime: manual then endtime | Endtime replaces the manual overlay on primary; the manual family never returns | Pending: physical run (offscreen smoke only) |
 | Endtime: endtime then manual | Manual replaces endtime; endtime returns ~1 min later as newest; «Закрити» clickable | Pending: physical run (offscreen smoke only) |
-| Endtime recurrence/suppression | Dismissal recurs after one minute; no foreground oscillation with a fullscreen app | Pending: physical run |
+| Endtime recurrence/suppression | Dismissal recurs after one minute; no foreground oscillation with a fullscreen app | Manual-overlay recurrence observed by owner; endtime recurrence and fullscreen pending |
 | Notification/countdown | Card lifetime and top-left countdown remain controllable on primary | Automated; physical run pending |
 
 For a fallback run, add the actual game's full path (example only):

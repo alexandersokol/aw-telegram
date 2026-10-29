@@ -114,10 +114,11 @@ def endtime_sequence(app, adapter, options):
         state["settings"] = Settings(revision=1, endtimeEnabled=True, endtimeGeneration=1).to_wire()
         store._save(state)
     base = endtime_at(kyiv_date(utc_now()), "21:00") - timedelta(seconds=3)
-    started = time.monotonic()
+    started = None  # set at presenter start; --delay-ms must not consume the 3 s lead
     def now():
-        elapsed = timedelta(milliseconds=int((time.monotonic() - started) * 1000))
-        return base + elapsed
+        if started is None:
+            return base
+        return base + timedelta(milliseconds=int((time.monotonic() - started) * 1000))
     scheduler = Scheduler(store)
     manual_at = base + timedelta(seconds=1 if options.order == "manual-first" else 8)
     scheduler.add_manual("harness-manual", options.text, manual_at, repeat_minutes=1)
@@ -140,7 +141,12 @@ def endtime_sequence(app, adapter, options):
         directory.cleanup()
         app.quit()
 
-    QTimer.singleShot(options.delay_ms, presenter.start)
+    def begin():
+        nonlocal started
+        started = time.monotonic()
+        presenter.start()
+
+    QTimer.singleShot(options.delay_ms, begin)
     if options.quit_after_ms:
         QTimer.singleShot(options.delay_ms + options.quit_after_ms, finish)
     return app.exec()

@@ -52,7 +52,7 @@ describe('sync Firestore transactions',()=>{
         enabled:true,localTime:result.settings.endtimeLocalTime,changedAt:NOW});
     }
     expect(history[2].localTime).toBe(current.endtimeLocalTime);
-  });
+  },60000); // seven contending transactions; emulator retry backoff makes this run 10–20 s
   test('free-use and clear policy writes preserve generations during concurrent edits',async()=>{
     await settings.updateSettings(p1,{kind:'setEndtime',localTime:'21:00'},'endtime:first');
     await Promise.all([
