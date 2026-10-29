@@ -742,6 +742,23 @@ Checkpoint 9b (2026-10-29, local, not independently reviewed): enrollment and «
 
 Companion 392.
 
+Checkpoint 9c (2026-10-29, local, not independently reviewed): «Доступ батьків».
+- **Keys:** a named key (1–80 characters) is created through `POST /v1/pair-keys` off
+  the GUI thread. It is shown once as `/pair КЛЮЧ`, with a copy button and its Kyiv
+  expiry time. It is never stored, and it leaves the screen at «Готово» or at expiry.
+- **List:** `GET /v1/access` reads every page. It shows each caregiver with their
+  Telegram ID, and each key as waiting until a time, expired or revoked. At ten
+  active caregivers the panel says one must be removed first.
+- **Fix:** `Transport.list_access` accepted at most two parents, from before ACCESS-07;
+  it now accepts ten (`MAX_CAREGIVERS`).
+- **Removal (PAIR-03):** after confirmation it is saved to `pendingRevocations` before
+  anything is sent, and shown as waiting for server confirmation. Success is reported
+  only after the server's 204. Offline, the list keeps its last contents with the
+  waiting rows. The sync worker sends up to five waiting removals after each
+  successful sync until confirmed, and the open list refreshes when one completes.
+
+Companion 408.
+
 **Files:** create companion/src/aw_telegram/{main}.py,
 companion/src/aw_telegram/ui/{window,tray,access}.py,
 companion/src/aw_telegram/windows/startup.py, companion/aw-telegram.spec,

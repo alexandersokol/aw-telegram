@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
 from .aw_reader import AWReader, LocalAWClient
@@ -13,6 +13,8 @@ from .runtime import CompanionRuntime, build_coordinator
 from .single_instance import SingleInstance
 from .status import read_status, status_lines
 from .transport import Transport
+from .transport import DeviceIdentity
+from .ui.access import AccessClient, AccessPanel
 from .ui.presenter import utc_now
 from .ui.settings import SettingsPanel
 from .ui.tray import CompanionTray
@@ -43,6 +45,10 @@ def probe(host, port):
     return AWReader(client=LocalAWClient(host=host, port=port)).probe()
 
 
+def access_client(binding: dict | None):
+    return None if binding is None else AccessClient(DeviceIdentity(**binding))
+
+
 def installed_executable() -> str | None:
     """The packaged .exe; autostart is offered only for an installed build."""
     return sys.executable if getattr(sys, "frozen", False) else None
@@ -54,14 +60,18 @@ class CompanionApp(QObject):
 
     def __init__(self, database: Path, coordinator=production_coordinator, *, presenter_factory=None,
                  show: bool = True, background: bool = False, enroll=enroll, probe=probe, runner=None,
-                 executable=None, registry=None):
+                 executable=None, registry=None, access=access_client):
         super().__init__()
         options = {} if presenter_factory is None else {"presenter": presenter_factory}
         self.runtime = CompanionRuntime(database, coordinator, **options)
         self.settings_panel = SettingsPanel(enroll=enroll, probe=probe, on_enrolled=self._enrolled,
                                             on_aw_changed=self._aw_changed, executable=executable,
                                             registry=registry, runner=runner)
-        self.window = CompanionWindow(settings=self.settings_panel)
+        self._access = access
+        self.access_panel = AccessPanel(runner=runner)
+        self.window = CompanionWindow(settings=self.settings_panel, access=self.access_panel)
+        self.window.tabs.currentChanged.connect(self._section_changed)
+        self.runtime.synced.connect(self._synced, Qt.ConnectionType.QueuedConnection)
         self.tray = CompanionTray()
         self._show, self._background = show, background
         self.tray.open_requested.connect(self.open)
@@ -87,6 +97,15 @@ class CompanionApp(QObject):
     def _settings_state(self) -> None:
         store = self.runtime.store
         self.settings_panel.set_state(store.binding, store.app_config)
+        self.access_panel.bind(store, self._access(store.binding))
+
+    def _synced(self) -> None:
+        if self.runtime.store is not None:
+            self.access_panel.synced()
+
+    def _section_changed(self, index: int) -> None:
+        if self.window.tabs.widget(index) is self.access_panel:
+            self.access_panel.refresh()
 
     def _enrolled(self, identity) -> None:
         self.runtime.store.bind(identity)

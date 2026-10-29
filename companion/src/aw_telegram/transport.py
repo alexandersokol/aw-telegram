@@ -13,6 +13,9 @@ from .models import parse_json, MAX_BODY_BYTES, SyncRequest, SyncResponse, wire_
 from .clock import parse_instant
 
 
+MAX_CAREGIVERS = 10  # active caregivers per laptop (ACCESS-07)
+
+
 class EnrollmentError(RuntimeError):
     pass
 
@@ -211,7 +214,7 @@ class Transport:
         valid = False
         try:
             valid = (_envelope(result, {'schemaVersion', 'parents', 'keys', 'nextPage'})
-                     and isinstance(result['parents'], list) and len(result['parents']) <= 2
+                     and isinstance(result['parents'], list) and len(result['parents']) <= MAX_CAREGIVERS
                      and isinstance(result['keys'], list) and len(result['keys']) <= 50
                      and (result['nextPage'] is None or _uuid(result['nextPage']))
                      and all(_parent_row(row) for row in result['parents'])

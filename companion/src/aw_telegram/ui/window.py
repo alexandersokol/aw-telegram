@@ -6,7 +6,7 @@ SECTIONS = ("status", "access", "settings")
 
 
 class CompanionWindow(QWidget):
-    def __init__(self, settings: QWidget | None = None):
+    def __init__(self, settings: QWidget | None = None, access: QWidget | None = None):
         super().__init__()
         QApplication.setQuitOnLastWindowClosed(False)  # a tray app: background work outlives the window
         self.setWindowTitle("AW Telegram")
@@ -19,9 +19,9 @@ class CompanionWindow(QWidget):
         self.status.setWordWrap(True)
         self.status.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.access = QWidget()
+        self.access_panel = access or QWidget()
         self.settings_panel = settings or QWidget()
-        for widget, title in ((self._page(self.status), "Стан"), (self.access, "Доступ батьків"),
+        for widget, title in ((self._page(self.status), "Стан"), (self.access_panel, "Доступ батьків"),
                               (self.settings_panel, "Налаштування")):
             self.tabs.addTab(widget, title)
 

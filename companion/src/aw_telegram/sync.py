@@ -6,7 +6,7 @@ import time
 from .aw_reader import AWUnavailable, AWUnsupported
 from .clock import format_instant, parse_instant, retained_dates, local_day_bounds
 from .models import ReportCapacityExceeded, minimal_health, validate_activity_context
-from .transport import CredentialError, SyncError
+from .transport import CredentialError, EnrollmentError, SyncError
 
 
 @dataclass(frozen=True)
@@ -66,6 +66,16 @@ class SyncCoordinator:
     def snapshot(self):
         """Title-free status for the companion window, read from the GUI thread."""
         return dict(health=dict(self.health), auth_blocked=self.auth_blocked, last_error=self.last_error)
+
+    def _send_revocations(self):
+        """Removals saved while offline; the server answers 204 even for stale or unknown entries."""
+        identity = getattr(self.transport, "identity", None)
+        for item in self.store.pending_revocations()[:5] if identity is not None else []:
+            try:
+                self.transport.revoke_access(identity, item["id"])
+            except EnrollmentError:
+                return  # retried after the next successful sync
+            self.store.revocation_done(item["id"])
 
     def recover_credentials(self):
         self.auth_blocked = False
@@ -134,6 +144,7 @@ class SyncCoordinator:
                 self.last_error = None
                 if self.store.settings.revision != old_revision:
                     self._summary_due = mono
+                self._send_revocations()
                 if self.on_update:
                     self.on_update(self.store.settings, self.store.cancellations)
             except CredentialError:

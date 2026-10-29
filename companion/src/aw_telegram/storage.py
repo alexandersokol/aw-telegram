@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import re
 import sqlite3
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from .models import (Ack, ActionAck, CancellationAck, DaySummary, EndtimeAck, Se
 
 
 APP_DEFAULTS = {"awHost": "127.0.0.1", "awPort": 5600}
+_ACCESS_ID = re.compile(r"key:[0-9a-f-]{36}|parent:[1-9][0-9]{0,15}:[0-9a-f-]{36}")
 _OCCURRENCE_ENDED ={"dismissed", "completed", "replaced", "failed", "expired", "canceled", "skipped"}
 
 
@@ -175,6 +177,26 @@ class LocalStore:
             if state["binding"] is not None and state["binding"] != binding:
                 raise ValueError("device binding cannot change")
             state["binding"] = binding
+            self._save(state)
+
+    # Access removals: durable before the UI claims anything, sent by the sync worker until confirmed.
+    def request_revocation(self, access_id: str, name: str) -> None:
+        if not isinstance(access_id, str) or not _ACCESS_ID.fullmatch(access_id) or not isinstance(name, str) or len(name) > 80:
+            raise ValueError("invalid access entry")
+        with self._transaction():
+            state = self._state()
+            pending = state.get("pendingRevocations", [])
+            if all(item["id"] != access_id for item in pending):
+                state["pendingRevocations"] = pending + [dict(id=access_id, name=name, requestedAt=self.now())]
+                self._save(state)
+
+    def pending_revocations(self) -> list[dict]:
+        return list(self._state().get("pendingRevocations", []))
+
+    def revocation_done(self, access_id: str) -> None:
+        with self._transaction():
+            state = self._state()
+            state["pendingRevocations"] = [i for i in state.get("pendingRevocations", []) if i["id"] != access_id]
             self._save(state)
 
     @property
