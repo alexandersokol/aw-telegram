@@ -33,10 +33,10 @@ and Logging.
 `aw-backend` needs `serviceAccountUser` on the invoker so it can create tasks
 whose OIDC token names that account. The `/internal/tasks` handler accepts only
 a Google-signed token for exactly that email and the configured audience, so the
-invoker needs no project roles. Later steps add, at resource level only:
-`roles/cloudtasks.enqueuer` for `aw-backend` on the `delivery` queue, and
-`roles/secretmanager.secretAccessor` for `aw-backend` on the bot token and
-webhook secret.
+invoker needs no project roles. Other grants are resource-level only:
+`roles/cloudtasks.enqueuer` for `aw-backend` on the `delivery` queue (below),
+and, in a later step, `roles/secretmanager.secretAccessor` for `aw-backend` on
+the bot token and webhook secret.
 
 Grant the two roles above with:
 
@@ -46,4 +46,25 @@ gcloud iam service-accounts add-iam-policy-binding aw-tasks-invoker@aw-telegram.
 ```
 
 The project also has the Google-created `firebase-adminsdk-fbsvc` and default
-compute service accounts. Functions must not run as either of them.
+compute service accounts. Functions must not run as either of them. The default
+compute account holds project `roles/editor` by Google default; review reducing
+it after the first deploy confirms which identity Cloud Build uses.
+
+## Cloud Tasks queue
+
+`projects/aw-telegram/locations/europe-central2/queues/delivery` carries outbox
+and deadline tasks. Task names are deterministic (`<intent>-<dispatchGeneration>`)
+and the adapter treats 409 as already enqueued, so the application owns retries
+and lost-task repair; the queue retries only transient handler failures.
+
+| Setting | Value |
+|---|---|
+| Max dispatches/second | 5 (burst 10) |
+| Max concurrent dispatches | 2, matching `maxInstances=2` |
+| Retries | 5 attempts within 1 hour, 10s to 300s backoff, 4 doublings |
+
+Grant `aw-backend` permission to enqueue on this queue only:
+
+```powershell
+gcloud tasks queues add-iam-policy-binding delivery --project=aw-telegram --location=europe-central2 --member=serviceAccount:aw-backend@aw-telegram.iam.gserviceaccount.com --role=roles/cloudtasks.enqueuer
+```
