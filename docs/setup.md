@@ -17,6 +17,19 @@ is created or downloaded at any step.
 The repository root `.firebaserc` (git-ignored) selects `aw-telegram` as the
 default Firebase CLI project.
 
+## Firestore rules and indexes
+
+`firestore.rules` (deny all client reads and writes) and the seven composite
+indexes in `firestore.indexes.json` were deployed on 2026-10-29. The live
+ruleset was compared with the file and is identical. Redeploy after changing
+either file:
+
+```powershell
+npx firebase-tools@15.32.1 deploy --only firestore:rules,firestore:indexes --project=aw-telegram
+```
+
+Rules do not restrict the Admin SDK; backend access is governed by IAM.
+
 ## Enabled APIs
 
 Firestore, Cloud Functions, Cloud Run, Cloud Build, Artifact Registry, Cloud
