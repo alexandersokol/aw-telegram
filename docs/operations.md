@@ -14,8 +14,9 @@ Each deploy, webhook change or data deletion is an explicit owner action.
 | Firestore | `(default)`, `europe-central2` | Deny-all client rules; Admin SDK only. |
 | Secrets | Secret Manager | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, bound to both functions. |
 
-Both functions run as `aw-backend@` (expanded to this project), never as a default
-account. Limits: `api` scales 0–2 instances (concurrency 20, 1 vCPU, 512 MiB, 60 s);
+Both functions run as `aw-backend@aw-telegram.iam.gserviceaccount.com`, never as a default
+account. The full email is required: the Firebase CLI copies an `aw-backend@` shorthand
+raw into the Scheduler job's OIDC identity and the secrets' IAM grants. Limits: `api` scales 0–2 instances (concurrency 20, 1 vCPU, 512 MiB, 60 s);
 `sweep` runs on at most 1 instance for up to 540 s. The queue allows 2 concurrent
 dispatches, matching `api`'s two instances.
 
@@ -31,22 +32,25 @@ rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
    - `npm.cmd run check:bundle`
    - `npm.cmd run test:emulator -- auth pairing rules sync delivery purge`
    - the companion suite
-2. First deploy, which discovers the `api` URL:
+2. Deploy the Firestore indexes first. Task 10 added three, for message-text clearing and
+   stranded-message repair, and queries fail until they are built:
+   `node bot/node_modules/firebase-tools/lib/bin/firebase.js deploy --only firestore:indexes --project aw-telegram`.
+3. First deploy, which discovers the `api` URL:
    `node bot/node_modules/firebase-tools/lib/bin/firebase.js deploy --only functions --project aw-telegram`.
    The CLI asks for `BACKEND_URL`; leave it empty the first time. Until it is set, Cloud
    Tasks are not created, and their intents stay pending for the next repair.
-3. Put the printed `api` origin (for example `https://api-xxxx-lm.a.run.app`) in
+4. Put the printed `api` origin (for example `https://api-xxxx-lm.a.run.app`) in
    `bot/.env.aw-telegram` as `BACKEND_URL=...`, using `bot/.env.example` as the model.
    The file is git-ignored. Then deploy again.
-4. Register the webhook: `node --experimental-strip-types bot/scripts/webhook.ts set
+5. Register the webhook: `node --experimental-strip-types bot/scripts/webhook.ts set
    --project aw-telegram --url <BACKEND_URL>/telegram/webhook`. Check it with `info`.
    It reads both secrets from Secret Manager with your ADC. It sets `secret_token`,
    `allowed_updates: message, callback_query` and `max_connections: 1`, which serializes
    redeliveries of an update.
-5. Set an image cleanup policy so old function builds do not accumulate in Artifact
+6. Set an image cleanup policy so old function builds do not accumulate in Artifact
    Registry: `firebase functions:artifacts:setpolicy --project aw-telegram`, which keeps
    recent images only.
-6. Verify after the first deploy (these cannot be checked locally):
+7. Verify after the first deploy (these cannot be checked locally):
    - The Scheduler job for `sweep` can invoke it as `aw-backend`. The CLI normally
      grants that; check the `sweep` service's `roles/run.invoker`.
    - The client IP that enrollment throttling sees: the adapter takes the last
@@ -58,12 +62,19 @@ rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
 
 ## Logging
 
-Logs never contain request bodies, message text, titles, tokens or provider detail.
-An unexpected failure logs `request failed` with a fixed route label (IDs removed,
-e.g. `DELETE /v1/access/:id`) and the error type only. The sweep logs its counts.
-Cloud Run's own request logs record method, path, status and latency. The access-ID
-path of a DELETE therefore appears there; it is a random pairing reference, not a
-secret. Route boundary errors (4xx) are answers, not logged failures.
+Application logs never contain request bodies, message text, titles, tokens or
+provider detail. An unexpected failure logs `request failed` with a fixed route label
+(IDs removed, e.g. `DELETE /v1/access/:id`) and the error type only. The sweep logs its
+counts. Route boundary errors (4xx) are answers, not logged failures.
+
+Cloud Run's own request logs record method, full path, status and latency for 30 days.
+An access removal's path is `/v1/access/parent:<Telegram user ID>:<pairing ID>`, so
+those logs would hold caregivers' Telegram user IDs. Exclude them once, after the first
+deploy:
+
+```powershell
+gcloud logging sinks update _Default --project=aw-telegram --add-exclusion=name=access-ids,filter='resource.type="cloud_run_revision" AND httpRequest.requestUrl:"/v1/access/"'
+```
 
 ## Costs and alerts
 
@@ -135,8 +146,10 @@ it means removing the webhook and deleting or scaling down `api` (see Rollback).
 1. Stop intake first if needed: `webhook.ts remove`. Telegram keeps undelivered
    updates for 24 hours. The laptop keeps working offline.
 2. Redeploy the previous good commit's functions.
-3. Watch for wire contract changes. The sync contract is versioned with the companion.
-   For example, `activeCaregivers` is required in v2 responses, so a backend older than
-   the installed companion breaks its sync. Roll back both together, or keep the
-   backend at least as new as the laptop.
+3. Watch for wire contract changes. The sync contract is closed on both sides
+   (`additionalProperties: false`): a backend that adds a field breaks an older companion,
+   and one that lacks a required field breaks a newer one. `activeCaregivers` (ACCESS-08)
+   is such a field. Deploy and roll back the backend and the companion as a matched
+   pair. A future wire change needs a `schemaVersion` bump or a companion that tolerates
+   it first.
 4. Last resort: `firebase functions:delete api sweep`. Firestore data is untouched.

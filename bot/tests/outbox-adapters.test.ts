@@ -79,7 +79,7 @@ it('retains Task6 evidence for seven Kyiv dates, tombstones operation identity a
   const ref=root+'/actions/'+action.id,old='2026-10-19T12:00:00.000Z',row=f.db.data.get(ref);row.action={...row.action,createdAt:old,targetAt:old,expiresAt:'2026-10-19T12:01:00.000Z'};row.open=false;
   f.db.data.set(ref+'/evidence/1',{digest:'old',at:old});f.db.data.set(ref+'/occurrences/0',{sequence:1});f.db.data.set(root+'/receipts/old',{digest:'old',receivedAt:old});f.db.data.set(root+'/alertStates/2026-10-19',{date:'2026-10-19',parents:{}});
   const op=[...f.db.data.keys()].find(k=>k.includes('/operations/'))!;f.db.data.get(op).at=old;f.db.data.get(op).expired=false;
-  f.db.data.set('events/old',{at:old,text:'old event'});f.db.data.set('outbox/completed',{createdAt:'2026-10-26T12:00:00.000Z',state:'delivered',text:'completed message'});
+  f.db.data.set('events/old',{at:old,text:'old event'});f.db.data.set('outbox/completed',{createdAt:'2026-10-26T12:00:00.000Z',state:'delivered',text:'completed message',scrubbed:false});
   const tasks=new TaskService(f.repo,{create:async()=>{}},{} as any,f.clock);await tasks.sweep();expect(f.db.data.has(ref)).toBe(false);expect(f.db.data.has(ref+'/evidence/1')).toBe(false);expect(f.db.data.has(root+'/receipts/old')).toBe(false);expect(f.db.data.has('events/old')).toBe(false);expect(f.db.data.get('outbox/completed').text).toBeNull();
   expect(f.db.data.get(op)).toMatchObject({expired:true});expect(f.db.data.get(op).result).toBeUndefined();await expect(actions.createAction(parent(),draft,'retained')).rejects.toThrow('expired');
 });

@@ -71,8 +71,7 @@ it('shows a reminder on the laptop, confirms it to both caregivers, expires one 
   expect(mama!.inbox().some(m=>m.text.includes('Не вдалося підтвердити доставку'))).toBe(true);
 
   await mama!.say('/overlay +30 Вимкни гру');
-  await mama!.say('/clear manual');
-  if(mama!.inbox().at(-1)?.buttons?.flat().some(b=>b.text.includes('Очистити')))await mama!.tap('Очистити');
+  await mama!.say('/clear manual');  // manual clearing acts at once
   const cleared=await laptop.sync();
   expect(cleared.cancellations.revision).toBeGreaterThan(0);
   expect(cleared.deliveryOffers).toEqual([]);  // the cleared timer is never offered
@@ -104,7 +103,7 @@ it('sends hourly updates to who asked, allowance warnings to everyone, and honou
   // Ending free use catches up at once (FREE-08), folded into the coordination message.
   expect(tato!.last()).toMatch(/Вільний режим вимкнено.*Залишилося 5 хв або менше/s);
   await mama!.say('/clear all');
-  if(mama!.inbox().at(-1)?.buttons?.flat().some(b=>b.text.includes('Очистити')))await mama!.tap('Очистити');
+  await mama!.tap('Очистити всі');  // Clear all always asks first
   await laptop.sync({usageMs:4*HOUR+1*MIN,live:true});
   await w.runTasks();
   expect(tato!.inbox().some(m=>m.text.includes('Денний час вичерпано'))).toBe(false);  // suppressed until midnight
@@ -117,8 +116,7 @@ it('sends hourly updates to who asked, allowance warnings to everyone, and honou
 it('alerts every caregiver once the laptop confirms the endtime overlay',async()=>{
   const w=world();
   const {laptop,people:[mama,tato]}=await paired(w);
-  await mama!.say('/endtime set 21:00');
-  if(mama!.inbox().at(-1)?.buttons?.length)await mama!.tap('Підтвердити');
+  await mama!.say('/endtime set 21:00');  // a typed time applies directly; the menu flow reviews
   await mama!.say('/endtime on');
   const settings=(await laptop.sync()).settings;
   expect(settings).toMatchObject({endtimeEnabled:true,endtimeLocalTime:'21:00'});

@@ -11,6 +11,10 @@ export async function purgeDevice(db: Firestore, deviceId: string, options: { co
         throw new Error('Invalid device ID');
     if (options.confirm !== deviceId)
         throw new Error('Purge needs confirmation: --confirm must repeat the device ID');
+    // A live laptop would keep writing (and in-flight tasks recreating) data while it is deleted.
+    const device = await db.doc('devices/' + deviceId).get();
+    if (device.exists && device.data()?.status !== 'revoked')
+        throw new Error('Revoke the device first (enroll.ts revoke-device)');
     // Index documents outside the device tree: pairing keys, Telegram bindings (freeing those accounts to pair a
     // replacement laptop), parent events and messages, task intents, action locations and the enrollment.
     const named = await Promise.all([
@@ -29,9 +33,12 @@ export async function purgeDevice(db: Firestore, deviceId: string, options: { co
         refs.push(...intents.docs.map(d => d.ref));
     }
     const writer = db.bulkWriter();
+    let failed = 0;
     for (const ref of refs)
-        writer.delete(ref);
+        writer.delete(ref).catch(() => { failed++; });
     await writer.close();
+    if (failed)
+        throw new Error(`${failed} related documents could not be deleted; run the purge again`);
     await db.recursiveDelete(db.doc('devices/' + deviceId));
     return { indexDocuments: refs.length };
 }

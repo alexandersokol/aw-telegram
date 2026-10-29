@@ -97,13 +97,17 @@ export function world(start='2026-10-28T06:00:00.000Z'){
       }};
   };
 
-  /** Cloud Tasks: enqueue what repair schedules, then run everything due, until the queue settles. */
+  /** Cloud Tasks: deliver every due task the backend itself enqueued, through /internal/tasks, until the queue
+   * settles. Nothing here enqueues: only production triggers (a sync, a webhook update, a task) do. */
   const runTasks=async()=>{
     for(let round=0;round<20;round++){
-      await backend.tasks.repair(50);
       const due=scheduled.filter(r=>!done.has(r.id+':'+r.dispatchGeneration)&&r.dueAt<=clock());
       if(!due.length)return;
-      for(const row of due){done.add(row.id+':'+row.dispatchGeneration);await backend.tasks.execute({kind:row.kind,resourceId:row.resourceId,generation:row.dispatchGeneration});}
+      for(const row of due){
+        done.add(row.id+':'+row.dispatchGeneration);
+        const r=await call('POST','/internal/tasks',{kind:row.kind,resourceId:row.resourceId,generation:row.dispatchGeneration},{authorization:'Bearer oidc.token.e2e'});
+        if(r.status!==204)throw new Error('task failed: '+r.status);
+      }
     }
     throw new Error('task queue did not settle');
   };

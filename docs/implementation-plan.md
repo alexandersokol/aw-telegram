@@ -979,6 +979,51 @@ Checkpoint 10c (2026-10-30, local, not independently reviewed, nothing deployed)
 
 Companion 435, bot unit 305, emulator 51.
 
+Task 10 review (2026-10-30, independent, over 29e2395..bc8daf3, ACCESS-08 and 10a–10c).
+Verdict: with fixes.
+
+Fixed:
+- **Service account:** `serviceAccount: 'aw-backend@'` would have reached the Scheduler
+  job's OIDC identity and the secrets' IAM grants unexpanded, very likely failing the
+  first deploy. `RUNTIME_ACCOUNT` is now the full email.
+- **Dispatch:** messages that a Telegram command or a task created reached Cloud Tasks only
+  at the next laptop sync or the nightly sweep. So, with the laptop off, "couldn't
+  confirm delivery" and coordination waited. Every webhook update and executed task now
+  runs `repair(25)`, and the sweep dispatches again after cleanup. The e2e harness and
+  server no longer enqueue by themselves; they deliver only what production triggers
+  enqueued, through `/internal/tasks`.
+- **Cleanup:**
+  - Text clearing re-read the same oldest 20 rows; a `scrubbed` marker fixes it.
+  - Only the first device was cleaned; every device now is.
+  - Throughput was capped at 10 rounds; rounds now run to a 300-second budget, within
+    500 writes each.
+  - Stranded-message repair looks only at rows more than 10 minutes overdue.
+  - Three composite indexes were added.
+- **Secrets:** they are trimmed and validated identically by the runtime and `webhook.ts`.
+- **Purge:** it refuses an unrevoked device and reports failed deletes.
+- **Throttling:** enrollment throttling counts an IPv6 /64 together.
+- **Tests:** a cleanup emulator suite (`test:emulator -- cleanup`), unconditional
+  confirmation taps in e2e, and new unit tests for paging, devices, actions, the budget
+  and IPv6.
+- **Docs:**
+  - Cloud Run request logs hold caregivers' Telegram IDs in access-removal paths;
+    operations.md now says so, with a log exclusion.
+  - The rollback advice is corrected for the closed contract.
+  - The Telegram update TTL is recorded as applied.
+
+Deferred:
+- **E2E gaps:** no countdown, and the endtime warning, catch-up, missed day, reschedule,
+  suppression and replacement cases are not in e2e. These are laptop-local and covered by
+  companion unit tests; 10d covers them live.
+- **Not yet exercised:** the deployed Functions adapter path itself; it needs 10d.
+- **Retained indefinitely:** revoked parent documents and Telegram bindings (they block
+  automatic re-pairing to a replacement laptop by design) and expired action-location
+  tombstones.
+- **400 catch-all:** `validateActivityContext` reports every failure as a 400, including
+  a programming error.
+
+Bot unit 311, emulator 52 (auth, pairing, rules, sync, delivery, purge, cleanup), companion 435.
+
 **Files:** create bot/src/cleanup.ts, bot/scripts/purge.ts,
 bot/tests/{cleanup,e2e}.test.ts, docs/{operations,setup}.md,
 companion/tests/test_e2e_simulated.py; lockfiles and Firebase configuration updates.

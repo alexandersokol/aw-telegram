@@ -92,10 +92,11 @@ export async function planParentEvent(repo: FirestoreRepository, tx: Transaction
     if ((await tx.get(ref)).exists)
         return [];
     const recipients = event.recipients.map(({ deviceId, userId, pairingId }) => ({ deviceId, userId, pairingId }));
-    const writes: PlannedWrite[] = [{ ref, value: { id: event.id, deviceId: event.deviceId, at: event.at, kind: event.kind, text: event.text, recipients, ...(event.actions ? { actions: event.actions } : {}) } }];
+    // scrubbed: cleanup clears text 24 hours later and reads only rows not yet cleared.
+    const writes: PlannedWrite[] = [{ ref, value: { id: event.id, deviceId: event.deviceId, at: event.at, kind: event.kind, text: event.text, recipients, scrubbed: false, ...(event.actions ? { actions: event.actions } : {}) } }];
     for (const recipient of recipients) {
         const id = digest(event.id + ':' + recipient.pairingId);
-        writes.push({ ref: repo.db.doc('outbox/' + id), value: { id, eventId: event.id, recipient, text: event.text, createdAt: event.at, state: 'pending', attempts: 0, nextAttemptAt: event.at, leaseToken: null, leaseUntil: null, ...(event.milestone ? { milestone: event.milestone } : {}), ...(event.policy ? { policy: event.policy } : {}) } }, taskIntent(repo, 'outbox', id, event.at));
+        writes.push({ ref: repo.db.doc('outbox/' + id), value: { id, eventId: event.id, recipient, text: event.text, createdAt: event.at, state: 'pending', attempts: 0, nextAttemptAt: event.at, leaseToken: null, leaseUntil: null, scrubbed: false, ...(event.milestone ? { milestone: event.milestone } : {}), ...(event.policy ? { policy: event.policy } : {}) } }, taskIntent(repo, 'outbox', id, event.at));
     }
     return writes;
 }

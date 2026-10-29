@@ -28,7 +28,10 @@ export class WebhookAdmin {
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:' || parsed.pathname !== '/telegram/webhook' || parsed.search || parsed.hash || parsed.username || parsed.password)
             throw new Error('The webhook URL must be https://HOST/telegram/webhook');
-        await this.call('setWebhook', { url: parsed.toString(), secret_token: await this.secret('TELEGRAM_WEBHOOK_SECRET'),
+        const secret = await this.secret('TELEGRAM_WEBHOOK_SECRET');
+        if (!/^[A-Za-z0-9_-]{32,256}$/.test(secret))
+            throw new Error('Secret TELEGRAM_WEBHOOK_SECRET has an invalid format');  // the runtime refuses it too
+        await this.call('setWebhook', { url: parsed.toString(), secret_token: secret,
             allowed_updates: UPDATES, max_connections: 1, drop_pending_updates: false });
         return 'Webhook set';
     }

@@ -7,7 +7,7 @@ const A='00000000-0000-4000-8000-00000000000a', B='00000000-0000-4000-8000-00000
 
 async function seed(db:any,device:string){
   const root=db.doc(`devices/${device}`);
-  await root.set({status:'active',activeParentIds:['1']});
+  await root.set({status:'revoked',credentialDigest:null,activeParentIds:['1']});
   await root.collection('settings').doc('current').set({revision:1});
   await root.collection('days').doc('2026-10-28').set({source:{}});
   await root.collection('actions').doc('act').set({open:true});
@@ -53,6 +53,9 @@ it('refuses without the matching confirmation and deletes nothing',async()=>{
     const before=await paths(db);
     await expect(purgeDevice(db,A,{confirm:B})).rejects.toThrow('confirmation');
     await expect(purgeDevice(db,'not-a-uuid',{confirm:'not-a-uuid'})).rejects.toThrow('device');
-    expect(await paths(db)).toEqual(before);
+    await db.doc(`devices/${A}`).update({status:'active'});
+    await expect(purgeDevice(db,A,{confirm:A})).rejects.toThrow('Revoke the device first');
+    await db.doc(`devices/${A}`).update({status:'revoked'});
+    expect(await paths(db)).toEqual(before);  // nothing deleted by any refused attempt
   } finally {await db.terminate();}
 });

@@ -96,7 +96,7 @@ export class TelegramBot {
     }
     if (!durable) return;
     const at = this.clock();
-    // expireAt drives a Firestore TTL policy; the daily sweep is a bounded fallback.
+    // expireAt drives the telegramUpdates TTL policy (applied 2026-10-29); the daily sweep is a bounded fallback.
     await this.repository.db.runTransaction(async tx => {tx.set(marker, {at, expireAt: new Date(Date.parse(at) + MARKER_TTL_MS)});});
   }
 

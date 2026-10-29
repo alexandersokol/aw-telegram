@@ -99,9 +99,12 @@ export function createBackend(repository:FirestoreRepository,options:{telegram:T
   const outbox=new OutboxService(repository,options.telegram,clock);
   const tasks=new TaskService(repository,options.taskAdapter,outbox,clock);
   const api=new DeviceApi(repository,clock,()=>tasks.repair(2));
-  const taskHandler=createTaskHandler(options.oidc,tasks);
+  // Every mutation that queues a message or deadline is followed by a bounded dispatch to Cloud Tasks, so a
+  // Telegram command or a task's follow-up does not wait for the next laptop sync or the nightly sweep.
+  const dispatch=async()=>{try{await tasks.repair(25);}catch{/* intents stay pending for the next repair */}};
+  const taskHandler=createTaskHandler(options.oidc,{execute:async payload=>{await tasks.execute(payload);if(payload.kind!=='sweep')await dispatch();}});
   const bot=options.webhook&&new TelegramBot(repository,new SettingsService(repository,clock),new ActionService(repository,clock),options.webhook.client,clock);
-  const telegram=bot&&{secret:options.webhook!.secret,handle:(update:unknown)=>bot.handleUpdate(update)};
+  const telegram=bot&&{secret:options.webhook!.secret,handle:async(update:unknown)=>{await bot.handleUpdate(update);await dispatch();}};
   const routes={api,taskHandler,...(telegram?{telegram}:{}),...(options.report?{report:options.report}:{})};
   return {api,outbox,tasks,router:createRouter(repository,routes),httpHandler:createHttpHandler(repository,routes)};
 }

@@ -68,11 +68,16 @@ async function control(path:string,body:any):Promise<unknown> {
     return {status:r.status};
   }
   if(path==='/e2e/tasks'){
+    // Deliver what the backend itself enqueued, through /internal/tasks; nothing here enqueues.
     for(let round=0;round<20;round++){
-      await backend.tasks.repair(50);
       const due=scheduled.filter(r=>!done.has(r.id+':'+r.dispatchGeneration)&&r.dueAt<=clock());
       if(!due.length)return {ok:true};
-      for(const row of due){done.add(row.id+':'+row.dispatchGeneration);await backend.tasks.execute({kind:row.kind,resourceId:row.resourceId,generation:row.dispatchGeneration});}
+      for(const row of due){
+        done.add(row.id+':'+row.dispatchGeneration);
+        const r=await backend.router({method:'POST',path:'/internal/tasks',headers:{authorization:'Bearer oidc.token.e2e'},
+          body:JSON.stringify({kind:row.kind,resourceId:row.resourceId,generation:row.dispatchGeneration}),remoteAddress:'127.0.0.1'});
+        if(r.status!==204)throw new Error('task failed: '+r.status);
+      }
     }
     throw new Error('task queue did not settle');
   }

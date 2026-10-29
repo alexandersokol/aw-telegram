@@ -31,9 +31,9 @@ npx firebase-tools@15.32.1 deploy --only firestore:rules,firestore:indexes --pro
 
 Rules do not restrict the Admin SDK; backend access is governed by IAM.
 
-Not yet applied: a TTL policy on the `expireAt` field of `telegramUpdates`. These are
-redelivery markers that expire two days after an update. The daily sweep remains a
-bounded fallback. Owner-run:
+Applied by the owner on 2026-10-29: a TTL policy on the `expireAt` field of
+`telegramUpdates`. These are redelivery markers that expire two days after an update.
+The daily sweep remains a bounded fallback. The command, for a new project:
 
 ```powershell
 gcloud firestore fields ttls update expireAt --collection-group=telegramUpdates --enable-ttl --project=aw-telegram
@@ -49,7 +49,7 @@ and Logging.
 
 | Account | Purpose | Roles |
 |---|---|---|
-| `aw-backend@aw-telegram.iam.gserviceaccount.com` | Runtime identity of every function | `roles/datastore.user` on the project; `roles/iam.serviceAccountUser` on `aw-tasks-invoker` only |
+| `aw-backend@aw-telegram.iam.gserviceaccount.com` | Runtime identity of every function (`RUNTIME_ACCOUNT` in `bot/src/functions.ts`; change it there for another project) | `roles/datastore.user` on the project; `roles/iam.serviceAccountUser` on `aw-tasks-invoker` only |
 | `aw-tasks-invoker@aw-telegram.iam.gserviceaccount.com` | `oidcToken.serviceAccountEmail` on Cloud Tasks HTTP calls to `/internal/tasks` | None |
 
 `aw-backend` needs `serviceAccountUser` on the invoker so it can create tasks

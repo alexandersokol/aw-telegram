@@ -157,7 +157,9 @@ export class TaskService {
     /** Daily Scheduler task: re-arm lost intents, then retention and delivery repair (cleanup.ts). */
     async sweep(): Promise<CleanupResult> {
         await this.repair(50);
-        return cleanup(this.repo, this.clock());
+        const result = await cleanup(this.repo, this.clock());
+        await this.repair(50);  // dispatches intents cleanup re-armed for stranded messages
+        return result;
     }
 }
 export function createTaskHandler(verifier: {

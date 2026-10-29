@@ -15,7 +15,9 @@ import { GoogleOidcVerifier, productionTasksAdapter, type TaskConfiguration } fr
 import { grammyClient } from './telegram/webhook.js';
 
 export const REGION = 'europe-central2';
-const RUNTIME_ACCOUNT = 'aw-backend@';  // expanded by the Firebase CLI to this project's service account
+// The full email: the Firebase CLI expands an 'aw-backend@' shorthand for the function itself but copies it raw into
+// the Scheduler job's OIDC identity and the secrets' IAM grants. Another project must change this (setup.md).
+export const RUNTIME_ACCOUNT = 'aw-backend@aw-telegram.iam.gserviceaccount.com';
 const botToken = defineSecret('TELEGRAM_BOT_TOKEN');
 const webhookSecret = defineSecret('TELEGRAM_WEBHOOK_SECRET');
 // The api function's HTTPS origin, known after the first deploy (bot/.env.<project>). Until it is set, Cloud
@@ -65,12 +67,15 @@ function backend(): ReturnType<typeof createBackend> {
         initializeApp();
     const project = process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT ?? '';
     const config = taskConfiguration(project, backendUrl.value());
-    const token = botToken.value();
+    // Secret versions written from a shell may end in a newline; webhookAdmin trims the same way.
+    const token = botToken.value().trim(), secret = webhookSecret.value().trim();
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(secret))
+        throw new Error('TELEGRAM_WEBHOOK_SECRET has an invalid format');
     built = createBackend(new FirestoreRepository(getFirestore()), {
         telegram: new TelegramHttpAdapter(token, fetchTransport),
         taskAdapter: config ? productionTasksAdapter(config) : { create: async () => { throw new Error('Cloud Tasks target not configured'); } },
         oidc: config ? new GoogleOidcVerifier(config) : { verify: async () => { throw new BoundaryError('Unauthorized task', 401); } },
-        webhook: { secret: webhookSecret.value(), client: grammyClient(new Api(token)) },
+        webhook: { secret, client: grammyClient(new Api(token)) },
         report,
     });
     return built;

@@ -7,7 +7,7 @@ import {fixture} from './delivery-fixture.js';
 it('runs the api in europe-central2 as aw-backend with both secrets, scaling 0 to 2',()=>{
   const endpoint=(api as any).__endpoint;
   expect(endpoint.region).toEqual([REGION]);
-  expect(endpoint.serviceAccountEmail).toBe('aw-backend@');
+  expect(endpoint.serviceAccountEmail).toBe('aw-backend@aw-telegram.iam.gserviceaccount.com');  // never the raw shorthand
   expect([endpoint.minInstances,endpoint.maxInstances]).toEqual([0,2]);
   expect(endpoint.secretEnvironmentVariables.map((s:any)=>s.key).sort()).toEqual(['TELEGRAM_BOT_TOKEN','TELEGRAM_WEBHOOK_SECRET']);
   expect(endpoint.httpsTrigger).toBeDefined();
@@ -16,7 +16,7 @@ it('runs the api in europe-central2 as aw-backend with both secrets, scaling 0 t
 it('sweeps daily after Kyiv midnight with one instance at most',()=>{
   const endpoint=(sweep as any).__endpoint;
   expect(endpoint.scheduleTrigger).toMatchObject({schedule:'30 0 * * *',timeZone:'Europe/Kyiv'});
-  expect([endpoint.region,endpoint.serviceAccountEmail,endpoint.maxInstances]).toEqual([[REGION],'aw-backend@',1]);
+  expect([endpoint.region,endpoint.serviceAccountEmail,endpoint.maxInstances]).toEqual([[REGION],'aw-backend@aw-telegram.iam.gserviceaccount.com',1]);
 });
 
 it('adapts a Functions request without trusting caller-supplied addresses',()=>{

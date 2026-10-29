@@ -44,7 +44,12 @@ export function label(value: unknown): string {
 function ipSubject(value: string): string {
   let ip=value.toLowerCase(); if(ip.startsWith('::ffff:') && isIP(ip.slice(7))===4) ip=ip.slice(7);
   const family=isIP(ip); if(!family) throw new BoundaryError('Invalid request');
-  return family===6 ? new URL(`http://[${ip}]/`).hostname : ip;
+  if(family===4) return ip;
+  // One subscriber usually holds a whole /64: rotating within it must not reset the enrollment throttle.
+  const groups=new URL(`http://[${ip}]/`).hostname.slice(1,-1).split(':');
+  const gap=groups.indexOf('');
+  const full=gap<0?groups:[...groups.slice(0,gap),...Array(8-groups.filter(g=>g).length).fill('0'),...groups.slice(gap).filter(g=>g)];
+  return full.slice(0,4).map(g=>g.padStart(4,'0')).join(':')+'::/64';
 }
 function activeDevice(snapshot: DocumentSnapshot, identity?: DeviceIdentity): Record<string, any> {
   const device=snapshot.data();

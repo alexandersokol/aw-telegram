@@ -92,18 +92,23 @@ produce a duplicate Telegram message. Laptop action deduplication is separate.
 Cloud Tasks use authenticated REST and real Google OIDC verification with exact
 configured audience/service-account checks. Durable logical task identities and
 persisted dispatch generations repair enqueue crashes and lost-enqueued work.
-The daily sweep task (`kind:'sweep'`) re-arms lost task intents, then runs
-`cleanup(now)` (`src/cleanup.ts`). It repeats bounded rounds until nothing changes:
+Every webhook update and every executed task is followed by a bounded `repair(25)`, as
+every sync is by `repair(2)`. Messages and deadlines a Telegram command queues therefore
+reach Cloud Tasks at once, even while the laptop is off. The daily sweep task
+(`kind:'sweep'`) re-arms lost task intents, runs `cleanup(now)` (`src/cleanup.ts`), and
+dispatches again. Cleanup cleans every device and repeats bounded rounds (each under 500
+writes) until nothing changes or its 300-second budget ends:
 - **Evidence:** retained for seven Kyiv dates, compared as Kyiv dates. Completed
-  message text clears after 24 hours.
+  message text clears after 24 hours. Events and outbox rows carry `scrubbed:false` until
+  then, so the clearing query never re-reads cleared rows.
 - **Inactive laptop:** days outside the seven retained dates are deleted even when the
   laptop no longer syncs. A laptop silent past retention loses its last window title.
 - **Short-lived records:** expired menu sessions and throttle windows go.
 - **Keys and enrollments:** pairing keys of any state go a week after expiry. Unused
   enrollments also go a week after expiry; consumed ones stay for owner recovery.
 - **Operation tombstones:** after 30 days, when a replay is impossible.
-- **Delivery repair:** a pending or uncertain outbox message whose task intent was lost
-  gets a new one.
+- **Delivery repair:** a pending or uncertain outbox message more than 10 minutes overdue
+  whose task intent was lost gets a new one.
 
 Physical cleanup can lag. Minimal expired-operation digest tombstones prevent replay
 from creating a new action after its cached result is removed.
@@ -111,7 +116,8 @@ from creating a new action after its cached result is removed.
 `scripts/purge.ts --project P --device-id ID --confirm ID` (owner IAM, irreversible)
 deletes a device's document tree and every top-level document that names it: keys,
 Telegram bindings (freeing those accounts for a replacement laptop), events, outbox,
-task intents, action locations and the enrollment. Revoke the device first.
+task intents, action locations and the enrollment. It refuses a device that is not yet
+revoked, and stops with an error if any delete fails (a rerun is safe).
 
 ## Local verification
 

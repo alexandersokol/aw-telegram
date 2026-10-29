@@ -32,7 +32,7 @@ it('summarizes webhook info and Telegram errors without the token',async()=>{
   expect(summary).toContain('https://x.example/telegram/webhook');
   expect(summary).toContain('pending updates: 3');
   expect(summary).toContain('Wrong response');
-  const failing=new WebhookAdmin(async()=>TOKEN,http(()=>({status:401,body:{ok:false,description:'Unauthorized'}})).transport);
+  const failing=new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:SECRET,http(()=>({status:401,body:{ok:false,description:'Unauthorized'}})).transport);
   const error=await failing.set('https://x.example/telegram/webhook').catch(e=>e.message);
   expect(error).toBe('Telegram refused: Unauthorized');
   expect(error).not.toContain(TOKEN);
@@ -47,4 +47,11 @@ it('reads the latest secret version through Secret Manager with an owner access 
   expect(net.calls[0].init.headers.Authorization).toBe('Bearer owner-token');
   const denied=secretManagerReader('aw-telegram',async()=>'t',http(()=>({status:403,body:{}})).transport);
   await expect(denied('TELEGRAM_BOT_TOKEN')).rejects.toThrow('Secret TELEGRAM_BOT_TOKEN is not readable');
+});
+
+it('refuses a webhook secret the runtime would reject, before calling Telegram',async()=>{
+  const net=http(()=>({status:200,body:{ok:true,result:true}}));
+  const admin=new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:'short',net.transport);
+  await expect(admin.set('https://x.example/telegram/webhook')).rejects.toThrow('invalid format');
+  expect(net.calls).toEqual([]);
 });
