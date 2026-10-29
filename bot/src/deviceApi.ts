@@ -60,7 +60,8 @@ export class DeviceApi {
       const migrateSettings=needsSettingsMigration(settingsDoc!.data());
       const cancellations=validateContract('cancellations',cancelDoc!.data()??emptyCancellations());
       const startedAt=device.collectionStartedAt===null?null:new Date(device.collectionStartedAt).toISOString();
-      validateActivityContext(request,startedAt,now);
+      // Laptop input outside its pairing/clock context is a refused request (400), not a server failure.
+      try {validateActivityContext(request,startedAt,now);} catch {throw new BoundaryError('Invalid activity context');}
       const dayDocs=await tx.get(root.collection('days'));
       const receiptRefs=request.acks.map(a=>root.collection('receipts').doc(a.id));
       const receiptDocs=receiptRefs.length?await tx.getAll(...receiptRefs):[];

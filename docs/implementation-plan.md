@@ -943,6 +943,42 @@ Checkpoint 10b (2026-10-29, local, not independently reviewed, nothing deployed)
 Bot unit 300, emulator (auth, pairing, rules, sync, delivery, purge) 51, build and bundle
 check pass. The runtime npm audit reports 0 vulnerabilities.
 
+Checkpoint 10c (2026-10-30, local, not independently reviewed, nothing deployed): simulated end-to-end.
+- **`bot/tests/e2e.test.ts`** (5 scenarios, `e2e-harness.ts`): the real router, webhook and
+  task service over an in-memory Firestore, a recording Telegram, a simulated Cloud Tasks
+  queue and a wire-level laptop.
+  - Enrollment and `/pair` pairing.
+  - `/usage` and `/status`, including offline after silence.
+  - Category and limit edits reaching the laptop, coordinated to the other caregiver.
+  - An overlay offered, accepted, shown and confirmed to both caregivers. A delayed
+    notify expiring while the laptop is off. A manual clear fencing a timer.
+  - Hourly updates for the caregiver who asked only. The 15-minute warning to everyone.
+    Free use silencing the 5-minute warning. Ending free use and restoring reminders each
+    catching up at once, folded into coordination (FREE-08, SUPPRESS-02). Clear all
+    suppressing the expiry alert.
+  - The endtime alert exactly once after a duplicated receipt.
+  - Ten caregivers: the eleventh refused without consuming its key, a shared edit fanned
+    out to the other nine, a removed caregiver treated as unpaired, the key then accepted,
+    and removing everyone giving `activeCaregivers` 0.
+- **`companion/tests/test_e2e_simulated.py`:** cross-process. The real companion Transport,
+  LocalStore, SyncCoordinator and Scheduler talk HTTP to the compiled backend served on
+  loopback by `bot/scripts/e2e-server.ts`, a never-deployed server with a test clock.
+  - Enrollment and pairing with a key from the real access API.
+  - Settings applied and acknowledged.
+  - A reminder shown and confirmed.
+  - The allowance overlay on the laptop together with the bot's expiry alert.
+  - Offline sync failure while the local rule still repeats.
+  - A reboot from disk without replay.
+  - Removing the last caregiver pausing the laptop.
+- **Fix found by the end-to-end run:** laptop input outside its pairing or clock context
+  made sync throw a plain error (500, logged as a failure). It is now a refused request
+  (400, `Invalid activity context`).
+- **Not simulated:** real Telegram, Firestore, Cloud Tasks and Scheduler, ActivityWatch,
+  and the Windows screen. Those are 10d (staging, with owner authorization) and the
+  Windows checks.
+
+Companion 435, bot unit 305, emulator 51.
+
 **Files:** create bot/src/cleanup.ts, bot/scripts/purge.ts,
 bot/tests/{cleanup,e2e}.test.ts, docs/{operations,setup}.md,
 companion/tests/test_e2e_simulated.py; lockfiles and Firebase configuration updates.
