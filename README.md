@@ -30,7 +30,7 @@ The owner approved the [endtime design amendment](docs/superpowers/specs/2026-10
 on 2026-10-29. It adds a disabled-by-default daily `21:00` endtime setting,
 local 15/10/5-minute warnings, a repeating reached-time overlay, and a
 companion-confirmed Telegram alert. The amendment also raises the active caregiver
-limit from two to ten and changes overlays to newest-due-wins. Amendment Tasks 1–5
+limit from two to ten and changes overlays to newest-due-wins. Amendment Tasks 1–6
 (contracts, ten caregivers, persisted endtime settings and generations, confirmed
 receipt alerts with retroactive suppression, `/endtime` command/menu logic, and
 the companion's offline endtime policy with newest-overlay-wins scheduling) are
