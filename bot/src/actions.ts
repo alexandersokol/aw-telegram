@@ -1,7 +1,7 @@
 /** Transaction plans for durable action identity, evidence and cancellation fences. */
 import { randomUUID } from 'node:crypto';
 import type { Transaction, DocumentReference } from 'firebase-admin/firestore';
-import { BoundaryError, FirestoreRepository, digest, type ParentIdentity, type Parent, type DeviceIdentity } from './repository.js';
+import { BoundaryError, FirestoreRepository, digest, MAX_ACTIVE_CAREGIVERS, type ParentIdentity, type Parent, type DeviceIdentity } from './repository.js';
 import { validateContract, validateActionReceipt, actionCanceled, type Action, type ActionAck, type Cancellations, type Settings, type SyncResponse } from './contracts.js';
 import { dayBounds, kyivDate, parseInstant, retainedDates, retentionStart } from './clock.js';
 import { canonical, checkSettingsCapacity, emptyCancellations, boundedResponse } from './deviceApi.js';
@@ -69,7 +69,7 @@ export interface ActionSnapshot {
 export async function readParents(repo: FirestoreRepository, tx: Transaction, deviceId: string): Promise<Parent[]> {
     const root = repo.db.doc('devices/' + deviceId), device = (await tx.get(root)).data();
     const ids = device?.activeParentIds ?? [];
-    if (ids.length > 2)
+    if (ids.length > MAX_ACTIVE_CAREGIVERS)
         throw new BoundaryError('Invalid recipient set');
     const docs = ids.length ? await tx.getAll(...ids.map((id: string) => root.collection('parents').doc(id))) : [];
     return docs.map(d => d.data() as Parent).filter(p => p && p.revokedAt === null);

@@ -166,8 +166,14 @@ it('offers an original timer targeting tomorrow and ignores early closure rather
   await f.api.syncDevice(identity,{...request(),acks:[ack(action,'presented',{eventSequence:2,at:action.targetAt,acceptedAt:action.createdAt,presentedAt:action.targetAt})]});expect(f.db.data.get(root+'/actions/'+action.id).state).toBe('presented');
 });
 
-it('atomically accepts100 repeating first presentations with normal sync overhead and offers within450 writes',async()=>{
-  const f=await setup(),first=(await f.actions.createAction(parent(),{...draft,options:{...draft.options,repeatEveryMinutes:1}},'seed-repeat')).action;
+it.each([2,10])('durably drains 100 repeating first presentations for %i caregivers with sync overhead within 450 writes per request',async caregiverCount=>{
+  const f=await setup();
+  for(let i=3;i<=caregiverCount;i++){
+    const p={...parent(String(i)),pairingId:randomUUID()};f.db.data.get(root).activeParentIds.push(p.userId);
+    f.db.data.set(root+'/parents/'+p.userId,{...p,revokedAt:null,name:'Parent',joinedAt:0,hourlyEnabled:false});
+    f.db.data.set('telegramUsers/'+p.userId,{deviceId:p.deviceId,pairingId:p.pairingId,revokedAt:null});
+  }
+  const first=(await f.actions.createAction(parent(),{...draft,options:{...draft.options,repeatEveryMinutes:1}},'seed-repeat')).action;
   const receiptActions=[];
   for(let i=0;i<200;i++){
     const a={...first,id:i?randomUUID():first.id,sequence:i+1};
@@ -178,17 +184,69 @@ it('atomically accepts100 repeating first presentations with normal sync overhea
   const {retainedDates,dayBounds}=await import('../src/clock.js');const dates=retainedDates(NOW),totalMs=4*3600000-4*60000;
   f.db.data.get(root).collectionStartedAt=Date.parse(dayBounds(dates.at(-1)!).start);
   f.db.data.get(root+'/settings/current').selectedUncategorized=true;
-  for(const id of ['1','2'])f.db.data.get(root+'/parents/'+id).hourlyEnabled=true;
+  for(const id of f.db.data.get(root).activeParentIds)f.db.data.get(root+'/parents/'+id).hourlyEnabled=true;
   const summaries=dates.map(date=>{const bounds=dayBounds(date);return {date,sequence:1,settingsRevision:0,rulesRevision:'r',leafTotalsMs:[{category:{id:'uncategorized',path:null},totalMs}],appLeafTotalsMs:[{app:'Editor',categoryId:'uncategorized',totalMs}],totalActiveMs:totalMs,selectedTotalMs:totalMs,availableFrom:bounds.start,availableThrough:bounds.end<NOW?bounds.end:NOW,partial:true};});
   let writes=0;const original=f.db.runTransaction.bind(f.db);
   f.db.runTransaction=(body:any)=>original(async(tx:any)=>body(new Proxy(tx,{get(target,key){if(['set','update','delete','create'].includes(String(key)))return(...args:any[])=>{writes++;return target[key](...args);};return target[key];}})));
   const receipts=receiptActions.map(a=>ack(a,'presented',{presentedAt:NOW}));
   const response=await f.api.syncDevice(identity,{...request(),acks:receipts,summaries,health:{observedAt:NOW,awState:'ready',lastSuccessAt:NOW,reportError:null},live:{observedAt:NOW,state:'active',app:'Editor',title:'PRIVATE CURRENT TITLE',category:null,rulesRevision:'r',categoryCatalog:[]}});
-  expect(response.acknowledgedAckIds).toHaveLength(100);expect(writes).toBeLessThanOrEqual(450);
-  expect(response.deliveryOffers.length).toBeGreaterThan(0);expect(response.deliveryOffers.length).toBeLessThan(100);
+  expect(response.acknowledgedAckIds).toHaveLength(caregiverCount===10?50:100);expect(writes).toBeLessThanOrEqual(450);
+  expect(response.deliveryOffers.length).toBeGreaterThan(0);
+  if(caregiverCount===2)expect(response.deliveryOffers.length).toBeLessThan(100);
+  if(caregiverCount===10){
+    expect(response.acknowledgedAckIds).toEqual(receipts.slice(0,50).map(a=>a.id));
+    expect(receipts.slice(50).every(a=>!f.db.data.has(root+'/receipts/'+a.id))).toBe(true);
+    const remaining=receipts.filter(a=>!response.acknowledgedAckIds.includes(a.id));writes=0;
+    const retry=await f.api.syncDevice(identity,{...request(2),acks:remaining,summaries,health:{observedAt:NOW,awState:'ready',lastSuccessAt:NOW,reportError:null}});
+    expect(retry.acknowledgedAckIds).toEqual(remaining.map(a=>a.id));expect(writes).toBeLessThanOrEqual(450);
+    expect([...response.acknowledgedAckIds,...retry.acknowledgedAckIds]).toEqual(receipts.map(a=>a.id));
+    const events=[...f.db.data].filter(([key,row])=>key.startsWith('events/')&&row.actions?.length).map(([,row])=>row);
+    expect(events).toHaveLength(2);expect(events.every(e=>e.recipients.length===10)).toBe(true);
+    writes=0;await f.api.syncDevice(identity,{...request(1),acks:receipts,summaries});
+    expect([...f.db.data].filter(([key,row])=>key.startsWith('events/')&&row.actions?.length)).toHaveLength(2);
+    expect(writes).toBeLessThanOrEqual(450);
+  }
   expect(receiptActions.every(a=>f.db.data.get(root+'/actions/'+a.id).state==='presented')).toBe(true);
   const offered=new Set(response.deliveryOffers.map(a=>a.id));for(const [key,row]of f.db.data)if(key.startsWith(root+'/actions/')&&!key.slice((root+'/actions/').length).includes('/')&&row.action.sequence>100)expect(row.offerCount).toBe(offered.has(row.action.id)?1:0);
   const midnightIntents=[...f.db.data].filter(([key,row])=>key.startsWith('taskIntents/')&&row.kind==='deadline'&&row.dueAt==='2026-10-28T22:00:00.000Z');expect(midnightIntents).toHaveLength(100);
+});
+
+it('partially acknowledges later occurrences alongside 200 cancellation updates without losing control receipts or replaying evidence',async()=>{
+  const f=await setup();
+  for(let i=3;i<=10;i++){
+    const p={...parent(String(i)),pairingId:randomUUID()};f.db.data.get(root).activeParentIds.push(p.userId);
+    f.db.data.set(root+'/parents/'+p.userId,{...p,revokedAt:null,name:'Parent',joinedAt:0,hourlyEnabled:false});
+    f.db.data.set('telegramUsers/'+p.userId,{deviceId:p.deviceId,pairingId:p.pairingId,revokedAt:null});
+  }
+  const first=(await f.actions.createAction(parent(),{...draft,options:{...draft.options,repeatEveryMinutes:1}},'seed-later')).action;
+  const receipts=[];
+  for(let i=0;i<200;i++){
+    const action={...first,id:i?randomUUID():first.id,sequence:i+1},row=structuredClone(f.db.data.get(root+'/actions/'+first.id));row.action=action;
+    if(i<98){
+      Object.assign(row,{state:'dismissed',acceptedAt:NOW,presentedAt:NOW,firstOfferedAt:NOW,lastOfferedAt:NOW,offerCount:1,latestSequence:2,latestAt:NOW,
+        initialOccurrence:{sequence:2,status:'dismissed',presentedAt:NOW,dismissedAt:NOW,terminal:true}});
+      receipts.push(ack(action,'presented',{eventSequence:3,occurrence:1,at:'2026-10-28T12:01:00.000Z',presentedAt:'2026-10-28T12:01:00.000Z'}));
+    }
+    f.db.data.set(root+'/actions/'+action.id,row);
+  }
+  f.db.data.set(root+'/actionControls/current',{sequence:200});f.advance(120000);
+  const cancellation=await f.actions.clearActions(parent(),'manual','cancel-all');
+  const controls=[{id:randomUUID(),kind:'settings' as const,revision:0,appliedAt:f.clock()},
+    {id:randomUUID(),kind:'cancellation' as const,revision:cancellation.revision,throughActionSequence:cancellation.throughActionSequence,appliedAt:f.clock()}];
+  const all=[receipts[0],controls[0],...receipts.slice(1),controls[1]],original=f.db.runTransaction.bind(f.db);let writes=0;
+  f.db.runTransaction=(body:any)=>original(async(tx:any)=>body(new Proxy(tx,{get(target,key){if(['set','update','delete','create'].includes(String(key)))return(...args:any[])=>{writes++;return target[key](...args);};return target[key];}})));
+  const firstResponse=await f.api.syncDevice(identity,{...request(2),acks:all});
+  expect(firstResponse.acknowledgedAckIds).toEqual(all.filter(a=>a.kind!=='action'||receipts.slice(0,49).includes(a)).map(a=>a.id));
+  expect(writes).toBeLessThanOrEqual(450);expect(firstResponse.deliveryOffers).toEqual([]);
+  expect(f.db.data.get(root+'/sync/current')).toMatchObject({settingsAckRevision:0,cancellationAckRevision:cancellation.revision,cancellationAckFence:200,maxRequestSequence:2});
+  const remaining=receipts.slice(49);expect(remaining.every(a=>!f.db.data.has(root+'/receipts/'+a.id))).toBe(true);
+  writes=0;const secondResponse=await f.api.syncDevice(identity,{...request(3),acks:remaining});
+  expect(secondResponse.acknowledgedAckIds).toEqual(remaining.map(a=>a.id));expect(writes).toBeLessThanOrEqual(450);
+  expect(receipts.every(a=>f.db.data.get(root+'/actions/'+a.actionId+'/occurrences/1').presentedAt==='2026-10-28T12:01:00.000Z')).toBe(true);
+  const eventCount=[...f.db.data.keys()].filter(key=>key.startsWith('events/')).length;
+  await f.api.syncDevice(identity,{...request(1),acks:all});
+  expect([...f.db.data.keys()].filter(key=>key.startsWith('events/'))).toHaveLength(eventCount);
+  expect(f.db.data.get(root+'/sync/current').maxRequestSequence).toBe(3);
 });
 
 it('preserves tomorrow delivery across both Kyiv DST calendar transitions',async()=>{

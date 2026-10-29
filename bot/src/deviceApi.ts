@@ -3,7 +3,7 @@ import {decodeSettings} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,digest,type DeviceIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,
   type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant} from './contracts.js';
-import {applyPlan} from './outbox.js';
+import {applyPlan,type PlannedWrite} from './outbox.js';
 import {readActionSnapshot,planActionSync} from './actions.js';
 import {readAlerts,planAlerts,measurement} from './alertPlans.js';
 import {retainedDates,parseInstant} from './clock.js';
@@ -110,9 +110,25 @@ export class DeviceApi {
         acknowledgedAckIds:request.acks.map(a=>a.id)});
       const changedToday=dayWrites.find(w=>w.value.source.date===retained[0])?.value;
       const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alertSnapshot,measurement(changedToday)):[];
-      const newReceipts=receiptDocs.filter(doc=>!doc.exists).length;
-      const mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length;
-      const actionWrites=await planActionSync(this.repository,tx,actions,request.acks.filter(a=>a.kind==='action'),settings,cancellations,now,response,450-mandatoryWrites);
+      let actionAcks=request.acks.filter(a=>a.kind==='action'),selectedAcks=request.acks;
+      let mandatoryWrites:number,actionWrites:PlannedWrite[];
+      for(;;){
+        const selectedIds=new Set(selectedAcks.map(a=>a.id));
+        const newReceipts=receiptDocs.filter((doc,i)=>!doc.exists&&selectedIds.has(request.acks[i]!.id)).length;
+        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length;
+        response.acknowledgedAckIds=selectedAcks.map(a=>a.id);response.deliveryOffers=[];
+        try{
+          actionWrites=await planActionSync(this.repository,tx,actions,actionAcks,settings,cancellations,now,response,450-mandatoryWrites);
+          break;
+        }catch(error){
+          if(!(error instanceof BoundaryError)||error.message!=='Sync transaction capacity exceeded'||actionAcks.length<=1)throw error;
+          // Planning has no writes. Keep a prefix of action evidence; control receipts are cheap
+          // and still applied. The companion retains every ID omitted from this response.
+          actionAcks=actionAcks.slice(0,Math.ceil(actionAcks.length/2));
+          const retainedIds=new Set(actionAcks.map(a=>a.id));
+          selectedAcks=request.acks.filter(a=>a.kind!=='action'||retainedIds.has(a.id));
+        }
+      }
       boundedResponse(response);
       // Physical cleanup is optional; it cannot displace controls, accepted receipts or source writes.
       const cleanup=dayDocs.docs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
@@ -120,7 +136,8 @@ export class DeviceApi {
       applyPlan(tx,[...actionWrites,...alertWrites]);
       for(const write of dayWrites) tx.set(write.ref,write.value);
       for(const doc of cleanup) tx.delete(doc.ref);
-      for(let i=0;i<request.acks.length;i++) if(!receiptDocs[i]!.exists)
+      const acknowledgedIds=new Set(response.acknowledgedAckIds);
+      for(let i=0;i<request.acks.length;i++) if(!receiptDocs[i]!.exists&&acknowledgedIds.has(request.acks[i]!.id))
         tx.set(receiptRefs[i]!,{digest:digest(canonical(request.acks[i])),receivedAt:now});
       if(live) tx.set(liveRef,live);
       if(health) tx.set(healthRef,health);

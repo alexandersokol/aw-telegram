@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {existsSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
 import {fixture,parent,NOW} from './delivery-fixture.js';
 async function setup(send:any=async()=>({kind:'sent',messageId:42})){
   expect(existsSync(new URL('../src/outbox.ts',import.meta.url)),'durable outbox is missing').toBe(true);
@@ -7,6 +8,20 @@ async function setup(send:any=async()=>({kind:'sent',messageId:42})){
 }
 const event={id:'event-1',deviceId:parent().deviceId,at:NOW,kind:'status',text:'Очікуємо підтвердження виконання',recipients:[parent(),parent('2')]};
 describe('outbox',()=>{
+  it('accepts ten unique recipients and stages exactly one independent row and task each',async()=>{
+    const f=await setup(),recipients=Array.from({length:10},(_,i)=>({...parent(String(i+1)),pairingId:randomUUID()}));
+    await f.worker.enqueueParentEvent({...event,recipients});await f.worker.enqueueParentEvent({...event,recipients});
+    expect([...f.db.data.keys()].filter(k=>k.startsWith('events/'))).toHaveLength(1);
+    const rows=[...f.db.data].filter(([k])=>k.startsWith('outbox/')).map(([,row])=>row);
+    expect(rows).toHaveLength(10);expect(new Set(rows.map(row=>row.recipient.pairingId)).size).toBe(10);
+    expect([...f.db.data.keys()].filter(k=>k.startsWith('taskIntents/'))).toHaveLength(10);
+  });
+  it.each(['eleven','duplicate'] as const)('rejects %s recipients atomically',async kind=>{
+    const f=await setup(),recipients=Array.from({length:kind==='eleven'?11:10},(_,i)=>({...parent(String(i+1)),pairingId:randomUUID()}));
+    if(kind==='duplicate')recipients[9]=recipients[0]!;
+    const before=structuredClone(f.db.data);
+    await expect(f.worker.enqueueParentEvent({...event,recipients})).rejects.toThrow('Invalid event');expect(f.db.data).toEqual(before);
+  });
   it('stages deterministic event and independent recipients atomically and isolates one Telegram 403',async()=>{
     const f=await setup(async(chat:string)=>chat==='1'?{kind:'forbidden'}:{kind:'sent',messageId:42});await f.worker.enqueueParentEvent(event);await f.worker.enqueueParentEvent(event);
     const rows=[...f.db.data.keys()].filter(k=>k.startsWith('outbox/'));expect(rows).toHaveLength(2);

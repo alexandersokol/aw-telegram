@@ -8,6 +8,7 @@ export const KEY_LIFETIME_MS = 900000;
 export const ENROLL_ATTEMPTS = 5;
 export const PAIR_ATTEMPTS = 10;
 export const KEY_PAGE_SIZE = 50;
+export const MAX_ACTIVE_CAREGIVERS = 10;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const digest = (value: string): string => createHash('sha256').update(value,'utf8').digest('hex');
 export const newSecret = (bytes: 16 | 32): string => randomBytes(bytes).toString('base64url');
@@ -44,7 +45,7 @@ function activeDevice(snapshot: DocumentSnapshot, identity?: DeviceIdentity): Re
   const device=snapshot.data();
   if(!device || device.status!=='active' || typeof device.credentialDigest!=='string' ||
     (identity && device.credentialDigest!==identity.credentialDigest) || !Array.isArray(device.activeParentIds) ||
-    device.activeParentIds.length>2 || new Set(device.activeParentIds).size!==device.activeParentIds.length) unauthorized();
+    device.activeParentIds.length>MAX_ACTIVE_CAREGIVERS || new Set(device.activeParentIds).size!==device.activeParentIds.length) unauthorized();
   return device!;
 }
 function actorChecked(actor: PrivateActor): void {
@@ -118,7 +119,7 @@ export class FirestoreRepository {
       const deviceRef=this.db.doc(`devices/${key.deviceId}`), parentRef=deviceRef.collection('parents').doc(userId);
       const [d,b,p]=await tx.getAll(deviceRef,bindingRef,parentRef), device=d!.data(), binding=b!.data(), previous=p!.data();
       if(!device || device.status!=='active' || !device.credentialDigest || !Array.isArray(device.activeParentIds) ||
-        device.activeParentIds.length>=2 || new Set(device.activeParentIds).size!==device.activeParentIds.length ||
+        device.activeParentIds.length>=MAX_ACTIVE_CAREGIVERS || new Set(device.activeParentIds).size!==device.activeParentIds.length ||
         device.activeParentIds.includes(userId) || (binding && binding.revokedAt===null) || (previous && previous.revokedAt===null))
         throw new BoundaryError('Invalid pairing');
       const parent:Parent={deviceId:key.deviceId,userId,chatId,pairingId,name:key.name,joinedAt:now,revokedAt:null,hourlyEnabled:false};

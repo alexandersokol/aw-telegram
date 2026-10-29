@@ -23,6 +23,25 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await db.terminate();});
 describe('delivery emulator races and rollback',()=>{
+ it('fans out to ten caregivers and cancels only a revoked generation even after re-pairing',async()=>{
+  const parents=[p1,p2];
+  for(let i=3;i<=10;i++){const key=await repo.createPairKey(identity,'Parent '+i);parents.push(await repo.pairParent(key.secret,String(i),String(i)));}
+  await settings.setHourly(parents[9]!,true,'tenth-hourly');
+  expect((await db.collection(path('parents')).get()).docs.filter(doc=>doc.data().hourlyEnabled).map(doc=>doc.id)).toEqual(['10']);
+  await actions.createAction(p1,draft,'ten-action');
+  const event=(await db.collection('events').get()).docs.find(doc=>doc.data().kind==='status')!.data();
+  expect(event.recipients).toHaveLength(10);
+  const rows=(await db.collection('outbox').where('eventId','==',event.id).get()).docs;
+  await repo.revokeAccess(identity,`parent:10:${parents[9]!.pairingId}`);
+  const key=await repo.createPairKey(identity,'Replacement');const replacement=await repo.pairParent(key.secret,'10','10');
+  expect(replacement.pairingId).not.toBe(parents[9]!.pairingId);
+  const chats:string[]=[],outbox=new OutboxService(repo,{send:async chat=>{chats.push(chat);return {kind:'sent',messageId:42};}},clock);
+  await Promise.all(rows.map(row=>outbox.deliverOutbox(row.id)));
+  expect(chats.sort()).toEqual(['1','2','3','4','5','6','7','8','9']);
+  const final=await Promise.all(rows.map(row=>row.ref.get()));
+  expect(final.filter(doc=>doc.data()?.state==='delivered')).toHaveLength(9);
+  expect(final.filter(doc=>doc.data()?.state==='canceled').map(doc=>doc.data()?.recipient.userId)).toEqual(['10']);
+ });
  it('serializes duplicate operations without burning sequences and conflicts body reuse',async()=>{
   const result=await Promise.all(Array.from({length:5},()=>actions.createAction(p1,draft,'update:1')));expect(new Set(result.map(r=>r.action.id)).size).toBe(1);expect((await db.doc(path('actionControls/current')).get()).data()?.sequence).toBe(1);
   await expect(actions.createAction(p1,{...draft,delayMinutes:1},'update:1')).rejects.toThrow('conflict');expect((await db.collection('events').get()).size).toBe(1);

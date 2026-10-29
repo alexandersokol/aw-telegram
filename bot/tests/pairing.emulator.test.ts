@@ -32,12 +32,22 @@ test('one key concurrent consumption has one winner, numeric identities persist'
   const parent=(await db.collection(`devices/${device.deviceId}/parents`).get()).docs[0]!.data();
   expect(parent.userId).toMatch(/^10[12]$/); expect(parent.hourlyEnabled).toBe(false);
 });
-test('three keys racing cannot exceed two parents; full-device key remains unused',async()=>{
-  const keys=await Promise.all([key(),key(),key()]);
+test('eleven keys racing admit ten caregivers and leave the rejected key reusable after revocation',async()=>{
+  const keys=await Promise.all(Array.from({length:11},()=>key()));
   const results=await Promise.allSettled(keys.map((k,i)=>repo.pairParent(k.secret,String(101+i),String(101+i))));
-  expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(2);
-  expect((await db.doc(`devices/${device.deviceId}`).get()).data()?.activeParentIds).toHaveLength(2);
+  expect(results.filter(x=>x.status==='fulfilled')).toHaveLength(10);
+  expect(results.filter(x=>x.status==='rejected')).toHaveLength(1);
+  const rejected=results.findIndex(x=>x.status==='rejected'),winner=results.find(x=>x.status==='fulfilled');
+  expect((results[rejected] as PromiseRejectedResult).reason.message).toBe('Invalid pairing');
+  expect((await db.doc(`devices/${device.deviceId}`).get()).data()?.activeParentIds).toHaveLength(10);
   expect((await db.collection('pairKeys').get()).docs.filter(x=>x.data().consumedAt===null)).toHaveLength(1);
+  expect((await db.doc(`pairKeys/${digest(keys[rejected].secret)}`).get()).data()?.consumedAt).toBeNull();
+  expect((await repo.listAccess(device)).parents).toHaveLength(10);
+  const parent=(winner as PromiseFulfilledResult<any>).value;
+  await repo.revokeAccess(device,`parent:${parent.userId}:${parent.pairingId}`);
+  const userId=String(101+rejected),replacement=await repo.pairParent(keys[rejected].secret,userId,userId);
+  expect((await db.doc(`pairKeys/${digest(keys[rejected].secret)}`).get()).data()?.pairingId).toBe(replacement.pairingId);
+  expect((await repo.listAccess(device)).parents).toHaveLength(10);
 });
 test('same sender racing two keys has one binding and leaves one key unused',async()=>{
   const keys=await Promise.all([key(),key()]);

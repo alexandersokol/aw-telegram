@@ -266,14 +266,23 @@ Checkpoint: implementation and focused verification complete; independent review
 6 existing Node contract groups, build/bundle checks and native synthetic vault write/read/delete pass.
 See [enrollment-security.md](enrollment-security.md) for interfaces, recovery, IAM, timeout and tooling limits.
 
-### Approved Task 4 caregiver-cap amendment (pending)
+### Approved Task 4 caregiver-cap amendment
 
-- [ ] Replace the implemented two-parent guard with one shared constant of ten in
+- [x] Replace the implemented two-parent guard with one shared constant of ten in
   device validation, pairing, access listing, recipient reads, and durable event
   bounds. Add an emulator race with eleven valid keys proving exactly ten pairings
   succeed, the eleventh key remains unused, and revocation admits a replacement.
 - [ ] Verify callbacks, report privacy, per-caregiver preferences, and queued
   recipient authorization remain generation-bound at the ten-account boundary.
+
+Checkpoint: independently reviewed; 78 Node tests, 40 guarded emulator tests,
+25 companion sync tests, build and bundle checks passed. When a receipt batch
+would exceed the transaction budget, the backend acknowledges a bounded subset;
+the companion retains the remainder for later sync. Recipient generation and
+hourly preferences were verified; callbacks and report privacy await Task 7, and
+live action execution remains pending Task 8.
+Existing settings coordination currently includes the issuing caregiver; correct
+that when implementing the endtime settings and Telegram coordination flow.
 
 ## Task 5: Durable local storage and authenticated synchronization
 

@@ -1,7 +1,7 @@
 /** Durable at-least-once parent delivery. A provider acceptance cannot be rolled back. */
 import { randomUUID } from 'node:crypto';
 import type { Transaction, DocumentReference } from 'firebase-admin/firestore';
-import { BoundaryError, FirestoreRepository, digest, type RecipientRef } from './repository.js';
+import { BoundaryError, FirestoreRepository, digest, MAX_ACTIVE_CAREGIVERS, type RecipientRef } from './repository.js';
 import { retainedDates, kyivDate } from './clock.js';
 export interface PlannedWrite {
     ref: DocumentReference;
@@ -73,7 +73,7 @@ export async function ensureTaskIntent(repo: FirestoreRepository, tx: Transactio
     return [];
 }
 export async function planParentEvent(repo: FirestoreRepository, tx: Transaction, event: ParentEvent): Promise<PlannedWrite[]> {
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(event.id) || event.recipients.length > 2 || new Set(event.recipients.map(r => r.pairingId)).size !== event.recipients.length ||
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(event.id) || event.recipients.length > MAX_ACTIVE_CAREGIVERS || new Set(event.recipients.map(r => r.pairingId)).size !== event.recipients.length ||
         !event.text || event.text.length > 3500 || event.recipients.some(r => r.deviceId !== event.deviceId))
         throw new BoundaryError('Invalid event');
     const ref = repo.db.doc('events/' + event.id);
