@@ -2,13 +2,18 @@
 import {createHash, randomBytes, randomUUID} from 'node:crypto';
 import {isIP} from 'node:net';
 import type {Firestore, Transaction, DocumentSnapshot} from 'firebase-admin/firestore';
-import {defaultSettings} from './contracts.js';
+import {defaultSettings,type Counter,type Instant} from './contracts.js';
 
 export const KEY_LIFETIME_MS = 900000;
 export const ENROLL_ATTEMPTS = 5;
 export const PAIR_ATTEMPTS = 10;
 export const KEY_PAGE_SIZE = 50;
 export const MAX_ACTIVE_CAREGIVERS = 10;
+export const MAX_POLICY_HISTORY = 256;
+/** A generation covers settingsRevision up to (but excluding) the next entry's revision. */
+export interface EndtimePolicyGeneration {
+  generation:Counter; settingsRevision:Counter; changedAt:Instant; enabled:boolean; localTime:string;
+}
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const digest = (value: string): string => createHash('sha256').update(value,'utf8').digest('hex');
 export const newSecret = (bytes: 16 | 32): string => randomBytes(bytes).toString('base64url');

@@ -1,16 +1,17 @@
 /** Closed parent intents; authority always includes the current pairing generation. */
 import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
-import {BoundaryError,FirestoreRepository,type ParentIdentity} from './repository.js';
+import {BoundaryError,FirestoreRepository,MAX_POLICY_HISTORY,type EndtimePolicyGeneration,type ParentIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,type Settings,type Instant,type Counter} from './contracts.js';
-import {kyivDate,parseInstant,retainedDates} from './clock.js';
+import {kyivDate,parseInstant,retainedDates,retentionStart} from './clock.js';
 import {readActionSnapshot,readOperation,planCancellation} from './actions.js';
 import {readAlerts,planAlerts,measurement} from './alertPlans.js';
 import {advanceMilestone} from './alerts.js';
 import {applyPlan} from './outbox.js';
-import {checkSettingsCapacity,emptyCancellations} from './deviceApi.js';
+import {canonical,checkSettingsCapacity,emptyCancellations} from './deviceApi.js';
 
 export type SettingsChange = {kind:'selectCategories';paths:string[][];uncategorized:boolean} |
-  {kind:'setDefaultLimit'|'setTodayLimit';ms:number} | {kind:'setFreeUse'|'setSuppression';enabled:boolean};
+  {kind:'setDefaultLimit'|'setTodayLimit';ms:number} | {kind:'setFreeUse'|'setSuppression'|'setEndtimeEnabled';enabled:boolean} |
+  {kind:'setEndtime';localTime:string};
 export interface SettingsUpdateResult {settings:Settings;acknowledgedRevision:Counter|null}
 export interface CallbackGuard {nonce:string;version:number}
 
@@ -31,11 +32,30 @@ export function applySettingsChange(settings:Settings,change:SettingsChange,now:
     case 'setFreeUse': case 'setSuppression':
       if(keys!=='enabled,kind' || typeof change.enabled!=='boolean') throw new BoundaryError('Invalid settings change');
       next[change.kind==='setFreeUse'?'freeUseDate':'suppressedDate']=change.enabled?date:null;break;
+    case 'setEndtime':
+      if(keys!=='kind,localTime') throw new BoundaryError('Invalid settings change');
+      next.endtimeLocalTime=change.localTime;next.endtimeEnabled=true;break;
+    case 'setEndtimeEnabled':
+      if(keys!=='enabled,kind' || typeof change.enabled!=='boolean') throw new BoundaryError('Invalid settings change');
+      next.endtimeEnabled=change.enabled;break;
     default: throw new BoundaryError('Invalid settings change');
   }
+  try {validateContract('settings',next);} catch {throw new BoundaryError('Invalid settings change');}
+  if(canonical(next)===canonical(settings))return next;
   if(next.revision===Number.MAX_SAFE_INTEGER) throw new BoundaryError('Settings revision exhausted',409);
   next.revision++;
-  try {return validateContract('settings',next);} catch {throw new BoundaryError('Invalid settings change');}
+  if(next.endtimeEnabled!==settings.endtimeEnabled || next.endtimeLocalTime!==settings.endtimeLocalTime){
+    if(next.endtimeGeneration===Number.MAX_SAFE_INTEGER) throw new BoundaryError('Endtime generation exhausted',409);
+    next.endtimeGeneration++;
+  }
+  return next;
+}
+
+function retainedGenerations(history:EndtimePolicyGeneration[],now:Instant):EndtimePolicyGeneration[] {
+  const start=retentionStart(now);
+  // The last policy before the window may still govern any retained date.
+  const baseline=history.filter(entry=>entry.changedAt<start).at(-1);
+  return history.filter(entry=>entry===baseline || entry.changedAt>=start);
 }
 export class SettingsService {
   constructor(private readonly repository:FirestoreRepository,private readonly clock:()=>Instant=()=>new Date().toISOString()) {}
@@ -56,28 +76,43 @@ export class SettingsService {
       const settingsRef=root.collection('settings').doc('current'),syncRef=root.collection('sync').doc('current');
       const dayRef=root.collection('days').doc(kyivDate(now));
       const [old,sync,day,cancel,device]=await tx.getAll(settingsRef,syncRef,dayRef,root.collection('cancellations').doc('current'),root);
-      const settings=applySettingsChange(decodeSettings(old!.data()),change,now);
+      const previous=decodeSettings(old!.data()),settings=applySettingsChange(previous,change,now);
+      const result={settings,acknowledgedRevision:sync!.data()?.settingsAckRevision??null};
+      if(settings.revision===previous.revision){
+        // Reserve the intent ID, but do not repeat cancellations, alerts or policy transitions.
+        tx.set(operation.ref,{digest:operation.hash,result:{...result,settings:encodeSettings(settings)},at:now,expired:false});
+        if(needsSettingsMigration(old!.data()))tx.set(settingsRef,encodeSettings(settings));
+        return result;
+      }
       const actions=await readActionSnapshot(this.repository,tx,identity.deviceId);
       const alerts=await readAlerts(this.repository,tx,identity.deviceId,now);
+      let policy=actions.policy;
+      if(settings.endtimeGeneration!==previous.endtimeGeneration){
+        const history=retainedGenerations(policy.endtimeGenerations??[],now);
+        if(history.length>=MAX_POLICY_HISTORY)throw new BoundaryError('Policy transition capacity exceeded',409);
+        const entry:EndtimePolicyGeneration={generation:settings.endtimeGeneration,settingsRevision:settings.revision,
+          changedAt:now,enabled:settings.endtimeEnabled,localTime:settings.endtimeLocalTime};
+        policy={...policy,endtimeGenerations:[...history,entry]};
+      }
       let cancellations=validateContract('cancellations',cancel!.data()??emptyCancellations());
       if(change.kind==='setFreeUse'&&change.enabled)cancellations=planCancellation(actions,cancellations,now,'free');
       const started=device!.data()!.collectionStartedAt;
       checkSettingsCapacity(settings,cancellations,now,started===null?null:new Date(started).toISOString());
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
-      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.',category:change.kind==='selectCategories'});
+      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.',category:change.kind==='selectCategories',issuerPairingId:identity.pairingId});
       if(change.kind==='setFreeUse'){
-        const transitions=actions.policy.transitions.filter((x:any)=>retainedDates(now).includes(kyivDate(x.at)));
-        if(transitions.length>=256)throw new BoundaryError('Policy transition capacity exceeded',409);
-        transitions.push({at:now,freeUseDate:settings.freeUseDate,beforeFreeUseDate:decodeSettings(old!.data()).freeUseDate});
-        const fences=(actions.policy.fences??[]).filter((f:any)=>retainedDates(now).includes(kyivDate(f.at)));
+        const transitions=(policy.transitions??[]).filter((x:any)=>retainedDates(now).includes(kyivDate(x.at)));
+        if(transitions.length>=MAX_POLICY_HISTORY)throw new BoundaryError('Policy transition capacity exceeded',409);
+        transitions.push({at:now,freeUseDate:settings.freeUseDate,beforeFreeUseDate:previous.freeUseDate});
+        const fences=(policy.fences??[]).filter((f:any)=>retainedDates(now).includes(kyivDate(f.at)));
         if(change.enabled){
-          if(fences.length>=256)throw new BoundaryError('Policy transition capacity exceeded',409);
+          if(fences.length>=MAX_POLICY_HISTORY)throw new BoundaryError('Policy transition capacity exceeded',409);
           fences.push({at:now,throughActionSequence:0,canceledIds:cancellations.canceledIds});
         }
-        tx.set(root.collection('policy').doc('current'),{transitions,fences});
+        policy={...policy,transitions,fences};
       }
-      const result={settings,acknowledgedRevision:sync!.data()?.settingsAckRevision??null};
+      if(policy!==actions.policy)tx.set(root.collection('policy').doc('current'),policy);
       tx.set(operation.ref,{digest:operation.hash,result:{...result,settings:encodeSettings(result.settings)},at:now,expired:false});
       tx.set(root.collection('cancellations').doc('current'),cancellations);
       applyPlan(tx,alertWrites);

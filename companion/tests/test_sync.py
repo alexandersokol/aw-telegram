@@ -134,6 +134,29 @@ def test_reordered_settings_and_fences_never_regress_stable_ack_ids(tmp_path):
     s.apply_sync(response(r,revision=2,canceled=canceled))
     assert s.pending_acks()==[]
 
+
+def test_reordered_endtime_generations_and_restart_preserve_latest_shared_setting(tmp_path):
+    s=store(tmp_path); pair(s)
+    older=s.prepare_request(HEALTH); newer=s.prepare_request(HEALTH)
+    first=response(older,revision=1)
+    first["settings"].update(endtimeEnabled=True,endtimeLocalTime="21:00",endtimeGeneration=1)
+    latest=response(newer,revision=3)
+    latest["settings"].update(endtimeEnabled=True,endtimeLocalTime="23:00",endtimeGeneration=2)
+    s.apply_sync(latest)
+    acks=[ack.to_wire() for ack in s.pending_acks()]
+    s.apply_sync(first)
+    assert s.settings.to_wire()==latest["settings"]
+    assert [ack.to_wire() for ack in s.pending_acks()]==acks
+    # An unrelated higher settings revision remains in the same endtime generation.
+    request=s.prepare_request(HEALTH)
+    unrelated=response(request,revision=4)
+    unrelated["settings"].update(endtimeEnabled=True,endtimeLocalTime="23:00",endtimeGeneration=2,defaultLimitMs=1234)
+    s.apply_sync(unrelated); s.close()
+    s=store(tmp_path)
+    assert s.settings.to_wire()==unrelated["settings"]
+    assert any(ack.kind=="settings" and ack.revision==4 for ack in s.pending_acks())
+    s.close()
+
 def test_current_projection_and_failed_transaction_preserve_source(tmp_path):
     s=store(tmp_path); pair(s); saved=s.commit_day(day(),NOW)
     r=s.prepare_request(HEALTH); answer=response(r,revision=1); answer["settings"]["selectedPaths"]=[["Study"]]

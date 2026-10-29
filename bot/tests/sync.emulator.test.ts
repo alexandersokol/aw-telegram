@@ -7,7 +7,7 @@ import {DeviceApi} from '../src/deviceApi.js';
 import {SettingsService} from '../src/settings.js';
 import {defaultSettings,minimalHealth,type SyncRequest} from '../src/contracts.js';
 import {encodeSettings} from '../src/settingsCodec.js';
-import {operationRef} from '../src/actions.js';
+import {operationRef,ActionService} from '../src/actions.js';
 import {createRouter} from '../src/index.js';
 const db=fixtureDb();
 const START='2026-10-28T10:00:00.000Z',NOW='2026-10-28T12:00:00.000Z';
@@ -29,6 +29,82 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await db.terminate();});
 describe('sync Firestore transactions',()=>{
+  test('concurrent endtime edits serialize generations and identical intents have no extra effects',async()=>{
+    const change={kind:'setEndtime' as const,localTime:'21:00'};
+    const identical=await Promise.all([
+      settings.updateSettings(p1,change,'endtime:same-1'),settings.updateSettings(p2,change,'endtime:same-2'),
+      settings.updateSettings(p1,change,'endtime:same-1'),
+    ]);
+    expect(identical.map(x=>x.settings.revision)).toEqual([1,1,1]);
+    expect((await db.collection('events').get()).size).toBe(1);
+    const edits=await Promise.all([
+      settings.updateSettings(p1,{kind:'setEndtime',localTime:'22:00'},'endtime:22'),
+      settings.updateSettings(p2,{kind:'setEndtime',localTime:'23:00'},'endtime:23'),
+      settings.updateSettings(p1,{kind:'setTodayLimit',ms:1234},'endtime:limit'),
+      api.syncDevice(identity,request()),
+    ]);
+    const current=(await settings.status(p1)).settings;
+    expect(current).toMatchObject({revision:4,endtimeGeneration:3,todayOverride:{date:'2026-10-28',limitMs:1234}});
+    const history=(await db.doc(path('policy/current')).get()).data()!.endtimeGenerations;
+    expect(history.map((g:any)=>g.generation)).toEqual([1,2,3]);
+    for(const result of edits.slice(0,2) as Awaited<ReturnType<SettingsService['updateSettings']>>[]) {
+      expect(history).toContainEqual({generation:result.settings.endtimeGeneration,settingsRevision:result.settings.revision,
+        enabled:true,localTime:result.settings.endtimeLocalTime,changedAt:NOW});
+    }
+    expect(history[2].localTime).toBe(current.endtimeLocalTime);
+  });
+  test('free-use and clear policy writes preserve generations during concurrent edits',async()=>{
+    await settings.updateSettings(p1,{kind:'setEndtime',localTime:'21:00'},'endtime:first');
+    await Promise.all([
+      settings.updateSettings(p1,{kind:'setEndtime',localTime:'22:00'},'endtime:edit'),
+      settings.updateSettings(p2,{kind:'setFreeUse',enabled:true},'endtime:free'),
+    ]);
+    const history=(await db.doc(path('policy/current')).get()).data()!.endtimeGenerations;
+    expect(history).toHaveLength(2);
+    const actions=new ActionService(repo,()=>new Date(now).toISOString());
+    await actions.clearActions(p1,'manual','endtime:manual');
+    await actions.clearActions(p2,'all','endtime:all');
+    const policy=(await db.doc(path('policy/current')).get()).data()!;
+    expect(policy.endtimeGenerations).toEqual(history);
+    expect(policy.transitions).toHaveLength(1);expect(policy.fences).toHaveLength(3);
+    expect((await settings.status(p1)).settings).toMatchObject({endtimeGeneration:2,endtimeLocalTime:'22:00',suppressedDate:'2026-10-28'});
+  });
+  test('history overflow atomically rejects settings and side effects while no-ops remain available',async()=>{
+    await db.doc(path('settings/current')).set(encodeSettings({...defaultSettings(),revision:256,endtimeGeneration:256,endtimeEnabled:true}));
+    const policy={transitions:[],endtimeGenerations:Array.from({length:256},(_,i)=>({generation:i+1,settingsRevision:i+1,enabled:true,localTime:'21:00',changedAt:NOW}))};
+    await db.doc(path('policy/current')).set(policy);
+    const before=(await db.doc(path('settings/current')).get()).data();
+    await expect(settings.updateSettings(p1,{kind:'setEndtime',localTime:'22:00'},'endtime:overflow')).rejects.toThrow('Policy transition capacity exceeded');
+    expect((await db.doc(path('settings/current')).get()).data()).toEqual(before);
+    expect((await db.doc(path('policy/current')).get()).data()).toEqual(policy);
+    expect((await db.collection('events').get()).empty).toBe(true);
+    expect((await db.collection('outbox').get()).empty).toBe(true);
+    expect((await db.collection(path('operations')).get()).empty).toBe(true);
+    const noop=await settings.updateSettings(p1,{kind:'setEndtime',localTime:'21:00'},'endtime:noop');
+    expect(noop.settings.revision).toBe(256);
+    expect((await db.collection('events').get()).empty).toBe(true);
+    now=Date.parse('2026-11-05T12:00:00.000Z');
+    await settings.updateSettings(p1,{kind:'setEndtimeEnabled',enabled:false},'endtime:room');
+    expect((await db.doc(path('policy/current')).get()).data()!.endtimeGenerations).toEqual([
+      policy.endtimeGenerations[255],{generation:257,settingsRevision:257,changedAt:'2026-11-05T12:00:00.000Z',enabled:false,localTime:'21:00'},
+    ]);
+  });
+  test('old sync acknowledgements and historical operation replay preserve current endtime and history',async()=>{
+    const change={kind:'setEndtime' as const,localTime:'21:00'};
+    await settings.updateSettings(p1,change,'endtime:old');
+    await settings.updateSettings(p2,{kind:'setTodayLimit',ms:1234},'endtime:limit');
+    const sameGeneration=await api.syncDevice(identity,request(2));
+    expect(sameGeneration.settings).toMatchObject({revision:2,endtimeGeneration:1});
+    await settings.updateSettings(p2,{kind:'setEndtime',localTime:'23:00'},'endtime:new');
+    await api.syncDevice(identity,{...request(3),acks:[{id:randomUUID(),kind:'settings',revision:3,appliedAt:NOW}]});
+    await api.syncDevice(identity,{...request(1),acks:[{id:randomUUID(),kind:'settings',revision:1,appliedAt:NOW}]});
+    expect((await settings.updateSettings(p1,change,'endtime:old')).settings.revision).toBe(1);
+    expect(await settings.status(p1)).toMatchObject({settings:{revision:3,endtimeGeneration:2,endtimeLocalTime:'23:00'},acknowledgedRevision:3});
+    expect((await db.doc(path('policy/current')).get()).data()!.endtimeGenerations).toEqual([
+      {generation:1,settingsRevision:1,changedAt:NOW,enabled:true,localTime:'21:00'},
+      {generation:2,settingsRevision:3,changedAt:NOW,enabled:true,localTime:'23:00'},
+    ]);
+  });
   test('concurrent legacy settings reads durably migrate without resetting state',async()=>{
     const legacy:any=encodeSettings({...defaultSettings(),revision:7,selectedPaths:[['Study','Editor']],
       defaultLimitMs:12345,freeUseDate:'2026-10-27'});

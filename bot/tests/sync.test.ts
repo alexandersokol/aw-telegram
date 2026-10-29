@@ -6,6 +6,7 @@ import {defaultSettings,validateContract,minimalHealth} from '../src/contracts.j
 import {decodeSettings,encodeSettings} from '../src/settingsCodec.js';
 import {ActionService,operationRef} from '../src/actions.js';
 import {draft} from './delivery-fixture.js';
+import {applySettingsChange,SettingsService,type SettingsChange} from '../src/settings.js';
 
 const NOW='2026-10-28T12:00:00.000Z', START='2026-10-28T10:00:00.000Z';
 const deviceId='00000000-0000-4000-8000-000000000001';
@@ -33,6 +34,7 @@ async function setup() {
 }
 
 const endtimeFields=['endtimeEnabled','endtimeLocalTime','endtimeGeneration'] as const;
+const generation=(n:number,changedAt=NOW)=>({generation:n,settingsRevision:n,changedAt,enabled:true,localTime:'21:00'});
 function legacySettings() {
   const stored:any=encodeSettings({...defaultSettings(),revision:7,selectedPaths:[['Study','Editor']],
     selectedUncategorized:true,defaultLimitMs:12345,todayOverride:{date:'2026-10-28',limitMs:6789},
@@ -163,6 +165,165 @@ describe('v2 authenticated sync',()=>{
   });
 });
 describe('revisioned settings',()=>{
+  it('set enables, off retains time, and on reuses it without changing the input',()=>{
+    const initial=defaultSettings(),before=structuredClone(initial);
+    const set=applySettingsChange(initial,{kind:'setEndtime',localTime:'23:59'},NOW);
+    expect(set).toEqual({...initial,revision:1,endtimeEnabled:true,endtimeLocalTime:'23:59',endtimeGeneration:1});
+    const off=applySettingsChange(set,{kind:'setEndtimeEnabled',enabled:false},NOW);
+    expect(off).toEqual({...set,revision:2,endtimeEnabled:false,endtimeGeneration:2});
+    expect(applySettingsChange(off,{kind:'setEndtimeEnabled',enabled:true},NOW)).toEqual({...set,revision:3,endtimeGeneration:3});
+    expect(initial).toEqual(before);
+  });
+  it.each(['00:15','01:00','23:59'])('accepts exact endtime %s',localTime=>{
+    expect(applySettingsChange(defaultSettings(),{kind:'setEndtime',localTime},NOW)).toMatchObject({endtimeEnabled:true,endtimeLocalTime:localTime,endtimeGeneration:1,revision:1});
+  });
+  it.each(['00:00','00:14','24:00','9:00','21:00:00',' 21:00','21:00 ','21:00\n',null,2100])('rejects malformed endtime %s',localTime=>{
+    expect(()=>applySettingsChange(defaultSettings(),{kind:'setEndtime',localTime} as any,NOW)).toThrow('Invalid settings change');
+  });
+  it.each([
+    {kind:'setEndtime',localTime:'21:00',enabled:true},{kind:'setEndtime'},
+    {kind:'setEndtimeEnabled',enabled:1},{kind:'setEndtimeEnabled',enabled:'true'},
+    {kind:'setEndtimeEnabled',enabled:true,localTime:'21:00'},{kind:'setEndtimeEnabled'},
+  ])('rejects open or mistyped endtime intents %#',change=>{
+    expect(()=>applySettingsChange(defaultSettings(),change as any,NOW)).toThrow('Invalid settings change');
+  });
+  it('advances only settings revision for unrelated changes and no counters for effective no-ops',()=>{
+    const initial={...defaultSettings(),revision:7,endtimeEnabled:true,endtimeLocalTime:'22:00',endtimeGeneration:3};
+    for(const change of [
+      {kind:'setEndtime',localTime:'22:00'},{kind:'setEndtimeEnabled',enabled:true},
+      {kind:'setFreeUse',enabled:false},{kind:'setSuppression',enabled:false},
+      {kind:'setDefaultLimit',ms:14400000},{kind:'selectCategories',paths:[],uncategorized:false},
+    ] as SettingsChange[])expect(applySettingsChange(initial,change,NOW)).toEqual(initial);
+    for(const change of [
+      {kind:'setDefaultLimit',ms:1234},{kind:'setTodayLimit',ms:1234},
+      {kind:'selectCategories',paths:[['Study']],uncategorized:true},{kind:'setFreeUse',enabled:true},
+      {kind:'setSuppression',enabled:true},
+    ] as SettingsChange[])expect(applySettingsChange(initial,change,NOW)).toMatchObject({revision:8,endtimeGeneration:3,endtimeLocalTime:'22:00',endtimeEnabled:true});
+  });
+  it('checks exhaustion only for counters that must advance',()=>{
+    const max=Number.MAX_SAFE_INTEGER;
+    const full={...defaultSettings(),revision:max,endtimeGeneration:max};
+    expect(applySettingsChange(full,{kind:'setEndtimeEnabled',enabled:false},NOW)).toEqual(full);
+    expect(()=>applySettingsChange(full,{kind:'setTodayLimit',ms:1234},NOW)).toThrow('Settings revision exhausted');
+    const genFull={...full,revision:7};
+    expect(applySettingsChange(genFull,{kind:'setTodayLimit',ms:1234},NOW)).toMatchObject({revision:8,endtimeGeneration:max});
+    expect(()=>applySettingsChange(genFull,{kind:'setEndtime',localTime:'21:00'},NOW)).toThrow('Endtime generation exhausted');
+    expect(applySettingsChange({...defaultSettings(),revision:max-1,endtimeGeneration:max-1},{kind:'setEndtime',localTime:'21:00'},NOW)).toMatchObject({revision:max,endtimeGeneration:max});
+  });
+  it('stores generations with their original revision and leaves unrelated edits in that generation',async()=>{
+    const {db,settings}=await setup();
+    await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:1000},'endtime:limit');
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'22:00'},'endtime:set');
+    await settings.updateSettings(parent('2'),{kind:'selectCategories',paths:[['Study']],uncategorized:true},'endtime:categories');
+    await settings.updateSettings(parent(),{kind:'setEndtimeEnabled',enabled:false},'endtime:off');
+    expect(db.data.get(root+'/policy/current').endtimeGenerations).toEqual([
+      {generation:1,settingsRevision:2,changedAt:NOW,enabled:true,localTime:'22:00'},
+      {generation:2,settingsRevision:4,changedAt:NOW,enabled:false,localTime:'22:00'},
+    ]);
+    expect((await settings.status(parent())).settings).toMatchObject({revision:4,endtimeGeneration:2});
+  });
+  it('no-op commands reserve operation identity without any settings, alert, cancellation or policy side effects',async()=>{
+    const {db,settings,repository}=await setup();
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'21:00'},'endtime:first');
+    const before=structuredClone(db.data);
+    const result=await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'21:00'},'endtime:noop');
+    const op=operationRef(repository,parent(),'endtime:noop');
+    expect(result.settings.revision).toBe(1);
+    expect(db.data.has(op.path)).toBe(true);
+    const withoutOp=new Map(db.data);withoutOp.delete(op.path);expect(withoutOp).toEqual(before);
+    const after=structuredClone(db.data);
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'21:00'},'endtime:noop');
+    expect(db.data).toEqual(after);
+    await expect(settings.updateSettings(parent(),{kind:'setEndtimeEnabled',enabled:false},'endtime:noop')).rejects.toThrow('conflict');
+  });
+  it('no-op free-use does not add cancellation fences or transitions',async()=>{
+    const {db,settings,repository}=await setup();
+    await settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true},'endtime:free');
+    const before=structuredClone(db.data);
+    await settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true},'endtime:free-noop');
+    const after=new Map(db.data);after.delete(operationRef(repository,parent(),'endtime:free-noop').path);
+    expect(after).toEqual(before);
+  });
+  it('preserves generation history and other policy data through free-use and both clear paths',async()=>{
+    const {db,settings,repository}=await setup();
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'22:00'},'endtime:set');
+    const history=structuredClone(db.data.get(root+'/policy/current').endtimeGenerations);
+    db.data.get(root+'/policy/current').extension={keep:true};
+    await settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true},'endtime:free');
+    await settings.updateSettings(parent(),{kind:'setFreeUse',enabled:false},'endtime:restore');
+    const actions=new ActionService(repository,()=>NOW);
+    await actions.clearActions(parent(),'manual','endtime:clear-manual');
+    await actions.clearActions(parent(),'all','endtime:clear-all');
+    expect(db.data.get(root+'/policy/current')).toMatchObject({endtimeGenerations:history,extension:{keep:true}});
+    expect(db.data.get(root+'/policy/current').transitions).toHaveLength(2);
+    expect(db.data.get(root+'/policy/current').fences).toHaveLength(3);
+  });
+  it('retains the pre-window baseline and all seven Kyiv dates across DST, and prunes expired generations',async()=>{
+    const {db,settings}=await setup();
+    db.data.set(root+'/settings/current',encodeSettings({...defaultSettings(),revision:5,endtimeEnabled:true,endtimeGeneration:5}));
+    db.data.set(root+'/policy/current',{transitions:[],fences:[],endtimeGenerations:[
+      generation(1,'2026-10-01T12:00:00.000Z'),generation(2,'2026-10-20T12:00:00.000Z'),
+      generation(3,'2026-10-21T20:59:59.999Z'), // Kyiv Oct 21, before retained window
+      generation(4,'2026-10-21T21:00:00.000Z'), // Kyiv Oct 22, seven dates include this boundary
+      generation(5,'2026-10-27T22:00:00.000Z'),
+    ]});
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'23:00'},'endtime:retain');
+    expect(db.data.get(root+'/policy/current').endtimeGenerations).toEqual([
+      generation(3,'2026-10-21T20:59:59.999Z'),generation(4,'2026-10-21T21:00:00.000Z'),
+      generation(5,'2026-10-27T22:00:00.000Z'),{generation:6,settingsRevision:6,changedAt:NOW,enabled:true,localTime:'23:00'},
+    ]);
+    const later=new SettingsService(new FirestoreRepository(db as any),()=> '2026-11-05T12:00:00.000Z');
+    await later.updateSettings(parent(),{kind:'setEndtimeEnabled',enabled:false},'endtime:later');
+    expect(db.data.get(root+'/policy/current').endtimeGenerations).toEqual([
+      {generation:6,settingsRevision:6,changedAt:NOW,enabled:true,localTime:'23:00'},
+      {generation:7,settingsRevision:7,changedAt:'2026-11-05T12:00:00.000Z',enabled:false,localTime:'23:00'},
+    ]);
+  });
+  it('enforces history capacity before writes, permits no-ops and unrelated edits at capacity',async()=>{
+    const {db,settings}=await setup();
+    db.data.set(root+'/settings/current',encodeSettings({...defaultSettings(),revision:255,endtimeGeneration:255,endtimeEnabled:true}));
+    db.data.set(root+'/policy/current',{transitions:[],endtimeGenerations:Array.from({length:255},(_,i)=>generation(i+1))});
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'22:00'},'endtime:last-slot');
+    expect(db.data.get(root+'/policy/current').endtimeGenerations).toHaveLength(256);
+    const before=structuredClone(db.data);
+    await expect(settings.updateSettings(parent(),{kind:'setEndtimeEnabled',enabled:false},'endtime:overflow')).rejects.toThrow('Policy transition capacity exceeded');
+    expect(db.data).toEqual(before);
+    expect((await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'22:00'},'endtime:full-noop')).settings.revision).toBe(256);
+    expect((await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:1000},'endtime:full-limit')).settings).toMatchObject({revision:257,endtimeGeneration:256});
+  });
+  it('keeps old operation replays and reordered sync acknowledgements from restoring older endtime',async()=>{
+    const {db,settings,api}=await setup();
+    const change={kind:'setEndtime' as const,localTime:'21:00'};
+    await settings.updateSettings(parent(),change,'endtime:old');
+    await settings.updateSettings(parent('2'),{kind:'setEndtime',localTime:'23:00'},'endtime:new');
+    await api.syncDevice(identity,{...request(2),acks:[{id:'00000000-0000-4000-8000-000000000071',kind:'settings',revision:2,appliedAt:NOW}]});
+    await api.syncDevice(identity,{...request(1),acks:[{id:'00000000-0000-4000-8000-000000000072',kind:'settings',revision:1,appliedAt:NOW}]});
+    const history=structuredClone(db.data.get(root+'/policy/current'));
+    expect((await settings.updateSettings(parent(),change,'endtime:old')).settings).toMatchObject({revision:1,endtimeGeneration:1,endtimeLocalTime:'21:00'});
+    expect(await settings.status(parent())).toMatchObject({settings:{revision:2,endtimeGeneration:2,endtimeLocalTime:'23:00'},acknowledgedRevision:2});
+    expect(db.data.get(root+'/policy/current')).toEqual(history);
+  });
+  it('coordinates an endtime change with all other caregivers, excluding only the issuer',async()=>{
+    const {db,settings}=await setup();
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'22:00'},'endtime:coordination');
+    const events=[...db.data].filter(([key,value])=>key.startsWith('events/')&&value.kind==='coordination').map(([,value])=>value);
+    expect(events).toHaveLength(1);expect(events[0].recipients).toEqual([{deviceId,userId:'2',pairingId:parent('2').pairingId}]);
+  });
+  it('still sends an allowance warning made due by a settings edit to the excluded issuer',async()=>{
+    const {db,settings,api}=await setup();await api.syncDevice(identity,{...request(),summaries:[sourceDay()]});
+    await settings.updateSettings(parent(),{kind:'selectCategories',paths:[['Study']],uncategorized:false},'endtime:select');
+    await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:60000},'endtime:warn');
+    const events=[...db.data].filter(([key])=>key.startsWith('events/')).map(([,value])=>value);
+    const recipients=(kind:string)=>events.filter(e=>e.kind===kind&&e.text.includes('Залишилося 5 хв')).flatMap(e=>e.recipients.map((r:any)=>r.userId));
+    expect(recipients('coordination')).toEqual(['2']);expect(recipients('warning')).toEqual(['1']);
+    expect(db.data.get(root+'/alertStates/2026-10-28').lastWarning).toBe('5m');
+  });
+  it('creates no recipient-less coordination event for a sole caregiver',async()=>{
+    const {db,settings}=await setup();
+    db.data.set(root,{...db.data.get(root),activeParentIds:['1']});db.data.get(root+'/parents/2').revokedAt=1;
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'22:00'},'endtime:sole');
+    expect([...db.data.keys()].filter(key=>key.startsWith('events/'))).toEqual([]);
+  });
   it('serializes opposite parent intents, preserves unrelated fields and reports pending until device Ack',async()=>{
     const {api,settings,db}=await setup();
     const result=await Promise.all([settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true},'legacy-test:1'),settings.updateSettings(parent('2'),{kind:'setSuppression',enabled:true},'legacy-test:2')]);

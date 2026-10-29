@@ -23,6 +23,7 @@ export async function planAlerts(repo: FirestoreRepository, tx: Transaction, dev
     id: string;
     text: string;
     category: boolean;
+    issuerPairingId?: string;
 }): Promise<PlannedWrite[]> {
     const date = kyivDate(now), state = structuredClone(snapshot.value), events: ParentEvent[] = [], writes: PlannedWrite[] = [];
     for (const parent of parents) {
@@ -48,12 +49,15 @@ export async function planAlerts(repo: FirestoreRepository, tx: Transaction, dev
             const text = alert.severity === 'expired' ? 'Денний час вичерпано.' : `Залишилося ${alert.severity!.replace('m', '')} хв або менше.`;
             if (coordination)
                 coordinationText += ' ' + text;
-            else
-                events.push({ id: digest(`warning:${deviceId}:${date}:${alert.severity}:${settings.revision}`), deviceId, at: now, kind: 'warning', recipients: parents, text: `${text} Використано ${Math.floor(alert.totalMs / 60000)} хв; ${alert.partial ? 'неповні дані' : 'виміряні дані'}, станом на ${alert.availableThrough}.` });
+            // The issuer gets no coordination copy, so a warning folded into it still needs its own event.
+            const recipients = coordination ? parents.filter(parent => parent.pairingId === coordination.issuerPairingId) : parents;
+            if (recipients.length)
+                events.push({ id: digest(`warning:${deviceId}:${date}:${alert.severity}:${settings.revision}`), deviceId, at: now, kind: 'warning', recipients, text: `${text} Використано ${Math.floor(alert.totalMs / 60000)} хв; ${alert.partial ? 'неповні дані' : 'виміряні дані'}, станом на ${alert.availableThrough}.` });
         }
     }
-    if (coordination)
-        events.push({ id: digest(coordination.id), deviceId, at: now, kind: 'coordination', text: coordinationText, recipients: parents, ...(coordination.category && m ? { milestone: { date, hour: Math.floor(m.selectedTotalMs / 3600000) } } : {}) });
+    const others = coordination ? parents.filter(parent => parent.pairingId !== coordination.issuerPairingId) : [];
+    if (coordination && others.length)
+        events.push({ id: digest(coordination.id), deviceId, at: now, kind: 'coordination', text: coordinationText, recipients: others, ...(coordination.category && m ? { milestone: { date, hour: Math.floor(m.selectedTotalMs / 3600000) } } : {}) });
     for (const event of events)
         writes.push(...await planParentEvent(repo, tx, event));
     writes.push({ ref: snapshot.ref, value: { ...state, date } });
