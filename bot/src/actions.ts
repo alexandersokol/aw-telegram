@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Transaction, DocumentReference } from 'firebase-admin/firestore';
 import { BoundaryError, FirestoreRepository, digest, MAX_ACTIVE_CAREGIVERS, type ParentIdentity, type Parent, type DeviceIdentity } from './repository.js';
 import { validateContract, validateActionReceipt, actionCanceled, type Action, type ActionAck, type Cancellations, type Settings, type SyncResponse } from './contracts.js';
-import { dayBounds, kyivDate, parseInstant, retainedDates, retentionStart } from './clock.js';
+import { dayBounds, kyivDate, kyivTime, parseInstant, retainedDates, retentionStart } from './clock.js';
 import { canonical, checkSettingsCapacity, emptyCancellations, boundedResponse } from './deviceApi.js';
 import { decodeSettings, encodeSettings, needsSettingsMigration } from './settingsCodec.js';
 import type { CallbackGuard } from './settings.js';
@@ -106,6 +106,19 @@ export async function readOperation(repo: FirestoreRepository, tx: Transaction, 
     return { ref, hash, previous };
 }
 export function eventFor(deviceId: string, id: string, at: string, text: string, parents: Parent[]): ParentEvent { return { id: digest(id), deviceId, at, kind: 'status', text, recipients: parents }; }
+/** The caregiver's pairing name, chosen when their key was created in the companion. */
+const issuerName = (parents: Parent[], identity: ParentIdentity): string => parents.find(p => p.pairingId === identity.pairingId)?.name ?? identity.userId;
+/** Who asked for what and when; the parent's own text is plain and never interpreted as markup. */
+function createdText(action: Action, name: string, skipped: boolean): string {
+    const what = `${action.kind === 'overlay' ? 'повідомлення на екрані' : 'сповіщення'} «${action.options.message}»`;
+    if (skipped)
+        return `Нагадування від «${name}» пропущено, бо ввімкнено вільний режим: ${what}.`;
+    const when = action.targetAt === action.createdAt ? 'зараз' : `о ${kyivTime(action.targetAt)}`;
+    return `Нове нагадування від «${name}»: ${what}. Показати: ${when}. Очікуємо підтвердження ноутбука.`;
+}
+const clearText = (scope: 'manual' | 'all', name: string): string => scope === 'all' ?
+    `«${name}» очищує всі нагадування та вимикає попередження про ліміт до опівночі. Очікуємо підтвердження ноутбука.` :
+    `«${name}» очищує ручні нагадування. Очікуємо підтвердження ноутбука.`;
 export function freeAt(policy: any, settings: Settings, instant: string): boolean {
     const transitions = (policy.transitions ?? []).filter((x: any) => x.at <= instant);
     const last = transitions.at(-1);
@@ -165,7 +178,7 @@ export class ActionService {
             }
             const state = settings.freeUseDate === kyivDate(now) ? 'skipped' : 'pending';
             const row: ActionRow = { deviceId: identity.deviceId, action, creatorPairingId: identity.pairingId, operationId, version: 1, state, open: state === 'pending', offerCount: 0, lastOfferedAt: null, firstOfferedAt: null, acceptedAt: null, latestSequence: 0, latestAt: null, presentedAt: null };
-            const events = await planParentEvent(this.repo, tx, eventFor(identity.deviceId, 'create:' + id, now, state === 'skipped' ? 'Команду пропущено: вільне користування' : 'Запит надіслано; очікуємо підтвердження', snapshot.parents));
+            const events = await planParentEvent(this.repo, tx, eventFor(identity.deviceId, 'create:' + id, now, createdText(action, issuerName(snapshot.parents, identity), state === 'skipped'), snapshot.parents));
             checkSettingsCapacity(settings, validateContract('cancellations', cancel!.data() ?? emptyCancellations()), now, device!.data()!.collectionStartedAt === null ? null : new Date(device!.data()!.collectionStartedAt).toISOString());
             const result = { action, state };
             if (needsSettingsMigration(settingsDoc!.data()))
@@ -205,7 +218,7 @@ export class ActionService {
             if (fences.length >= 256)
                 throw new BoundaryError('Policy transition capacity exceeded', 409);
             fences.push({ at: now, throughActionSequence: cancellations.throughActionSequence, canceledIds: [] });
-            const events = await planParentEvent(this.repo, tx, eventFor(identity.deviceId, 'clear:' + identity.pairingId + ':' + operationId, now, 'Очищення запитано; очікуємо підтвердження ноутбука', snapshot.parents));
+            const events = await planParentEvent(this.repo, tx, eventFor(identity.deviceId, 'clear:' + identity.pairingId + ':' + operationId, now, clearText(scope, issuerName(snapshot.parents, identity)), snapshot.parents));
             if (scope === 'all')
                 events.push(...await planEndtimeSuppression(this.repo, tx, identity.deviceId, kyivDate(now)));
             checkSettingsCapacity(settings, cancellations, now, d!.data()!.collectionStartedAt === null ? null : new Date(d!.data()!.collectionStartedAt).toISOString());

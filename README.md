@@ -34,10 +34,13 @@ limit from two to ten and changes overlays to newest-due-wins. Amendment Tasks 1
 (contracts, ten caregivers, persisted endtime settings and generations, confirmed
 receipt alerts with retroactive suppression, `/endtime` command/menu logic, and
 the companion's offline endtime policy with newest-overlay-wins scheduling) are
-implemented locally and not yet independently reviewed. Automated checks on
-2026-10-29: companion 290, bot unit 176, emulator 48. The Telegram webhook (base
-Task 7), the companion app loop and action executor (base Task 8), the visual
-Windows endtime re-run and end-to-end acceptance are not done. See
+implemented locally and not yet independently reviewed. The Telegram bot (base
+Task 7: webhook, pairing, reports, limits, categories, free use, clearing,
+reminders, Settings and Endtime) is also implemented locally, not yet reviewed or
+deployed. Automated checks on 2026-10-29: companion 290, bot unit 261, emulator 49.
+The companion app loop and action executor (base Task 8), the tray/packaging (Task 9),
+deployment (Task 10), the visual Windows endtime re-run and end-to-end acceptance are
+not done. See
 [the endtime plan](docs/superpowers/plans/2026-10-29-endtime.md).
 
 ## Structure

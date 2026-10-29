@@ -4,18 +4,20 @@ import type {Instant} from '../contracts.js';
 import type {CallbackGuard,SettingsService} from '../settings.js';
 import type {EndtimeController} from './commands.js';
 import type {AllowanceController} from './allowance.js';
+import type {RemindersController} from './reminders.js';
 import {MenuSessions} from './sessions.js';
-import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,SECTION_PENDING,HELP,STALE_NAV,CHOOSE_PERIOD,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
+import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,HELP,STALE_NAV,CHOOSE_PERIOD,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
 import {loadReport,renderStatus,renderUsage,type UsagePeriod} from './reports.js';
 
-export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status' | 'reminders' | 'limit';
+/** Limit and Reminders are separate menus that the main menu hands over to. */
+export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status';
 export interface NavState {screen: NavScreen; period?: UsagePeriod}
 export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourly' | 'endtime' | 'help' | 'back' |
   UsagePeriod | 'refresh';
 /** A null state leaves this menu: openEndtime hands over to the Endtime submenu. */
-export interface NavResult {state: NavState | null; effect?: 'toggleHourly' | 'openEndtime' | 'openLimit'; error?: 'stale'}
+export interface NavResult {state: NavState | null; effect?: 'toggleHourly' | 'openEndtime' | 'openLimit' | 'openReminders'; error?: 'stale'}
 
-const SECTIONS: readonly NavScreen[] = ['usage', 'status', 'reminders'];
+const SECTIONS: readonly NavScreen[] = ['usage', 'status'];
 const PERIODS: readonly UsagePeriod[] = ['today', 'yesterday', 'week'];
 const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourly', 'endtime', 'help', 'back', ...PERIODS, 'refresh'];
 
@@ -23,6 +25,7 @@ export function transitionNav(state: NavState, action: NavAction): NavResult {
   const to = (screen: NavScreen): NavResult => ({state: {screen}});
   if (state.screen === 'main') {
     if (action === 'limit') return {state: null, effect: 'openLimit'};
+    if (action === 'reminders') return {state: null, effect: 'openReminders'};
     if (action === 'settings' || SECTIONS.includes(action as NavScreen)) return to(action as NavScreen);
   } else if (state.screen === 'settings') {
     if (action === 'hourly') return {state, effect: 'toggleHourly'};
@@ -54,7 +57,7 @@ export class NavigationController {
   private readonly sessions: MenuSessions;
   constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService,
               private readonly endtime: EndtimeController, private readonly allowance: AllowanceController,
-              private readonly clock: () => Instant) {
+              private readonly reminders: RemindersController, private readonly clock: () => Instant) {
     this.sessions = new MenuSessions(repository, clock);
   }
 
@@ -80,6 +83,7 @@ export class NavigationController {
       if (result.error) return stale();
       if (result.effect === 'openEndtime') return this.endtime.openMenu(identity);
       if (result.effect === 'openLimit') return this.allowance.openStatus(identity);
+      if (result.effect === 'openReminders') return this.reminders.openHome(identity);
       let prefix: string | undefined;
       if (result.effect === 'toggleHourly') {
         const enabled = !(await this.hourlyEnabled(identity));
@@ -116,10 +120,8 @@ export class NavigationController {
         const [first, ...extra] = renderUsage(state.period, await loadReport(this.repository, identity, this.clock()));
         reply = {text: first!, buttons: periods, ...(extra.length ? {extra} : {})};
       }
-    } else if (state.screen === 'status') {
-      reply = {text: renderStatus(await loadReport(this.repository, identity, this.clock())), buttons: [[button('refresh', '🔄 Оновити'), button('back')]]};
     } else {
-      reply = {text: SECTION_PENDING, buttons: [[button('back')]]};
+      reply = {text: renderStatus(await loadReport(this.repository, identity, this.clock())), buttons: [[button('refresh', '🔄 Оновити'), button('back')]]};
     }
     return prefix ? {...reply, text: prefix + '\n\n' + reply.text} : reply;
   }

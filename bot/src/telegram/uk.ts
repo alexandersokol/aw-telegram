@@ -3,7 +3,8 @@ import type {Settings,Counter} from '../contracts.js';
 
 export interface Button {text: string; data: string}
 /** extra holds follow-up pages of a long report, sent after the main message without buttons. */
-export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings' | 'main'; extra?: string[]}
+/** navigate hands over to another menu, which the webhook opens in place of this empty reply. */
+export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings' | 'main' | 'limit' | 'clear' | 'reminders'; extra?: string[]}
 
 export const STALE_MENU = 'Це меню застаріло. Відкрийте /endtime знову.';
 export const TIME_FORMAT = 'Вкажіть час у форматі ГГ:ХХ від 00:15 до 23:59, наприклад 21:00.';
@@ -42,7 +43,6 @@ export const ALREADY_PAIRED = 'Цей обліковий запис уже пі�
 export const STALE_NAV = 'Це меню застаріло. Відкрийте /start знову.';
 export const MAIN_MENU = 'Головне меню';
 export const SETTINGS_MENU = '⚙️ Налаштування';
-export const SECTION_PENDING = 'Цей розділ ще готується.';
 export const HINT = 'Оберіть дію в меню: /start';
 export const UNKNOWN_COMMAND = 'Невідома команда. Список команд: /help';
 export const HOURLY_USAGE = 'Використання: /hourly on або /hourly off.';
@@ -57,6 +57,9 @@ export const HELP = [
   '/limit — ліміт часу (ТРИВАЛІСТЬ today|daily)',
   '/categories, /add_category НАЗВА, /remove_category НАЗВА — категорії для обліку',
   '/free on|off — вільний режим до опівночі',
+  '/notify [+ХВ] [countdown] ТЕКСТ — сповіщення на ноутбук',
+  '/overlay [+ХВ] [countdown] [repeat=ХВ | nodismiss=С] ТЕКСТ — повідомлення на екрані',
+  '/pending — активні та заплановані нагадування',
   '/clear [manual|all] — очистити нагадування',
   '/restore — відновити автоматичні нагадування',
   '/settings — налаштування',

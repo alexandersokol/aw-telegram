@@ -14,6 +14,7 @@ import {EndtimeController} from './commands.js';
 import {NavigationController} from './navigation.js';
 import {AllowanceController} from './allowance.js';
 import {ClearController} from './clear.js';
+import {RemindersController} from './reminders.js';
 import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
   hourlySaved,type Reply} from './uk.js';
 
@@ -48,13 +49,15 @@ export class TelegramBot {
   private readonly navigation: NavigationController;
   private readonly allowance: AllowanceController;
   private readonly clear: ClearController;
+  private readonly reminders: RemindersController;
   constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService,
               actions: ActionService, private readonly client: TelegramClient,
               private readonly clock: () => Instant = () => new Date().toISOString()) {
     this.endtime = new EndtimeController(repository, settings, clock);
     this.allowance = new AllowanceController(repository, settings, clock);
     this.clear = new ClearController(repository, actions, clock);
-    this.navigation = new NavigationController(repository, settings, this.endtime, this.allowance, clock);
+    this.reminders = new RemindersController(repository, actions, clock);
+    this.navigation = new NavigationController(repository, settings, this.endtime, this.allowance, this.reminders, clock);
   }
 
   async handleUpdate(update: unknown): Promise<void> {
@@ -88,9 +91,21 @@ export class TelegramBot {
     } else if (typeof data === 'string' && data.startsWith('nv:')) reply = await this.navigation.callback(identity, data);
     else if (typeof data === 'string' && data.startsWith('lm:')) reply = await this.allowance.callback(identity, data);
     else if (typeof data === 'string' && data.startsWith('cl:')) reply = await this.clear.callback(identity, data);
+    else if (typeof data === 'string' && data.startsWith('rm:')) reply = await this.reminders.callback(identity, data);
     else reply = {text: STALE_NAV, buttons: []};
-    if (identity && reply.navigate === 'main') reply = await this.navigation.openMain(identity);
+    if (identity && reply.navigate) reply = await this.handOver(identity, reply);
     await this.deliver(actor.chatId, reply, callback.message?.message_id);
+  }
+
+  /** Open the menu a reply hands over to. */
+  private handOver(identity: ParentIdentity, reply: Reply): Promise<Reply> {
+    switch (reply.navigate) {
+      case 'main': return this.navigation.openMain(identity);
+      case 'limit': return this.allowance.openStatus(identity);
+      case 'clear': return this.clear.openFromReminders(identity);
+      case 'reminders': return this.reminders.openHome(identity);
+      default: return Promise.resolve(reply);
+    }
   }
 
   /** Edit the menu message in place when possible, then send any further report pages. */
@@ -128,7 +143,8 @@ export class TelegramBot {
 
   private async reply(identity: ParentIdentity, text: string, parsed: RegExpExecArray | null, updateId: number): Promise<Reply> {
     const plain = (value: string): Reply => ({text: value, buttons: []});
-    if (!parsed) return (await this.endtime.text(identity, text)) ?? (await this.allowance.text(identity, text)) ?? plain(HINT);
+    if (!parsed) return (await this.endtime.text(identity, text)) ?? (await this.allowance.text(identity, text)) ??
+      (await this.reminders.text(identity, text)) ?? plain(HINT);
     const args = (parsed[2] ?? '').trim();
     switch (parsed[1]) {
       case 'start': return this.navigation.openMain(identity);
@@ -149,6 +165,8 @@ export class TelegramBot {
       case 'free': return this.allowance.freeCommand(identity, args, updateId);
       case 'restore': return this.allowance.restoreCommand(identity, updateId);
       case 'clear': return this.clear.command(identity, args, updateId);
+      case 'notify': case 'overlay': return this.reminders.command(identity, parsed[1], args, updateId);
+      case 'pending': return this.reminders.openPending(identity);
       case 'hourly':
         if (args !== 'on' && args !== 'off') return plain(HOURLY_USAGE);
         await this.settings.setHourly(identity, args === 'on', `tg:${updateId}`);

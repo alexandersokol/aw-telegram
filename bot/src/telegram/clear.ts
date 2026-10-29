@@ -6,7 +6,8 @@ import type {CallbackGuard} from '../settings.js';
 import {MenuSessions,type MenuSession} from './sessions.js';
 import {LABELS,LIMIT_LABELS,STALE_CLEAR,CLEAR_USAGE,CLEAR_CHOOSE,CLEAR_ALL_CONFIRM,CLEARED_MANUAL,CLEARED_ALL,CANCELED,type Reply} from './uk.js';
 
-type ClearState = {step: 'choose' | 'confirmAll'};
+/** from records where Back returns. */
+type ClearState = {step: 'choose' | 'confirmAll'; from?: 'reminders'};
 type Action = 'manual' | 'all' | 'confirm' | 'cancel' | 'back';
 const CALLBACK = /^cl:([A-Za-z0-9_-]{1,43}):(0|[1-9][0-9]{0,15}):(manual|all|confirm|cancel|back)$/;
 const stale = (): Reply => ({text: STALE_CLEAR, buttons: []});
@@ -27,7 +28,8 @@ export class ClearController {
     return plain(CLEAR_USAGE);
   }
 
-  async open(identity: ParentIdentity, state: ClearState): Promise<Reply> {
+  openFromReminders(identity: ParentIdentity): Promise<Reply> {return this.open(identity, {step: 'choose', from: 'reminders'});}
+  private async open(identity: ParentIdentity, state: ClearState): Promise<Reply> {
     return this.render(await this.sessions.open(identity, 'clear', state), state);
   }
 
@@ -51,10 +53,13 @@ export class ClearController {
         await this.actions.clearActions(identity, 'manual', operation, session);
         await this.sessions.advance(identity, session, 'clear', null);
         return plain(CLEARED_MANUAL);
-      case 'choose:all': return this.render(await this.sessions.advance(identity, session, 'clear', {step: 'confirmAll'}), {step: 'confirmAll'});
+      case 'choose:all': {
+        const next: ClearState = {...session.state, step: 'confirmAll'};
+        return this.render(await this.sessions.advance(identity, session, 'clear', next), next);
+      }
       case 'choose:back':
         await this.sessions.advance(identity, session, 'clear', null);
-        return {text: '', buttons: [], navigate: 'main'};
+        return {text: '', buttons: [], navigate: session.state.from ?? 'main'};
       case 'confirmAll:confirm':
         await this.actions.clearActions(identity, 'all', operation, session);
         await this.sessions.advance(identity, session, 'clear', null);

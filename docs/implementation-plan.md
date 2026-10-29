@@ -441,6 +441,25 @@ Coordination to other caregivers now names what changed. A restore while free us
 is on explains that reminders stay paused. Bot unit 237; emulator 49; build and
 bundle checks passed.
 
+Checkpoint 7d (2026-10-29, local, not independently reviewed): `telegram/reminders.ts`
+adds the Нагадування menu. Notification and screen-message creation runs text →
+Зараз/Через… (5/10/15/30 хв or «Інший час», 1–1439) → countdown question for delayed
+reminders → review. Overlay advanced options are once / repeat after dismissal
+(1–1439 min) / buttonless (1–3600 s); options return to review and never submit.
+`/notify` and `/overlay` take options before the plain text: `+ХВ`, `countdown`,
+`repeat=ХВ`, `nodismiss=С`. Repeat with nodismiss, and countdown without a delay,
+are rejected; a bare command opens the menu flow. During free use, creation shows the
+spec's skip screen without creating anything, and a request that still arrives is
+recorded by ActionService as skipped. `/pending` and «Активні та заплановані» list
+open actions with schedule, countdown, buttonless duration, repeat interval and the
+midnight end. Clearing opened from reminders returns there. Create, skip and clear
+events now name the caregiver, reminder type, message and schedule; their recipients
+are unchanged. Bot unit 261; emulator 49; build and bundle checks passed.
+
+Task 7 status: every listed command and menu is implemented. Still open:
+`bot/scripts/webhook.ts`, which registers the webhook at deploy time once the
+function URL exists; an independent review; and live Telegram acceptance.
+
 **Prerequisite:** complete/review the application-name usage checkpoint above.
 Today/yesterday render AW app names/durations sorted descending, only selected
 category intervals incl descendants once and uncategorized opt-in; complete rows
@@ -456,22 +475,22 @@ bot/tests/{telegram,reports,menus}.test.ts; finish bot/src/index.ts, bot/scripts
 `transitionMenu(session: MenuSession, input: MenuInput): MenuResult` (pure);
 `buildBot(): Bot` initialized once per function instance without starting polling.
 
-- [ ] Write tests for webhook secret, unauthorized/group/forwarded/forged callbacks,
+- [x] Write tests for webhook secret, unauthorized/group/forwarded/forged callbacks,
   duplicate updates after partial failure, stale session buttons, escaped Ukrainian
   text/HTML-like titles, report privacy, personal preference privacy, seven dates,
   partial first day, old titles marked stale, presets/custom values, mandatory
   duration, conflicting options, review/cancel, free-use skip and restore action;
   `/endtime` status equivalence, exact time bounds, set-enables, saved-time on/off,
   suppression status, acknowledgement state, and stale/duplicate menu callbacks.
-- [ ] Run `npm test -- telegram reports menus`; verify failures.
-- [ ] Implement grammY webhook routing, command set from design including
+- [x] Run `npm test -- telegram reports menus`; verify failures.
+- [x] Implement grammY webhook routing, command set from design including
   `/endtime [status|set HH:MM|on|off]`, persisted session state machine, Endtime
   Settings submenu/review, and Ukrainian templates. Use Task 6 for
   mutation/outbox effects, not direct sends inside Firestore transactions.
-- [ ] Run suites using recorded Telegram fixtures, mocked Bot API and emulator;
+- [x] Run suites using recorded Telegram fixtures, mocked Bot API and emulator;
   verify every navigation leaf has back/cancel and all shared actions notify every
   other active caregiver without exposing private report requests.
-- [ ] Commit usable bot interface.
+- [x] Commit usable bot interface (webhook registration script and live acceptance pending).
 
 ## Task 8: Offline scheduler, allowance engine, and presentation integration
 
