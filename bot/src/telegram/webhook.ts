@@ -16,12 +16,13 @@ import {AllowanceController} from './allowance.js';
 import {ClearController} from './clear.js';
 import {RemindersController} from './reminders.js';
 import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
-  hourlySaved,type Reply} from './uk.js';
+  hourlySaved,ACTION_CAPACITY,DATA_CAPACITY,OPERATION_CONFLICT,TOO_MANY,REQUEST_FAILED,type Reply} from './uk.js';
 
 export interface TelegramClient {
   send(chatId: string, reply: Reply): Promise<void>;
   edit(chatId: string, messageId: number, reply: Reply): Promise<void>;
-  answer(callbackId: string): Promise<void>;
+  /** text shows as a short toast; Telegram allows up to 200 characters. */
+  answer(callbackId: string, text?: string): Promise<void>;
   delete(chatId: string, messageId: number): Promise<void>;
 }
 
@@ -35,12 +36,25 @@ export function grammyClient(api: Api): TelegramClient {
       try {await api.editMessageText(Number(chatId), messageId, reply.text, {...markup(reply), link_preview_options: {is_disabled: true}});}
       catch (error) {if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;}
     },
-    async answer(callbackId) {await api.answerCallbackQuery(callbackId);},
+    async answer(callbackId, text) {await api.answerCallbackQuery(callbackId, text ? {text} : undefined);},
     async delete(chatId, messageId) {await api.deleteMessage(Number(chatId), messageId);},
   };
 }
 
 const KEY = /^[A-Za-z0-9_-]{22}$/;
+/** Telegram stops redelivering an update well within this. */
+const MARKER_TTL_MS = 2 * 86400000;
+/** Telegram 4xx other than 429 (blocked bot, unknown chat, bad request) will fail the same way again. */
+const permanentTelegramError = (error: unknown): boolean =>
+  error instanceof GrammyError && error.error_code >= 400 && error.error_code < 500 && error.error_code !== 429;
+function failureText(error: BoundaryError): string {
+  if (error.status === 401) return STALE_NAV;
+  if (error.status === 429) return TOO_MANY;
+  if (/action capacity/i.test(error.message)) return ACTION_CAPACITY;
+  if (/capacity|exhausted/i.test(error.message)) return DATA_CAPACITY;
+  if (/operation identity/i.test(error.message)) return OPERATION_CONFLICT;
+  return REQUEST_FAILED;
+}
 const command = (text: string) => /^\/([a-z_]+)(?:@[A-Za-z0-9_]{1,64})?(?:\s+([\s\S]*))?$/.exec(text.trim());
 const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
 
@@ -68,11 +82,32 @@ export class TelegramBot {
     const marker = this.repository.db.doc(`telegramUpdates/${updateId}`);
     if (await this.repository.db.runTransaction(async tx => (await tx.get(marker)).exists)) return;
     const identity = await this.identity(actor);
-    const callback = (update as any).callback_query;
-    if (callback) await this.onCallback(actor, identity, callback);
-    else await this.onMessage(actor, identity, (update as any).message, updateId as number);
+    const callback = (update as any).callback_query, message = (update as any).message;
+    // An unpaired user's chatter changes nothing and has nothing to protect from replay.
+    const durable = identity !== null || !!callback || KEY.test(command(message?.text ?? '')?.[2]?.trim() ?? '');
+    try {
+      if (callback) await this.onCallback(actor, identity, callback);
+      else await this.onMessage(actor, identity, message, updateId as number);
+    } catch (error) {
+      // Retrying cannot help a refused request or a permanently refused Telegram call; anything else is retried.
+      if (permanentTelegramError(error)) {/* nothing more can be delivered */}
+      else if (error instanceof BoundaryError && error.status < 500) await this.reportFailure(actor, callback, error);
+      else throw error;
+    }
+    if (!durable) return;
     const at = this.clock();
-    await this.repository.db.runTransaction(async tx => {tx.set(marker, {at});});
+    // expireAt drives a Firestore TTL policy; the daily sweep is a bounded fallback.
+    await this.repository.db.runTransaction(async tx => {tx.set(marker, {at, expireAt: new Date(Date.parse(at) + MARKER_TTL_MS)});});
+  }
+
+  private async reportFailure(actor: PrivateActor, callback: any, error: BoundaryError): Promise<void> {
+    const text = failureText(error);
+    try {
+      if (callback) await this.client.answer(String(callback.id), text);
+      else await this.client.send(actor.chatId, {text, buttons: []});
+    } catch (sendError) {
+      if (!permanentTelegramError(sendError)) throw sendError;
+    }
   }
 
   private async identity(actor: PrivateActor): Promise<ParentIdentity | null> {
@@ -81,7 +116,6 @@ export class TelegramBot {
   }
 
   private async onCallback(actor: PrivateActor, identity: ParentIdentity | null, callback: any): Promise<void> {
-    try {await this.client.answer(String(callback.id));} catch {/* an expired query must not block the reply */}
     const data = callback.data;
     let reply: Reply;
     if (!identity) reply = {text: PAIRING, buttons: []};
@@ -94,7 +128,14 @@ export class TelegramBot {
     else if (typeof data === 'string' && data.startsWith('rm:')) reply = await this.reminders.callback(identity, data);
     else reply = {text: STALE_NAV, buttons: []};
     if (identity && reply.navigate) reply = await this.handOver(identity, reply);
+    // A refused tap (stale or double) must not overwrite the live menu or a confirmation.
+    if (reply.toast) {await this.answer(callback, reply.text); return;}
+    await this.answer(callback);
     await this.deliver(actor.chatId, reply, callback.message?.message_id);
+  }
+
+  private async answer(callback: any, text?: string): Promise<void> {
+    try {await this.client.answer(String(callback.id), text);} catch {/* an expired query must not block the reply */}
   }
 
   /** Open the menu a reply hands over to. */

@@ -456,6 +456,40 @@ midnight end. Clearing opened from reminders returns there. Create, skip and cle
 events now name the caregiver, reminder type, message and schedule; their recipients
 are unchanged. Bot unit 261; emulator 49; build and bundle checks passed.
 
+Independent review (2026-10-29, range fd7b77b..26478f2): no critical or security
+issues found. Fixed:
+- Stale or double taps are answered with a callback toast and no longer overwrite the
+  live menu or a confirmation.
+- Non-retryable `BoundaryError`s get one Ukrainian reply (a toast for taps) and the
+  update is marked handled. Telegram 4xx other than 429 also counts as handled;
+  transient failures still return 500 so Telegram redelivers.
+- `/pending` pages below 3500 characters.
+- The hourly button carries its target (`hourlyon`/`hourlyoff`), so a redelivered tap
+  replays the same operation.
+- Markers carry `expireAt` for a Firestore TTL policy, and unpaired chatter writes none.
+- Text-input paths await inside their 401 handling.
+- Session nonces are generated outside transactions.
+- `/notify`/`/overlay` options may be separated by any whitespace.
+- Removing a category counted through its parent names that parent.
+- Settings coordination names the caregiver by pairing name.
+
+Deferred:
+- The mutation and the session advance are separate transactions. A concurrent
+  confirm/cancel pair can commit while the issuer sees «Скасовано»; a retry replays
+  the operation.
+- `bot/scripts/webhook.ts` must set `secret_token`, `allowed_updates:
+  ['message','callback_query']` and `max_connections: 1`, because a parallel
+  redelivery of one update is not otherwise serialized.
+- Expired operation tombstones are never deleted (Task 10 decision).
+- Pairing-instruction replies are not throttled per sender.
+
+Accepted deviations:
+- Direct `/notify` and `/overlay` with text submit without a review, like `/limit`
+  and `/endtime set`; menu creation always reviews.
+- The planned `buildBot(): Bot` is `TelegramBot` plus a `grammyClient(Api)` adapter.
+
+Bot unit 269.
+
 Task 7 status: every listed command and menu is implemented. Still open:
 `bot/scripts/webhook.ts`, which registers the webhook at deploy time once the
 function URL exists; an independent review; and live Telegram acceptance.

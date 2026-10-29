@@ -107,7 +107,7 @@ export async function readOperation(repo: FirestoreRepository, tx: Transaction, 
 }
 export function eventFor(deviceId: string, id: string, at: string, text: string, parents: Parent[]): ParentEvent { return { id: digest(id), deviceId, at, kind: 'status', text, recipients: parents }; }
 /** The caregiver's pairing name, chosen when their key was created in the companion. */
-const issuerName = (parents: Parent[], identity: ParentIdentity): string => parents.find(p => p.pairingId === identity.pairingId)?.name ?? identity.userId;
+export const issuerName = (parents: Parent[], identity: ParentIdentity): string => parents.find(p => p.pairingId === identity.pairingId)?.name ?? identity.userId;
 /** Who asked for what and when; the parent's own text is plain and never interpreted as markup. */
 function createdText(action: Action, name: string, skipped: boolean): string {
     const what = `${action.kind === 'overlay' ? 'повідомлення на екрані' : 'сповіщення'} «${action.options.message}»`;

@@ -14,7 +14,7 @@ export async function setup(fail:(call:Call)=>boolean=()=>false){
   const client={
     send:async(chatId:string,reply:any)=>record({kind:'send',chatId,text:reply.text,buttons:reply.buttons}),
     edit:async(chatId:string,messageId:number,reply:any)=>record({kind:'edit',chatId,messageId,text:reply.text,buttons:reply.buttons}),
-    answer:async(_id:string)=>record({kind:'answer'}),
+    answer:async(_id:string,text?:string)=>record({kind:'answer',...(text?{text}:{})}),
     delete:async(chatId:string,messageId:number)=>record({kind:'delete',chatId,messageId}),
   };
   const settings=new SettingsService(f.repo,f.clock),actions=new ActionService(f.repo,f.clock);

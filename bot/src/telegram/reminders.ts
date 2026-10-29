@@ -1,4 +1,5 @@
-/** Reminder menu, /notify, /overlay and /pending. Creation always ends in a review; ActionService owns delivery.
+/** Reminder menu, /notify, /overlay and /pending. Menu creation ends in a review; a command with text submits
+ * directly, like the other direct commands. ActionService owns delivery.
  *
  * The submitted text is the parent's own plain text and is never interpreted as markup. During free
  * use, creation explains the skip at once; a request that still arrives is recorded by ActionService
@@ -11,6 +12,7 @@ import {readActionSnapshot,type ActionDraft,type ActionService} from '../actions
 import {decodeSettings} from '../settingsCodec.js';
 import type {CallbackGuard} from '../settings.js';
 import {MenuSessions,type MenuSession} from './sessions.js';
+import {paginate} from './reports.js';
 import {LABELS,CANCELED,STALE_NAV,type Button,type Reply} from './uk.js';
 
 export const MAX_DELAY_MINUTES = 1439;
@@ -66,12 +68,10 @@ export function toActionDraft(d: Draft): ActionDraft {
 /** Options precede the text: `+ХВИЛИНИ`, `countdown`, and for overlays `repeat=ХВ` or `nodismiss=С`. */
 export function parseReminder(kind: 'notify' | 'overlay', args: string): Draft | string {
   const usage = kind === 'notify' ? T.notifyUsage : T.overlayUsage;
-  const words = args.split(' ');
   const draft: Draft = {kind, message: '', delayMinutes: 0, countdown: false, mode: 'once', repeatMinutes: null, durationSeconds: null};
-  let i = 0, match: RegExpExecArray | null;
-  for (; i < words.length; i++) {
-    const word = words[i]!;
-    if (!word) continue;
+  let rest = args.replace(/^\s+/, ''), match: RegExpExecArray | null;
+  for (let token = /^(\S+)(\s+|$)/.exec(rest); token; token = /^(\S+)(\s+|$)/.exec(rest)) {
+    const word = token[1]!;
     if ((match = /^\+(\d+)$/.exec(word))) {
       const n = whole(match[1]!, MAX_DELAY_MINUTES); if (n === null) return usage; draft.delayMinutes = n;
     } else if (word === 'countdown') draft.countdown = true;
@@ -83,8 +83,9 @@ export function parseReminder(kind: 'notify' | 'overlay', args: string): Draft |
       if (draft.mode === 'repeat') return T.conflict; draft.mode = 'buttonless'; draft.durationSeconds = n;
     } else if (/^(?:\+|repeat=|nodismiss=)/.test(word)) return usage;
     else break;
+    rest = rest.slice(token[0].length);
   }
-  draft.message = words.slice(i).join(' ').trim();
+  draft.message = rest.trim();
   if (!draft.message) return usage;
   if (!validMessage(draft.message)) return T.message;
   if (draft.countdown && !draft.delayMinutes) return T.countdownDelay;
@@ -118,7 +119,7 @@ function pendingEntry(index: number, action: Action, state: string): string[] {
   return lines;
 }
 
-const stale = (): Reply => ({text: STALE_NAV, buttons: []});
+const stale = (): Reply => ({text: STALE_NAV, buttons: [], toast: true});
 const plain = (text: string): Reply => ({text, buttons: []});
 const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
 
@@ -183,14 +184,14 @@ export class RemindersController {
       const {step, draft} = session.state, d = draft!;
       if (step === 'text') {
         const message = text.trim();
-        if (!validMessage(message)) return this.again(identity, session, T.message);
-        return this.go(identity, session, {step: 'when', draft: {...d, message}});
+        if (!validMessage(message)) return await this.again(identity, session, T.message);
+        return await this.go(identity, session, {step: 'when', draft: {...d, message}});
       }
       const max = step === 'durationInput' ? MAX_BUTTONLESS_SECONDS : MAX_DELAY_MINUTES, n = whole(text, max);
-      if (n === null) return this.again(identity, session, step === 'durationInput' ? T.seconds : T.minutes);
-      if (step === 'delayInput') return this.go(identity, session, {step: 'countdown', draft: {...d, delayMinutes: n}});
-      if (step === 'repeatInput') return this.go(identity, session, {step: 'review', draft: {...d, mode: 'repeat', repeatMinutes: n, durationSeconds: null}});
-      return this.go(identity, session, {step: 'review', draft: {...d, mode: 'buttonless', durationSeconds: n, repeatMinutes: null}});
+      if (n === null) return await this.again(identity, session, step === 'durationInput' ? T.seconds : T.minutes);
+      if (step === 'delayInput') return await this.go(identity, session, {step: 'countdown', draft: {...d, delayMinutes: n}});
+      if (step === 'repeatInput') return await this.go(identity, session, {step: 'review', draft: {...d, mode: 'repeat', repeatMinutes: n, durationSeconds: null}});
+      return await this.go(identity, session, {step: 'review', draft: {...d, mode: 'buttonless', durationSeconds: n, repeatMinutes: null}});
     } catch (error) {
       if (unauthorized(error)) return stale();
       throw error;
@@ -267,18 +268,22 @@ export class RemindersController {
       case 'repeatInput': reply = {text: T.repeatInput, buttons: [cancel]}; break;
       case 'durationInput': reply = {text: T.durationInput, buttons: [cancel]}; break;
       case 'free': reply = {text: T.free, buttons: [b('limit', 'Перейти до ліміту часу'), b('back', LABELS.back)]}; break;
-      case 'pending': reply = {text: await this.pendingText(identity), buttons: [b('refresh', '🔄 Оновити'), b('clear', '🧹 Очистити…'), b('back', LABELS.back)]}; break;
+      case 'pending': {
+        const [first, ...extra] = await this.pendingPages(identity);
+        reply = {text: first!, buttons: [b('refresh', '🔄 Оновити'), b('clear', '🧹 Очистити…'), b('back', LABELS.back)], ...(extra.length ? {extra} : {})};
+        break;
+      }
     }
     return prefix ? {...reply, text: prefix + '\n\n' + reply.text} : reply;
   }
 
-  private async pendingText(identity: ParentIdentity): Promise<string> {
+  private async pendingPages(identity: ParentIdentity): Promise<string[]> {
     const rows = await this.repository.db.runTransaction(async tx => {
       await this.repository.requireParent(tx, identity);
       return [...(await readActionSnapshot(this.repository, tx, identity.deviceId)).rows.values()].map(r => r.row);
     });
     const open = rows.filter(r => r.open).sort((a, b) => a.action.targetAt.localeCompare(b.action.targetAt) || a.action.sequence - b.action.sequence);
-    if (!open.length) return `${T.pending}\n\n${T.none}`;
-    return [T.pending, '', ...open.flatMap((r, i) => pendingEntry(i + 1, r.action, r.state))].join('\n');
+    if (!open.length) return [`${T.pending}\n\n${T.none}`];
+    return paginate(T.pending, [T.pending, '', ...open.flatMap((r, i) => pendingEntry(i + 1, r.action, r.state))]);
   }
 }

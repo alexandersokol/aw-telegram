@@ -71,7 +71,9 @@ describe('reminder menu',()=>{
     await s.tap('Сповіщення');await s.say('Привіт');await s.tap('Зараз');const submit=s.button('Надіслати');
     await Promise.all([s.handle(s.press('1',submit)),s.handle(s.press('1',submit))]);
     expect(actions(s)).toHaveLength(1);
-    await s.handle(s.press('1',submit));expect(s.last().text).toBe('Це меню застаріло. Відкрийте /start знову.');
+    const done=s.last();await s.handle(s.press('1',submit));
+    const answers=s.calls.filter(c=>c.kind==='answer');expect(answers.at(-1)).toEqual({kind:'answer',text:'Це меню застаріло. Відкрийте /start знову.'});
+    expect(s.last()).toBe(done);
   });
 });
 
@@ -114,6 +116,10 @@ describe('reminder commands',()=>{
   ])('rejects %j without creating an action',async(command,text)=>{
     const s=await setup();await s.say(command);expect(s.last().text).toBe(text);expect(actions(s)).toEqual([]);
   });
+  it('accepts a line break between options and the message, keeping its spacing',async()=>{
+    const s=await setup();await s.say('/notify +5\nРядок 1\n  Рядок 2');
+    expect(actions(s)[0].action.options.message).toBe('Рядок 1\n  Рядок 2');
+  });
   it('opens the creation flow for a bare command',async()=>{
     const s=await setup();await s.say('/overlay');expect(s.last().text).toBe('Введіть текст повідомлення:');
     await s.say('Привіт');expect(s.last().text).toBe('Коли показати повідомлення?');
@@ -121,6 +127,14 @@ describe('reminder commands',()=>{
 });
 
 describe('/pending',()=>{
+  it('pages a long list below the Telegram message limit',async()=>{
+    const s=await setup();
+    for(let i=0;i<40;i++)await s.say(`/overlay +${i+1} countdown repeat=3 ${'Повідомлення '.repeat(15)}${i}`);
+    const before=s.calls.length;await s.say('/pending');
+    const pages=s.calls.slice(before).filter(c=>c.kind==='send');
+    expect(pages.length).toBeGreaterThan(1);for(const p of pages)expect(p.text!.length).toBeLessThanOrEqual(3500);
+    expect(pages.map(p=>p.text).join('\n').match(/^\d+\. 🖥/gm)).toHaveLength(40);
+  });
   it('lists open actions with schedule, countdown, repetition and midnight end',async()=>{
     const s=await setup();
     await s.say('/pending');expect(s.last().text).toBe('📋 Активні та заплановані\n\nНемає активних або запланованих нагадувань.');

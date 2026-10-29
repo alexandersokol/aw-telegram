@@ -12,14 +12,14 @@ import {loadReport,renderStatus,renderUsage,type UsagePeriod} from './reports.js
 /** Limit and Reminders are separate menus that the main menu hands over to. */
 export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status';
 export interface NavState {screen: NavScreen; period?: UsagePeriod}
-export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourly' | 'endtime' | 'help' | 'back' |
+export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourlyon' | 'hourlyoff' | 'endtime' | 'help' | 'back' |
   UsagePeriod | 'refresh';
 /** A null state leaves this menu: openEndtime hands over to the Endtime submenu. */
-export interface NavResult {state: NavState | null; effect?: 'toggleHourly' | 'openEndtime' | 'openLimit' | 'openReminders'; error?: 'stale'}
+export interface NavResult {state: NavState | null; effect?: 'hourlyOn' | 'hourlyOff' | 'openEndtime' | 'openLimit' | 'openReminders'; error?: 'stale'}
 
 const SECTIONS: readonly NavScreen[] = ['usage', 'status'];
 const PERIODS: readonly UsagePeriod[] = ['today', 'yesterday', 'week'];
-const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourly', 'endtime', 'help', 'back', ...PERIODS, 'refresh'];
+const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourlyon', 'hourlyoff', 'endtime', 'help', 'back', ...PERIODS, 'refresh'];
 
 export function transitionNav(state: NavState, action: NavAction): NavResult {
   const to = (screen: NavScreen): NavResult => ({state: {screen}});
@@ -28,7 +28,8 @@ export function transitionNav(state: NavState, action: NavAction): NavResult {
     if (action === 'reminders') return {state: null, effect: 'openReminders'};
     if (action === 'settings' || SECTIONS.includes(action as NavScreen)) return to(action as NavScreen);
   } else if (state.screen === 'settings') {
-    if (action === 'hourly') return {state, effect: 'toggleHourly'};
+    // The button carries its target, so a duplicate or retried tap replays the same operation.
+    if (action === 'hourlyon' || action === 'hourlyoff') return {state, effect: action === 'hourlyon' ? 'hourlyOn' : 'hourlyOff'};
     if (action === 'endtime') return {state: null, effect: 'openEndtime'};
     if (action === 'help') return to('help');
     if (action === 'back') return to('main');
@@ -51,7 +52,7 @@ export function decodeNav(data: unknown): (CallbackGuard & {action: NavAction}) 
   return Number.isSafeInteger(version) ? {nonce: match[1]!, version, action: match[3] as NavAction} : null;
 }
 
-const stale = (): Reply => ({text: STALE_NAV, buttons: []});
+const stale = (): Reply => ({text: STALE_NAV, buttons: [], toast: true});
 
 export class NavigationController {
   private readonly sessions: MenuSessions;
@@ -85,9 +86,8 @@ export class NavigationController {
       if (result.effect === 'openLimit') return this.allowance.openStatus(identity);
       if (result.effect === 'openReminders') return this.reminders.openHome(identity);
       let prefix: string | undefined;
-      if (result.effect === 'toggleHourly') {
-        const enabled = !(await this.hourlyEnabled(identity));
-        // The session version names the operation, so a duplicate tap replays rather than toggling back.
+      if (result.effect === 'hourlyOn' || result.effect === 'hourlyOff') {
+        const enabled = result.effect === 'hourlyOn';
         await this.settings.setHourly(identity, enabled, `menu:${session.nonce}:${session.version}`, session);
         prefix = hourlySaved(enabled);
       }
@@ -109,7 +109,7 @@ export class NavigationController {
       reply = {text: MAIN_MENU, buttons: [[button('usage'), button('status')], [button('reminders'), button('limit')], [button('settings')]]};
     } else if (state.screen === 'settings') {
       const [hourly, {settings}] = await Promise.all([this.hourlyEnabled(identity), this.settings.status(identity)]);
-      reply = {text: SETTINGS_MENU, buttons: [[button('hourly', hourlyLabel(hourly))], [button('endtime', endtimeLabel(settings))],
+      reply = {text: SETTINGS_MENU, buttons: [[button(hourly ? 'hourlyoff' : 'hourlyon', hourlyLabel(hourly))], [button('endtime', endtimeLabel(settings))],
         [button('help')], [button('back')]]};
     } else if (state.screen === 'help') {
       reply = {text: HELP, buttons: [[button('back')]]};

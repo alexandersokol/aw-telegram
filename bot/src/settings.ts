@@ -3,7 +3,7 @@ import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCo
 import {BoundaryError,FirestoreRepository,MAX_POLICY_HISTORY,type EndtimePolicyGeneration,type ParentIdentity} from './repository.js';
 import {defaultSettings,projectDay,validateContract,type Settings,type Instant,type Counter} from './contracts.js';
 import {kyivDate,parseInstant,retainedDates,retentionStart} from './clock.js';
-import {readActionSnapshot,readOperation,planCancellation} from './actions.js';
+import {readActionSnapshot,readOperation,planCancellation,issuerName} from './actions.js';
 import {readAlerts,planAlerts,measurement} from './alertPlans.js';
 import {advanceMilestone} from './alerts.js';
 import {applyPlan} from './outbox.js';
@@ -128,7 +128,7 @@ export class SettingsService {
       checkSettingsCapacity(settings,cancellations,now,started===null?null:new Date(started).toISOString());
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
-      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінено батьком '+identity.userId+'.'+changeSummary(change,settings),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
+      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінив(-ла) «'+issuerName(actions.parents,identity)+'».'+changeSummary(change,settings),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
       const suppressionWrites=(change.kind==='setFreeUse'||change.kind==='setSuppression')&&change.enabled?
         await planEndtimeSuppression(this.repository,tx,identity.deviceId,kyivDate(now)):[];
       if(change.kind==='setFreeUse'){

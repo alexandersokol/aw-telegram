@@ -75,7 +75,7 @@ function liveLine(live: LiveState | null, now: string): string | null {
   return fresh ? `Зараз: ${live.app}${title(live.title)}` : `Остання активність о ${at(live.observedAt, now)}: ${live.app}${title(live.title)}`;
 }
 
-function paginate(header: string, lines: string[]): string[] {
+export function paginate(header: string, lines: string[]): string[] {
   const pages: string[] = [];
   let current = '';
   for (const line of lines) {

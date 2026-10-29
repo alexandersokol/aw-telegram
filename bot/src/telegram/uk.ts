@@ -4,7 +4,9 @@ import type {Settings,Counter} from '../contracts.js';
 export interface Button {text: string; data: string}
 /** extra holds follow-up pages of a long report, sent after the main message without buttons. */
 /** navigate hands over to another menu, which the webhook opens in place of this empty reply. */
-export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings' | 'main' | 'limit' | 'clear' | 'reminders'; extra?: string[]}
+export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings' | 'main' | 'limit' | 'clear' | 'reminders'; extra?: string[];
+  /** On a button tap, show only as a callback toast and leave the tapped message unchanged. */
+  toast?: boolean}
 
 export const STALE_MENU = 'Це меню застаріло. Відкрийте /endtime знову.';
 export const TIME_FORMAT = 'Вкажіть час у форматі ГГ:ХХ від 00:15 до 23:59, наприклад 21:00.';
@@ -41,6 +43,11 @@ export const PAIR_FAILED = 'Не вдалося підключитися: клю
 export const PAIR_THROTTLED = 'Забагато спроб підключення. Спробуйте пізніше.';
 export const ALREADY_PAIRED = 'Цей обліковий запис уже підключено.';
 export const STALE_NAV = 'Це меню застаріло. Відкрийте /start знову.';
+export const ACTION_CAPACITY = 'Забагато активних нагадувань. Очистьте їх через /clear і спробуйте знову.';
+export const DATA_CAPACITY = 'Зміну не збережено: перевищено допустимий обсяг даних. Спробуйте меншу зміну.';
+export const OPERATION_CONFLICT = 'Цей запит уже оброблено або він застарів. Спробуйте ще раз.';
+export const TOO_MANY = 'Забагато запитів. Спробуйте пізніше.';
+export const REQUEST_FAILED = 'Не вдалося виконати запит. Перевірте введені дані й спробуйте ще раз.';
 export const MAIN_MENU = 'Головне меню';
 export const SETTINGS_MENU = '⚙️ Налаштування';
 export const HINT = 'Оберіть дію в меню: /start';
@@ -71,6 +78,7 @@ export const NAV_LABELS = {
   usage: '📊 Використання', status: '💻 Стан ноутбука', reminders: '💬 Нагадування', limit: '⏱ Ліміт часу',
   settings: '⚙️ Налаштування', help: 'Допомога', back: LABELS.back,
 } as const;
+export const NOTHING_TO_REMOVE = 'Для обліку нічого не вибрано.';
 export const hourlyLabel = (enabled: boolean): string => `Щогодинні звіти: ${enabled ? 'увімкнено' : 'вимкнено'}`;
 export const endtimeLabel = (settings: Settings): string => `Час завершення: ${settings.endtimeEnabled ? settings.endtimeLocalTime : 'вимкнено'}`;
 

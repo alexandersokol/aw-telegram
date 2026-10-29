@@ -81,10 +81,60 @@ describe('paired navigation',()=>{
     expect(s.db.data.get(root+'/parents/1').hourlyEnabled).toBe(true);expect(s.db.data.get(root+'/parents/2').hourlyEnabled).toBe(false);
     expect(events(s)).toHaveLength(before);
   });
-  it('rejects stale navigation buttons',async()=>{
+  it('answers a stale double tap with a toast and leaves the live menu in place',async()=>{
     const s=await setup();await s.handle(s.message('1','/start'));
-    const old=s.button('Налаштування');await s.handle(s.press('1',old));await s.handle(s.press('1',old));
-    expect(s.last().text).toBe('Це меню застаріло. Відкрийте /start знову.');
+    const old=s.button('Налаштування');await s.handle(s.press('1',old));const live=s.last();
+    await s.handle(s.press('1',old));
+    const answers=s.calls.filter(c=>c.kind==='answer');expect(answers.at(-1)).toEqual({kind:'answer',text:'Це меню застаріло. Відкрийте /start знову.'});
+    expect(s.last()).toBe(live);expect(s.last().text).toBe('⚙️ Налаштування');
+  });
+  it('replies once to a non-retryable failure and marks the update handled',async()=>{
+    const s=await setup();
+    for(let i=0;i<201;i++)s.db.data.set(root+'/actions/a'+i,{open:true,action:{id:'a'+i}});
+    const update=s.message('1','/notify Привіт');
+    await s.handle(update);await s.handle(update);
+    expect(s.calls.filter(c=>c.kind==='send').map(c=>c.text)).toEqual(['Забагато активних нагадувань. Очистьте їх через /clear і спробуйте знову.']);
+  });
+  it('shows a non-retryable callback failure as a toast',async()=>{
+    const s=await setup();await s.handle(s.message('1','/start'));await s.handle(s.press('1',s.button('Нагадування')));
+    await s.handle(s.press('1',s.button('Сповіщення')));await s.handle(s.message('1','Привіт'));await s.handle(s.press('1',s.button('Зараз')));
+    for(let i=0;i<201;i++)s.db.data.set(root+'/actions/a'+i,{open:true,action:{id:'a'+i}});
+    const review=s.last();await s.handle(s.press('1',s.button('Надіслати')));
+    const answers=s.calls.filter(c=>c.kind==='answer');expect(answers.at(-1)).toEqual({kind:'answer',text:'Забагато активних нагадувань. Очистьте їх через /clear і спробуйте знову.'});
+    expect(s.last()).toBe(review);
+  });
+  it('treats a permanent Telegram refusal as handled instead of retrying forever',async()=>{
+    const {GrammyError}=await import('grammy');
+    const s=await setup(c=>{if(c.kind==='send')throw new GrammyError('blocked',{ok:false,error_code:403,description:'Forbidden: bot was blocked by the user'},'sendMessage',{});return false;});
+    const update=s.message('1','/help');
+    await s.handle(update);
+    expect(s.db.data.has('telegramUpdates/'+update.update_id)).toBe(true);
+  });
+  it('stores a TTL expiry on markers and writes none for plain unpaired chatter',async()=>{
+    const s=await setup(),chatter=s.message('3','привіт'),paired=s.message('1','/help');
+    await s.handle(chatter);await s.handle(paired);
+    expect(s.db.data.has('telegramUpdates/'+chatter.update_id)).toBe(false);
+    const marker=s.db.data.get('telegramUpdates/'+paired.update_id);
+    expect(marker.expireAt).toBeInstanceOf(Date);
+    expect(marker.expireAt.getTime()-Date.parse(marker.at)).toBe(2*86400000);
+  });
+  it('fixes the hourly target when rendered, so a redelivered tap replays instead of conflicting',async()=>{
+    const {MenuSessions}=await import('../src/telegram/sessions.js');
+    const s=await setup();await s.handle(s.message('1','/settings'));
+    expect(s.button('Щогодинні звіти').endsWith(':hourlyon')).toBe(true);
+    const tap=s.press('1',s.button('Щогодинні звіти')),advance=MenuSessions.prototype.advance;let fail=true;
+    MenuSessions.prototype.advance=function(...args:any[]){if(fail){fail=false;return Promise.reject(new Error('transient'));}return (advance as any).apply(this,args);};
+    try{
+      await expect(s.handle(tap)).rejects.toThrow('transient');
+      expect(s.db.data.get(root+'/parents/1').hourlyEnabled).toBe(true);
+      await s.handle(tap);
+    }finally{MenuSessions.prototype.advance=advance;}
+    expect(s.db.data.get(root+'/parents/1').hourlyEnabled).toBe(true);
+    expect(s.last().text.startsWith('Щогодинні звіти увімкнено.')).toBe(true);expect(s.button('Щогодинні звіти').endsWith(':hourlyoff')).toBe(true);
+  });
+  it('names the issuing caregiver in settings coordination',async()=>{
+    const s=await setup();await s.handle(s.message('1','/free on'));
+    expect(events(s,'coordination').at(-1).text.startsWith('Налаштування змінив(-ла) «Parent».')).toBe(true);
   });
   it('routes time entry text into the Endtime menu',async()=>{
     const s=await setup();await s.handle(s.message('1','/endtime'));

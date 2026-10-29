@@ -64,7 +64,8 @@ describe('/limit',()=>{
     await s.tap('Змінити на сьогодні');await s.say('1:00');const confirm=s.button('Підтвердити');
     await Promise.all([s.handle(s.press('1',confirm)),s.handle(s.press('1',confirm))]);
     expect(stored(s).revision).toBe(1);expect(coordination(s)).toHaveLength(1);
-    await s.handle(s.press('1',old));expect(s.last().text).toBe('Це меню застаріло. Відкрийте /limit знову.');
+    await s.handle(s.press('1',old));
+    const answers=s.calls.filter(c=>c.kind==='answer');expect(answers.at(-1)).toEqual({kind:'answer',text:'Це меню застаріло. Відкрийте /limit знову.'});
   });
 });
 
@@ -138,6 +139,8 @@ describe('categories',()=>{
     await s.say('/add_category Ігри');expect(s.last().text).toBe('Категорію «Ігри» не знайдено. Перелік: /categories');
     await s.say('/remove_category Media');expect(s.last().text).toBe('Без змін: «Media» не враховується.');
     await s.say('/remove_category games/minecraft');expect(stored(s).selectedPaths).toEqual([]);
+    await s.say('/add_category Games');await s.say('/remove_category Games › Minecraft');
+    expect(s.last().text).toBe('«Games › Minecraft» враховується через «Games». Щоб її не враховувати, приберіть «Games».');
     await s.say('/add_category');expect(s.last().text).toBe('Використання: /add_category НАЗВА, наприклад /add_category Games › Minecraft.');
   });
 });

@@ -17,9 +17,9 @@ export class MenuSessions {
 
   /** A new nonce invalidates every button rendered for an earlier menu. */
   async open<S>(identity: ParentIdentity, menu: MenuName, state: S): Promise<CallbackGuard> {
+    const guard = {nonce: newSecret(16), version: 0};
     return this.repository.db.runTransaction(async tx => {
       await this.repository.requireParent(tx, identity);
-      const guard = {nonce: newSecret(16), version: 0};
       tx.set(this.ref(identity), this.value(identity, guard, menu, state));
       return guard;
     });

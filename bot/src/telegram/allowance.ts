@@ -13,7 +13,7 @@ import type {CallbackGuard,SettingsChange,SettingsService,SettingsUpdateResult} 
 import {MenuSessions,type MenuSession} from './sessions.js';
 import {loadReport,type ReportData} from './reports.js';
 import {LABELS,LIMIT_LABELS,REVIEW,STALE_LIMIT,LIMIT_USAGE,DURATION_FORMAT,FREE_USAGE,ADD_CATEGORY_USAGE,REMOVE_CATEGORY_USAGE,
-  ENTER_TODAY_LIMIT,ENTER_DAILY_LIMIT,NO_CATALOG,PICK_ADD,PICK_REMOVE,NOTHING_TO_ADD,FREE_STILL_ON,CANCELED,savedText,
+  ENTER_TODAY_LIMIT,ENTER_DAILY_LIMIT,NO_CATALOG,PICK_ADD,PICK_REMOVE,NOTHING_TO_ADD,NOTHING_TO_REMOVE,FREE_STILL_ON,CANCELED,savedText,
   type Button,type Reply} from './uk.js';
 
 export const PAGE_SIZE = 8;
@@ -99,7 +99,7 @@ function outcome(intent: Intent, result: SettingsUpdateResult, today: string): s
   }
 }
 
-const stale = (): Reply => ({text: STALE_LIMIT, buttons: []});
+const stale = (): Reply => ({text: STALE_LIMIT, buttons: [], toast: true});
 const plain = (text: string): Reply => ({text, buttons: []});
 const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
 
@@ -138,7 +138,12 @@ export class AllowanceController {
     const data = await this.data(identity);
     if (mode === 'remove') {
       const path = selected(data.settings).find(p => matches(args, p));
-      if (path === undefined) return plain(`Без змін: «${args}» не враховується.`);
+      if (path === undefined) {
+        const typed = args.trim().split(/\s*(?:›|>|\/)\s*/);
+        const parent = data.settings.selectedPaths.find(p => p.length < typed.length && p.every((s, i) => s.toLowerCase() === typed[i]!.toLowerCase()));
+        if (parent) return plain(`«${typed.join(' › ')}» враховується через «${categoryLabel(parent)}». Щоб її не враховувати, приберіть «${categoryLabel(parent)}».`);
+        return plain(`Без змін: «${args}» не враховується.`);
+      }
       return plain(await this.apply(identity, {kind: 'removeCategory', pick: pickOf(path)}, `tg:${updateId}`));
     }
     const entry = (data.live?.categoryCatalog ?? []).find(c => matches(args, c.path));
@@ -176,7 +181,7 @@ export class AllowanceController {
         return {text: DURATION_FORMAT, buttons: [[this.button(guard, 'cancel', LABELS.cancel)]]};
       }
       const intent: Intent = {kind: session.state.scope === 'today' ? 'setTodayLimit' : 'setDefaultLimit', ms};
-      return this.go(identity, session, {step: 'confirm', intent, back: 'status'});
+      return await this.go(identity, session, {step: 'confirm', intent, back: 'status'});
     } catch (error) {
       if (unauthorized(error)) return stale();
       throw error;
@@ -265,7 +270,7 @@ export class AllowanceController {
         buttons: [[this.button(guard, 'add', LIMIT_LABELS.add)], ...(chosen.length ? [[this.button(guard, 'remove', LIMIT_LABELS.remove)]] : []), back]};
     } else if (state.step === 'pick') {
       if (!state.options.length) {
-        const empty = state.mode === 'add' && !data.live?.categoryCatalog?.length ? NO_CATALOG : NOTHING_TO_ADD;
+        const empty = state.mode === 'remove' ? NOTHING_TO_REMOVE : !data.live?.categoryCatalog?.length ? NO_CATALOG : NOTHING_TO_ADD;
         reply = {text: empty, buttons: [back]};
       } else {
         const pages = this.pageCount(state.mode, data), arrows: Button[] = [];

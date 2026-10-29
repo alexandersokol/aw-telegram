@@ -22,7 +22,7 @@ export function parseEndtimeCommand(text: string): EndtimeCommand {
 }
 
 const STATUS: EndtimeMenuState = {step: 'status', draft: null};
-const stale = (): Reply => ({text: STALE_MENU, buttons: []});
+const stale = (): Reply => ({text: STALE_MENU, buttons: [], toast: true});
 const unauthorized = (error: unknown): boolean => error instanceof BoundaryError && error.status === 401;
 
 export class EndtimeController {

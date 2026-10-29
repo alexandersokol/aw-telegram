@@ -10,7 +10,7 @@ import {LABELS,LIMIT_LABELS,STALE_CLEAR,CLEAR_USAGE,CLEAR_CHOOSE,CLEAR_ALL_CONFI
 type ClearState = {step: 'choose' | 'confirmAll'; from?: 'reminders'};
 type Action = 'manual' | 'all' | 'confirm' | 'cancel' | 'back';
 const CALLBACK = /^cl:([A-Za-z0-9_-]{1,43}):(0|[1-9][0-9]{0,15}):(manual|all|confirm|cancel|back)$/;
-const stale = (): Reply => ({text: STALE_CLEAR, buttons: []});
+const stale = (): Reply => ({text: STALE_CLEAR, buttons: [], toast: true});
 const plain = (text: string): Reply => ({text, buttons: []});
 
 export class ClearController {

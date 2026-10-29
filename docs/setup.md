@@ -30,6 +30,14 @@ npx firebase-tools@15.32.1 deploy --only firestore:rules,firestore:indexes --pro
 
 Rules do not restrict the Admin SDK; backend access is governed by IAM.
 
+Not yet applied: a TTL policy on the `expireAt` field of `telegramUpdates`. These are
+redelivery markers that expire two days after an update. The daily sweep remains a
+bounded fallback. Owner-run:
+
+```powershell
+gcloud firestore fields ttls update expireAt --collection-group=telegramUpdates --enable-ttl --project=aw-telegram
+```
+
 ## Enabled APIs
 
 Firestore, Cloud Functions, Cloud Run, Cloud Build, Artifact Registry, Cloud

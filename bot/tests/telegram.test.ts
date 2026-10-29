@@ -87,7 +87,7 @@ describe('Endtime menu',()=>{
     const results=await Promise.all([press(s,review!,'Підтвердити'),press(s,review!,'Підтвердити')]);
     expect(results.filter(r=>r.text===STALE)).toHaveLength(1);
     expect(stored(s)).toMatchObject({revision:1,endtimeLocalTime:'22:00'});expect(events(s,'coordination')).toHaveLength(1);
-    expect(await s.bot.callback(parent(),'et:forged:0:on')).toEqual({text:STALE,buttons:[]});expect(await s.bot.callback(parent(),'garbage')).toEqual({text:STALE,buttons:[]});
+    expect(await s.bot.callback(parent(),'et:forged:0:on')).toEqual({text:STALE,buttons:[],toast:true});expect(await s.bot.callback(parent(),'garbage')).toEqual({text:STALE,buttons:[],toast:true});
   });
   it('cancel and back never mutate, and back leaves the menu',async()=>{
     const s=await setup(),menu=await s.bot.openMenu(parent());
