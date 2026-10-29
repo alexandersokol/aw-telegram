@@ -7,8 +7,9 @@ import json
 import sqlite3
 from uuid import uuid4
 
-from .clock import format_instant, parse_instant, retained_dates
-from .models import (Ack, CancellationAck, DaySummary, EndtimeAck, Settings, SettingsAck, SyncRequest, SyncResponse,
+from .clock import format_instant, local_day_bounds, parse_instant, retained_dates
+from .models import (Ack, ActionAck, CancellationAck, DaySummary, EndtimeAck, Settings, SettingsAck, SyncRequest, SyncResponse,
+    validate_action_receipt,
     MAX_BODY_BYTES, MAX_SAFE_INTEGER, collection_start, ensure_report_capacity, project_day,
     validate_activity_context, validate_contract, wire_bytes)
 
@@ -112,7 +113,7 @@ class LocalStore:
 
     def _migrate(self):
         version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3):
+        if version not in (0, 1, 2, 3, 4):
             raise ValueError("unsupported local schema")
         with self._transaction():
             if version == 0:
@@ -140,6 +141,9 @@ class LocalStore:
                 # Schema 3 adds offline overlay policy state and one endtime receipt per date/generation.
                 self.connection.execute("CREATE TABLE IF NOT EXISTS overlay_state (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL)")
                 self.connection.execute("CREATE TABLE IF NOT EXISTS endtime_receipts (date TEXT NOT NULL, generation INTEGER NOT NULL, ack_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(date, generation))")
+            if version < 4:
+                # Schema 4 adds accepted delivery offers; receipts for them live in the acks table.
+                self.connection.execute("CREATE TABLE IF NOT EXISTS actions (id TEXT PRIMARY KEY, body TEXT NOT NULL, sequence INTEGER NOT NULL, target TEXT NOT NULL, accepted_at TEXT, event_sequence INTEGER NOT NULL, occurrence INTEGER NOT NULL, terminal INTEGER NOT NULL, received_at TEXT NOT NULL)")
             # Compatibility is confined to persisted state. Wire Settings stay strict.
             state = self._state()
             settings = state["settings"]
@@ -150,7 +154,7 @@ class LocalStore:
             if legacy:
                 state["settings"] = migrated
                 self._save(state)
-            self.connection.execute("PRAGMA user_version=3")
+            self.connection.execute("PRAGMA user_version=4")
 
     def _state(self):
         return json.loads(self.connection.execute("select value from state where id=1").fetchone()[0])
@@ -240,9 +244,15 @@ class LocalStore:
         row = self.connection.execute("select value from overlay_state where id=1").fetchone()
         return None if row is None else json.loads(row[0])
 
-    def commit_overlay_state(self, value: dict, receipt: EndtimeAck | None = None) -> bool:
-        """Persist scheduler state; queue at most one endtime receipt per date/generation atomically."""
+    def commit_overlay_state(self, value: dict, receipt: EndtimeAck | None = None, events=()) -> bool:
+        """Persist scheduler state with its action receipts; queue at most one endtime receipt per date/generation.
+
+        Everything commits in one transaction, so a crash cannot separate a shown or dismissed
+        presentation from its receipt.
+        """
         with self._transaction():
+            for event in events:
+                self._action_event(**event)
             queued = False
             if receipt is not None:
                 ack = validate_contract("ack", _wire(receipt))
@@ -256,6 +266,65 @@ class LocalStore:
             self.connection.execute("insert into overlay_state values(1,?) on conflict(id) do update set value=excluded.value",
                 (json.dumps(value, sort_keys=True, ensure_ascii=False),))
         return queued
+
+    # Delivery offers. Acceptance is persisted before it is acknowledged; an offer is never re-run.
+    def receive_offers(self, offers):
+        """apply_sync calls the same logic inside its own transaction."""
+        with self._transaction():
+            self._receive_offers(offers, self.now())
+
+    def _covered(self, action, state):
+        return (action["sequence"] <= state["throughActionSequence"] or
+                self.connection.execute("select 1 from canceled_ids where id=?", (action["id"],)).fetchone() is not None)
+
+    def _receive_offers(self, offers, now):
+        state, current = self._state(), parse_instant(now)
+        for offer in offers:
+            action = validate_contract("action", _wire(offer))
+            if self.connection.execute("select 1 from actions where id=?", (action["id"],)).fetchone():
+                continue  # repeated offer of a known action
+            expires, immediate = parse_instant(action["expiresAt"]), action["targetAt"] == action["createdAt"]
+            # Immediate presentation must begin strictly before expiry; a timer may begin through target+5s.
+            late = current >= expires if immediate else current > expires
+            if self._covered(action, state):
+                status, reason, accepted = "canceled", "canceled", None
+            elif late:
+                status, reason, accepted = "expired", "missed_deadline", None
+            else:
+                # A laptop clock slightly behind the server must not record acceptance before creation.
+                status, reason, accepted = "accepted", None, max(now, action["createdAt"])
+            self.connection.execute("insert into actions values(?,?,?,?,?,0,0,?,?)", (action["id"], _json(action),
+                action["sequence"], action["targetAt"], accepted, int(status != "accepted"), now))
+            self._action_event(action["id"], status, now, 0, None, reason, status != "accepted")
+
+    def _cancel_covered(self, now):
+        state = self._state()
+        for row in self.connection.execute("select id,body,occurrence from actions where terminal=0").fetchall():
+            if self._covered(json.loads(row["body"]), state):
+                self._action_event(row["id"], "canceled", now, row["occurrence"], None, "canceled", True)
+
+    def open_actions(self) -> list[dict]:
+        """Accepted actions that are not yet terminal, with their current occurrence."""
+        return [dict(action=json.loads(r["body"]), occurrence=r["occurrence"], acceptedAt=r["accepted_at"])
+                for r in self.connection.execute("select * from actions where terminal=0 order by sequence")]
+
+    def _action_event(self, action_id, status, at, occurrence, presented_at, reason, terminal):
+        """Queue one receipt with the next event sequence; a terminal action takes no further events."""
+        at = at if isinstance(at, str) else format_instant(at)
+        presented_at = presented_at if presented_at is None or isinstance(presented_at, str) else format_instant(presented_at)
+        row = self.connection.execute("select * from actions where id=?", (action_id,)).fetchone()
+        if row is None or (row["terminal"] and row["event_sequence"]):
+            return False
+        # Canonical instants order lexically; event time never precedes creation or acceptance under clock skew.
+        at = max(at, json.loads(row["body"])["createdAt"], row["accepted_at"] or "")
+        sequence = _next(row["event_sequence"])
+        ack = ActionAck(id=str(uuid4()), kind="action", actionId=action_id, eventSequence=sequence, occurrence=occurrence,
+            status=status, at=at, acceptedAt=row["accepted_at"], presentedAt=presented_at, reason=reason).to_wire()
+        validate_action_receipt(json.loads(row["body"]), ack)
+        self._queue_ack(ack, at)
+        self.connection.execute("update actions set event_sequence=?,occurrence=?,terminal=? where id=?",
+            (sequence, occurrence, int(terminal), action_id))
+        return True
 
     def pending_acks(self) -> list[Ack]:
         kinds = {"settings": SettingsAck, "cancellation": CancellationAck, "endtime": EndtimeAck}
@@ -287,8 +356,6 @@ class LocalStore:
 
     def apply_sync(self, response: SyncResponse) -> None:
         response = validate_contract("sync-response", _wire(response))
-        if response["deliveryOffers"]:
-            raise ValueError("action offer store is not installed")
         with self._transaction():
             manifest = self.connection.execute("select * from requests where sequence=?", (response["requestSequence"],)).fetchone()
             if manifest is None:
@@ -319,7 +386,10 @@ class LocalStore:
             state["cancellationRevision"] = max(state["cancellationRevision"], fence["revision"])
             state["throughActionSequence"] = max(state["throughActionSequence"], fence["throughActionSequence"])
             if changed:
-                # With no action executor installed, durable fences finish all local effects.
+                # Covered actions become terminal in this transaction; the scheduler removes any visible
+                # instance on its next tick, about a second later.
+                self._save(state)
+                self._cancel_covered(self.now())
                 self._queue_ack(dict(id=str(uuid4()), kind="cancellation", revision=state["cancellationRevision"],
                     throughActionSequence=state["throughActionSequence"], appliedAt=self.now()), self.now())
             for receipt in response["summaryReceipts"]:
@@ -329,6 +399,9 @@ class LocalStore:
                     source_sequence = json.loads(row["source"])["sequence"] if row["source"] is not None else 0
                     self.connection.execute("update days set acknowledged=?,sequence=max(sequence,?),dirty=?,recollect=max(recollect,?) where date=?",
                         (watermark, watermark, int(source_sequence > watermark), int(watermark > source_sequence), receipt["date"]))
+            self._save(state)
+            self._receive_offers(response["deliveryOffers"], self.now())
+            state = self._state()
             for ack_id in response["acknowledgedAckIds"]:
                 self.connection.execute("delete from acks where id=?", (ack_id,))
             if response["requestSequence"] > state["lastAppliedResponseSequence"]:
@@ -343,8 +416,8 @@ class LocalStore:
         with self._transaction():
             self.connection.execute("update days set source=NULL,digest=NULL,dirty=0,collected_at=NULL,recollect=1 where date<?", (cutoff,))
             self.connection.execute("delete from endtime_receipts where date<?", (cutoff,))
+            self.connection.execute("delete from actions where target<?", (format_instant(local_day_bounds(cutoff)[0]),))
             # Keep counters, settings, receipts and unknown cancellation IDs across midnight.
-            from .clock import local_day_bounds
             self.connection.execute("delete from requests where created_at<?", (format_instant(local_day_bounds(cutoff)[0]),))
 
     def close(self):

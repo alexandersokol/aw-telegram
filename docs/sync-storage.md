@@ -58,11 +58,16 @@ and publish report_capacity_exceeded while heartbeats and Acks continue. No trun
 fragments or invented apps are permitted. Cloud settings changes reserve mandatory
 response/receipt overhead before commit rather than saving an undeliverable catalog.
 
-Default delivery offers are empty; action receipts and nonempty companion offers fail
-closed. Task 6 must add same-transaction action/outbox hooks; Task 8 must add durable
-local offer storage and clearing-completion semantics. No Task 5 Ack claims that a GUI
-operation happened. Until an executor exists, durable cancellation fences finish all
-local effects; attaching one must gate clearing Ack on actual completion.
+Task 8a (schema 4) accepts delivery offers durably. In the `apply_sync` transaction,
+an offer that is new and valid is recorded in `actions` and acknowledged `accepted`
+at once. A known ID is ignored. An offer already covered by the cancellation fence
+gets `canceled`, and one past its window gets `expired` (`missed_deadline`); neither
+has acceptance. Acceptance and event times are clamped to no earlier than the action's
+creation, so a laptop clock slightly behind the server cannot reject a whole sync. A new
+fence marks covered open actions `canceled` in the same transaction as the cancellation
+Ack. The scheduler removes any visible instance on its next one-second tick, so clearing
+is durable before the Ack and visible within about a second. A malformed offer still
+rejects the whole response atomically.
 
 Verification uses synthetic sources and exact demo-aw-telegram loopback Firestore only.
 The guarded runner rejects non-demo/non-loopback/credentialed environments and disables

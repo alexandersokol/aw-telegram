@@ -1,9 +1,10 @@
-"""One overlay slot with newest-due-wins, offline endtime policy and durable receipts.
+"""Local presentation scheduler: one overlay slot (newest due wins), one card slot and one countdown slot.
 
-No Qt. ui.presenter applies the returned commands on the GUI thread and reports
-results through presented()/dismissed(). Manual overlay families are registered by
-the local action executor (base Task 8); a family displaced by a newer overlay is
-terminally replaced and never resumes, even if it is registered again after restart.
+No Qt. ui.presenter applies the returned commands on the GUI thread and reports results through
+presented()/dismissed(). Accepted delivery offers come from LocalStore; every transition's receipt
+commits in the same transaction as the scheduler state. A manual family displaced by a newer
+overlay, canceled by a fence, skipped in free use or interrupted by a crash is terminal and never
+resumes. Endtime recurrence belongs to the daily policy instead.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -17,7 +18,8 @@ from .policy import EndtimeState, endtime_finished, endtime_shown, evaluate_endt
 
 OVERLAY_TEXT = "Час завершення {time}.\nЧас відкласти ноутбук."
 WARNING_TEXT = "Час завершення о {time}: залишилося {minutes} хв."
-_TERMINAL = {"replaced", "finished", "failed", "unconfirmed"}
+NOTIFY_CARD_MS = 10_000
+_LIVE = {"waiting", "visible"}
 
 
 @dataclass(frozen=True)
@@ -31,8 +33,21 @@ class Presentation:
 
 
 @dataclass(frozen=True)
+class Countdown:
+    """Top-left timer until a delayed reminder's target."""
+    key: str
+    until: datetime
+    text: str
+
+
+@dataclass(frozen=True)
 class Hide:
     key: str
+
+
+def _event(action_id, status, at, occurrence, presented_at=None, reason=None, terminal=True):
+    return dict(action_id=action_id, status=status, at=at, occurrence=occurrence, presented_at=presented_at,
+                reason=reason, terminal=terminal)
 
 
 class Scheduler:
@@ -45,103 +60,197 @@ class Scheduler:
         value = self.store.overlay_state() or {}
         endtime = EndtimeState.from_json(value["endtime"]) if "endtime" in value else EndtimeState()
         return dict(endtime=endtime, visible=value.get("visible"), sequence=value.get("sequence", 0),
-                    manual=value.get("manual", {}))
+                    manual=value.get("manual", {}), card=value.get("card"), countdown=value.get("countdown"))
 
-    def _save(self, state: dict, before: str | None = None, receipt: EndtimeAck | None = None) -> None:
+    def _save(self, state: dict, before: str | None = None, receipt: EndtimeAck | None = None, events=()) -> None:
         value = {**state, "endtime": state["endtime"].to_json()}
-        if receipt is None and before == json.dumps(value, sort_keys=True):
+        if receipt is None and not events and before == json.dumps(value, sort_keys=True):
             return  # most ticks change nothing
-        self.store.commit_overlay_state(value, receipt)
+        self.store.commit_overlay_state(value, receipt, events)
 
     @staticmethod
     def _snapshot(state: dict) -> str:
         return json.dumps({**state, "endtime": state["endtime"].to_json()}, sort_keys=True)
 
-    def add_manual(self, action_id: str, text: str, due_at: datetime, repeat_minutes: int | None = None,
-                   dismissible: bool = True, duration_ms: int | None = None) -> None:
-        state = self._load()
-        if action_id in state["manual"]:
-            return  # idempotent; a terminal family stays terminal
-        state["sequence"] += 1
-        state["manual"][action_id] = dict(text=text, due=format_instant(due_at), date=kyiv_date(due_at),
-            repeat=repeat_minutes, dismissible=dismissible, duration=duration_ms,
-            sequence=state["sequence"], state="pending")
-        self._save(state)
+    @staticmethod
+    def _family_of(action: dict, occurrence: int, sequence: int) -> dict:
+        options = action["options"]
+        return dict(kind=action["kind"], text=options["message"], countdown=options["countdown"],
+            target=action["targetAt"], expires=action["expiresAt"], date=kyiv_date(parse_instant(action["targetAt"])),
+            repeat=options.get("repeatEveryMinutes"), dismissible=options.get("dismissible", True),
+            duration=options["durationSeconds"] * 1000 if "durationSeconds" in options else None,
+            immediate=action["targetAt"] == action["createdAt"], due=action["targetAt"], occurrence=occurrence,
+            sequence=sequence, state="waiting")
 
-    def tick(self, now: datetime, resumed: bool = False) -> list[Presentation | Hide]:
+    def _import(self, state: dict, commands: list, now: datetime) -> None:
+        """Adopt newly accepted actions; drop families the store made terminal (cancellation fences)."""
+        open_ids = set()
+        for row in self.store.open_actions():
+            action = row["action"]
+            open_ids.add(action["id"])
+            if action["id"] not in state["manual"]:
+                state["sequence"] += 1
+                state["manual"][action["id"]] = self._family_of(action, row["occurrence"], state["sequence"])
+        for action_id, family in state["manual"].items():
+            if family["state"] in _LIVE and action_id not in open_ids:
+                family["state"] = "done"
+                for slot, key in (("visible", self._overlay_key(action_id, family)), ("card", f"notify:{action_id}")):
+                    if state[slot] == key:
+                        commands.append(Hide(key))
+                        state[slot] = None
+
+    @staticmethod
+    def _overlay_key(action_id: str, family: dict) -> str:
+        return f"manual:{action_id}:{family['sequence']}"
+
+    def tick(self, now: datetime, resumed: bool = False) -> list[Presentation | Countdown | Hide]:
         state = self._load()
         before = self._snapshot(state)
         settings = self.store.settings
+        commands: list = []
+        events: list = []
+        self._import(state, commands, now)
         endtime, decision = evaluate_endtime(settings, state["endtime"], now, resumed)
-        commands: list[Presentation | Hide] = []
         visible = state["visible"]
         if decision.hide and visible and visible.startswith("endtime:"):
             commands.append(Hide(visible))
             visible = None
         if decision.warning:
+            if state["card"]:  # the warning card takes the slot from a manual card
+                shown = self._family(state["card"])
+                events.append(_event(shown, "replaced", now, state["manual"][shown]["occurrence"], reason="replaced"))
+                state["manual"][shown]["state"], state["card"] = "done", None
             commands.append(Presentation(f"endtime-warning:{endtime.date}:{endtime.generation}:{decision.warning}",
                 "endtime", "notification", WARNING_TEXT.format(time=settings.endtimeLocalTime,
                                                               minutes=decision.warning.removesuffix("m"))))
-        candidates = []
+        overlays, cards = [], []
         if decision.show:
             state["sequence"] += 1
-            candidates.append((decision.due_at, state["sequence"], None, Presentation(
+            overlays.append((decision.due_at, state["sequence"], None, Presentation(
                 f"endtime:{endtime.date}:{endtime.generation}:{state['sequence']}", "endtime", "overlay",
                 OVERLAY_TEXT.format(time=settings.endtimeLocalTime))))
+        free = settings.freeUseDate == kyiv_date(now)
         for action_id, family in state["manual"].items():
-            if family["state"] == "pending" and parse_instant(family["due"]) <= now:
-                candidates.append((parse_instant(family["due"]), family["sequence"], action_id, Presentation(
-                    f"manual:{action_id}:{family['sequence']}", "manual", "overlay", family["text"],
-                    family["dismissible"], family["duration"])))
-        if candidates:
+            midnight = local_day_bounds(family["date"])[1]
+            if family["state"] == "visible" and family["repeat"] and now >= midnight:
+                # A repeat family stops at its Kyiv midnight, removing any visible instance.
+                key = self._overlay_key(action_id, family)
+                if visible == key:
+                    commands.append(Hide(key))
+                    visible = None
+                events.append(_event(action_id, "completed", now, family["occurrence"]))
+                family["state"] = "done"
+            if family["state"] != "waiting" or parse_instant(family["due"]) > now:
+                continue
+            due, occurrence = parse_instant(family["due"]), family["occurrence"]
+            if occurrence == 0:
+                expires = parse_instant(family["expires"])
+                late = now >= expires if family["immediate"] else now > expires
+            else:
+                late = due >= midnight
+            if late and occurrence:
+                family["state"] = "done"  # the family ended at midnight; the backend closes it there too
+            elif late:
+                events.append(_event(action_id, "expired", now, 0, reason="missed_deadline"))
+                family["state"] = "done"
+            elif free:
+                events.append(_event(action_id, "skipped", now, occurrence, reason="free_use"))
+                family["state"] = "done"
+            elif family["kind"] == "overlay":
+                overlays.append((due, family["sequence"], action_id, Presentation(self._overlay_key(action_id, family),
+                    "manual", "overlay", family["text"], family["dismissible"], family["duration"])))
+            else:
+                cards.append((due, family["sequence"], action_id))
+        if overlays:
             # Newest due instant wins; equal instants fall back to the later durable sequence.
-            candidates.sort(key=lambda c: (c[0], c[1]))
-            *older, (_, _, newest_id, newest) = candidates
+            overlays.sort(key=lambda c: (c[0], c[1]))
+            *older, (_, _, newest_id, newest) = overlays
             for _, _, action_id, presentation in older:
-                endtime = self._retire(state, endtime, presentation.key, action_id, now)
+                endtime = self._retire(state, endtime, presentation.key, action_id, now, events)
             if visible:
                 commands.append(Hide(visible))
-                endtime = self._retire(state, endtime, visible, self._family(visible), now)
+                endtime = self._retire(state, endtime, visible, self._family(visible), now, events)
             visible = newest.key
             if newest_id is None:
                 endtime = endtime_shown(endtime)
             else:
                 state["manual"][newest_id]["state"] = "visible"
             commands.append(newest)
+        if cards:
+            cards.sort()
+            *older, (_, _, newest_id) = cards
+            for _, _, action_id in older:  # never shown: a newer card was due in the same tick
+                events.append(_event(action_id, "replaced", now, 0, reason="replaced"))
+                state["manual"][action_id]["state"] = "done"
+            if state["card"]:  # the visible card gives up its slot
+                shown = self._family(state["card"])
+                events.append(_event(shown, "replaced", now, state["manual"][shown]["occurrence"], reason="replaced"))
+                state["manual"][shown]["state"] = "done"
+            state["manual"][newest_id]["state"] = "visible"
+            state["card"] = f"notify:{newest_id}"
+            commands.append(Presentation(state["card"], "manual", "notification", state["manual"][newest_id]["text"],
+                                         duration_ms=NOTIFY_CARD_MS))
+        self._countdown(state, commands, now)
         dates = retained_dates(now)
-        state["manual"] = {k: f for k, f in state["manual"].items() if f["date"] in dates or f["state"] not in _TERMINAL}
+        state["manual"] = {k: f for k, f in state["manual"].items() if f["date"] in dates or f["state"] in _LIVE}
         state.update(endtime=endtime, visible=visible)
-        self._save(state, before)
+        self._save(state, before, events=events)
         return commands
+
+    def _countdown(self, state: dict, commands: list, now: datetime) -> None:
+        """Show the nearest waiting delayed reminder that asked for a countdown, if any."""
+        waiting = [(f["target"], action_id) for action_id, f in state["manual"].items()
+                   if f["state"] == "waiting" and f["countdown"] and f["occurrence"] == 0 and parse_instant(f["target"]) > now]
+        wanted = f"countdown:{min(waiting)[1]}" if waiting else None
+        if wanted == state["countdown"]:
+            return
+        if state["countdown"]:
+            commands.append(Hide(state["countdown"]))
+        if wanted:
+            family = state["manual"][wanted.split(":", 1)[1]]
+            commands.append(Countdown(wanted, parse_instant(family["target"]), family["text"]))
+        state["countdown"] = wanted
 
     @staticmethod
     def _family(key: str) -> str | None:
-        return key.split(":")[1] if key.startswith("manual:") else None
+        return key.split(":")[1] if key.startswith(("manual:", "notify:")) else None
 
     @staticmethod
-    def _retire(state: dict, endtime: EndtimeState, key: str, action_id: str | None, now: datetime) -> EndtimeState:
+    def _retire(state: dict, endtime: EndtimeState, key: str, action_id: str | None, now: datetime, events: list) -> EndtimeState:
         """Terminal replacement: a manual family ends; endtime policy owns its next occurrence."""
         if action_id is None:
             return endtime_finished(endtime, now) if key.startswith("endtime:") else endtime
-        state["manual"][action_id]["state"] = "replaced"
+        family = state["manual"][action_id]
+        events.append(_event(action_id, "replaced", now, family["occurrence"], reason="replaced"))
+        family["state"] = "done"
         return endtime
 
     def presented(self, key: str, result, at: datetime) -> None:
-        """An accepted show request (any state except failed) counts as presented."""
+        """An accepted show request (any state except failed) counts as presented; a card has no native result."""
         state = self._load()
-        if state["visible"] != key:
+        failed = result is not None and result.state == "failed"
+        receipt, events = None, []
+        if key.startswith("notify:") and state["card"] == key:
+            family = state["manual"][self._family(key)]
+            events.append(_event(self._family(key), "failed" if failed else "presented", at, family["occurrence"],
+                None if failed else at, "presentation_failed" if failed else None, failed))
+            if failed:
+                family["state"], state["card"] = "done", None
+        elif state["visible"] != key:
             return
-        failed = result.state == "failed"
-        receipt = None
-        if key.startswith("endtime:"):
+        elif key.startswith("endtime:"):
             if failed:
                 state.update(endtime=endtime_finished(state["endtime"], at), visible=None)
             else:
                 receipt = self._receipt(key, at)
-        elif failed:
-            state["manual"][self._family(key)]["state"] = "failed"
-            state["visible"] = None
-        self._save(state, receipt=receipt)
+        else:
+            action_id = self._family(key)
+            family = state["manual"][action_id]
+            events.append(_event(action_id, "failed" if failed else "presented", at, family["occurrence"],
+                None if failed else at, "presentation_failed" if failed else None, failed))
+            if failed:
+                family["state"], state["visible"] = "done", None
+        self._save(state, receipt=receipt, events=events)
 
     def _receipt(self, key: str, at: datetime) -> EndtimeAck | None:
         _, date, generation, _ = key.split(":")
@@ -155,32 +264,56 @@ class Scheduler:
         except ValueError:
             return None  # e.g. presented after its Kyiv date ended
 
-    def dismissed(self, key: str, now: datetime) -> None:
+    def dismissed(self, key: str, now: datetime, reason: str = "dismissed") -> None:
+        """reason: dismissed (button), expired (duration elapsed) or replaced (a newer card took the slot)."""
         state = self._load()
+        events = []
+        if key.startswith("notify:"):
+            if state["card"] != key:
+                return
+            action_id = self._family(key)
+            family = state["manual"][action_id]
+            # A notification card cannot be "dismissed" on the wire: closing or expiry completes it.
+            events.append(_event(action_id, "replaced" if reason == "replaced" else "completed", now, family["occurrence"],
+                                 reason="replaced" if reason == "replaced" else None))
+            family["state"], state["card"] = "done", None
+            self._save(state, events=events)
+            return
         if state["visible"] != key:
             return
         state["visible"] = None
         if key.startswith("endtime:"):
             state["endtime"] = endtime_finished(state["endtime"], now)
         else:
-            family = state["manual"][self._family(key)]
-            following = now + timedelta(minutes=family["repeat"]) if family["repeat"] else None
-            if following is None or following >= local_day_bounds(family["date"])[1]:
-                family["state"] = "finished"  # once, or a repeat family ends at its Kyiv midnight
+            action_id = self._family(key)
+            family = state["manual"][action_id]
+            if reason == "expired":
+                events.append(_event(action_id, "completed", now, family["occurrence"]))  # buttonless duration
+                family["state"] = "done"
             else:
-                state["sequence"] += 1
-                family.update(state="pending", due=format_instant(following), sequence=state["sequence"])
-        self._save(state)
+                following = now + timedelta(minutes=family["repeat"]) if family["repeat"] else None
+                repeats = following is not None and following < local_day_bounds(family["date"])[1]
+                events.append(_event(action_id, "dismissed", now, family["occurrence"], terminal=not repeats))
+                if repeats:
+                    state["sequence"] += 1
+                    family.update(state="waiting", due=format_instant(following), occurrence=family["occurrence"] + 1,
+                                  sequence=state["sequence"])
+                else:
+                    family["state"] = "done"  # once, or a repeat family ends at its Kyiv midnight
+        self._save(state, events=events)
 
     def recover(self, now: datetime) -> None:
         """After restart nothing is on screen; never replay a possibly shown presentation."""
         state = self._load()
+        events = []
         key = state["visible"]
-        if key is None:
-            return
-        if key.startswith("endtime:"):
+        if key and key.startswith("endtime:"):
             state["endtime"] = endtime_finished(state["endtime"], now)
-        else:
-            state["manual"][self._family(key)]["state"] = "unconfirmed"
-        state["visible"] = None
-        self._save(state)
+        for slot_key in (key if key and not key.startswith("endtime:") else None, state["card"]):
+            if slot_key:
+                action_id = self._family(slot_key)
+                family = state["manual"][action_id]
+                events.append(_event(action_id, "unconfirmed", now, family["occurrence"], reason="crash_during_presentation"))
+                family["state"] = "done"
+        state.update(visible=None, card=None, countdown=None)  # the countdown widget is reissued on the next tick
+        self._save(state, events=events)

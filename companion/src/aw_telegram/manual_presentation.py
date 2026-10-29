@@ -101,28 +101,36 @@ def endtime_sequence(app, adapter, options):
     from datetime import timedelta
     import tempfile
     import time
-    from .clock import endtime_at, kyiv_date
+    from .clock import endtime_at, format_instant, kyiv_date
     from .models import Settings
     from .scheduler import Scheduler
     from .storage import LocalStore
     from .ui.presenter import PolicyPresenter, utc_now
 
-    directory = tempfile.TemporaryDirectory(prefix="aw-telegram-endtime-")
-    store = LocalStore(Path(directory.name) / "harness.sqlite")
-    with store._transaction():  # harness-only settings install; real settings arrive by sync
-        state = store._state()
-        state["settings"] = Settings(revision=1, endtimeEnabled=True, endtimeGeneration=1).to_wire()
-        store._save(state)
     base = endtime_at(kyiv_date(utc_now()), "21:00") - timedelta(seconds=3)
     started = None  # set at presenter start; --delay-ms must not consume the 3 s lead
     def now():
         if started is None:
             return base
         return base + timedelta(milliseconds=int((time.monotonic() - started) * 1000))
+    directory = tempfile.TemporaryDirectory(prefix="aw-telegram-endtime-")
+    # The store shares the simulated clock so acceptance and receipts fall inside the offer's window.
+    store = LocalStore(Path(directory.name) / "harness.sqlite", now=lambda: format_instant(now()))
+    with store._transaction():  # harness-only settings install; real settings arrive by sync
+        state = store._state()
+        state["settings"] = Settings(revision=1, endtimeEnabled=True, endtimeGeneration=1).to_wire()
+        store._save(state)
     scheduler = Scheduler(store)
-    manual_at = base + timedelta(seconds=1 if options.order == "manual-first" else 8)
-    scheduler.add_manual("harness-manual", options.text, manual_at, repeat_minutes=1)
+    manual_delay_ms = 1000 if options.order == "manual-first" else 8000
     presenter = PolicyPresenter(scheduler, OverlayWindow(foreground_adapter=adapter), NotificationCard(), now=now)
+
+    def deliver_manual():
+        # A real immediate offer arrives at its creation instant, as it would through sync.
+        created = format_instant(now())
+        expires = format_instant(now() + timedelta(seconds=60))
+        store.receive_offers([dict(id="00000000-0000-4000-8000-0000000000aa", actorId="1", kind="overlay",
+            createdAt=created, targetAt=created, expiresAt=expires, sequence=1, settingsRevision=1,
+            options=dict(message=options.text, countdown=False, dismissible=True, repeatEveryMinutes=1))])
 
     def emit(event, **fields):
         print(json.dumps({"event": event, "simulated": now().isoformat(timespec="milliseconds"), **fields},
@@ -145,6 +153,7 @@ def endtime_sequence(app, adapter, options):
         nonlocal started
         started = time.monotonic()
         presenter.start()
+        QTimer.singleShot(manual_delay_ms, deliver_manual)
 
     QTimer.singleShot(options.delay_ms, begin)
     if options.quit_after_ms:

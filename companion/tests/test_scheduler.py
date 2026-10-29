@@ -10,6 +10,8 @@ from aw_telegram.models import Settings, EndtimeAck
 from aw_telegram.storage import LocalStore
 from aw_telegram.windows.foreground import PresentationResult
 
+from action_fixture import action
+
 SHOWN = PresentationResult("unconfirmed", "topmost_requested")
 FAILED = PresentationResult("failed", "invalid_overlay_handle")
 
@@ -29,8 +31,10 @@ class Harness:
         self.open()
         self.settings(**{"revision": 1, "endtimeEnabled": True, "endtimeGeneration": 1, **settings})
 
+    now = "2026-10-28T19:00:00.000Z"
+
     def open(self):
-        self.store = LocalStore(self.path, now=lambda: "2026-10-28T19:00:00.000Z")
+        self.store = LocalStore(self.path, now=lambda: self.now)
         self.scheduler = scheduler().Scheduler(self.store)
 
     def restart(self, now):
@@ -43,6 +47,11 @@ class Harness:
             state = self.store._state()
             state["settings"] = Settings(**fields).to_wire()
             self.store._save(state)
+
+    def offer(self, n, created, **options):
+        """Deliver a manual overlay offer at its creation instant."""
+        self.now = format_instant(created)
+        self.store.receive_offers([action(n, created=self.now, **options)])
 
     def tick(self, now, resumed=False):
         return self.scheduler.tick(now, resumed)
@@ -142,7 +151,7 @@ def test_restart_after_a_missed_endtime_skips_the_date(h):
 
 
 def test_newest_overlay_wins_without_resurrection(h):
-    h.scheduler.add_manual("m1", "Перерва", at("20:59:00"), repeat_minutes=1)
+    h.offer(1, at("20:59:00"), message="Перерва", repeatEveryMinutes=1)
     [manual] = h.overlays(h.show(at("20:59:00"), resumed=True))
     assert manual.source == "manual"
     commands = h.show(at("21:00:00"))
@@ -152,7 +161,7 @@ def test_newest_overlay_wins_without_resurrection(h):
     # The replaced manual family would otherwise have recurred at 21:01.
     assert h.overlays(h.tick(at("21:01:00"))) == []
     [endtime] = h.overlays(h.show(at("21:01:10")))
-    h.scheduler.add_manual("m2", "Ще одне", at("21:01:30"))
+    h.offer(2, at("21:01:30"), message="Ще одне")
     commands = h.show(at("21:01:30"))
     assert [c.key for c in commands if type(c).__name__ == "Hide"] == [endtime.key]
     [m2] = h.overlays(commands)
@@ -161,15 +170,16 @@ def test_newest_overlay_wins_without_resurrection(h):
     commands = h.show(at("21:02:30"))
     assert [c.key for c in commands if type(c).__name__ == "Hide"] == [m2.key] and h.overlays(commands)[0].source == "endtime"
     h.restart(at("21:02:40"))
-    h.scheduler.add_manual("m1", "Перерва", at("21:03:00"), repeat_minutes=1)
-    h.scheduler.add_manual("m2", "Ще одне", at("21:03:00"))
+    # Offers of the same actions arriving again are known and never re-run.
+    h.offer(1, at("21:02:50"), message="Перерва", repeatEveryMinutes=1)
+    h.offer(2, at("21:02:50"), message="Ще одне")
     shown = [c for n in range(0, 10) for c in h.overlays(h.show(at("21:02:40") + timedelta(minutes=n)))]
     assert {c.source for c in shown} == {"endtime"}
     assert len(h.receipts()) == 1
 
 
 def test_equal_due_instants_show_only_the_newest_overlay(h):
-    h.scheduler.add_manual("m1", "Перерва", at("21:00:00"))
+    h.offer(1, at("21:00:00"), message="Перерва")
     commands = h.show(at("21:00:00"), resumed=True)
     assert [(type(c).__name__, getattr(c, "source", None)) for c in commands] == [("Presentation", "endtime")]
     assert all(c.source != "manual" for n in range(1, 5) for c in h.overlays(h.tick(at("21:00:00") + timedelta(minutes=n))))

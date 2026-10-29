@@ -1,15 +1,17 @@
-"""GUI-thread driver applying scheduler commands to the real overlay and notification windows."""
+"""GUI-thread driver applying scheduler commands to the overlay, notification card and countdown windows."""
 from datetime import datetime, timezone
 import time
 
 from PySide6.QtCore import QObject, QTimer
 
-from ..scheduler import Hide
+from ..scheduler import Countdown, Hide
+from .countdown import CountdownWindow
 from .notification import NotificationCard
 from .overlay import OverlayWindow
 
 WARNING_CARD_MS = 10_000
 RESUME_DRIFT_S = 2.0
+MAX_COUNTDOWN_MS = 86_340_000
 
 
 def utc_now() -> datetime:
@@ -21,16 +23,19 @@ class PolicyPresenter(QObject):
     """Ticks once a second. A wall-clock jump against the monotonic clock (sleep, clock
     change) or the first tick after start is reported to the scheduler as a resume."""
 
-    def __init__(self, scheduler, overlay=None, notification=None, now=utc_now, monotonic=time.monotonic,
-                 interval_ms=1000):
+    def __init__(self, scheduler, overlay=None, notification=None, countdown=None, now=utc_now,
+                 monotonic=time.monotonic, interval_ms=1000):
         super().__init__()
         self.scheduler = scheduler
         self.overlay = overlay or OverlayWindow()
         self.notification = notification or NotificationCard()
+        self.countdown = countdown or CountdownWindow()
         self._now, self._monotonic = now, monotonic
-        self._keys: dict[str, str] = {}  # widget presentation ID -> scheduler key
+        self._keys: dict[str, str] = {}  # widget presentation ID -> scheduler key, across all three widgets
         self._last: tuple[datetime, float] | None = None
         self.overlay.completed.connect(self._completed)
+        self.notification.completed.connect(self._completed)
+        self.countdown.completed.connect(lambda presentation_id, _reason: self._keys.pop(presentation_id, None))
         self._timer = QTimer(self)
         self._timer.setInterval(interval_ms)
         self._timer.timeout.connect(self.tick)
@@ -55,9 +60,19 @@ class PolicyPresenter(QObject):
             if isinstance(command, Hide):
                 for presentation_id, key in list(self._keys.items()):
                     if key == command.key:
-                        self.overlay.clear(presentation_id)
+                        for widget in (self.overlay, self.notification, self.countdown):
+                            widget.clear(presentation_id)
+            elif isinstance(command, Countdown):
+                remaining = int((command.until - now).total_seconds() * 1000)
+                if remaining > 0:
+                    self.countdown.start_countdown(min(remaining, MAX_COUNTDOWN_MS), command.text)
+                    self._keys[self.countdown.presentation_id] = command.key
             elif command.kind == "notification":
-                self.notification.show_message(command.text, WARNING_CARD_MS)
+                # Showing over a visible card retires it as `replaced`; for a manual card the scheduler already did.
+                self.notification.show_message(command.text, command.duration_ms or WARNING_CARD_MS)
+                self._keys[self.notification.presentation_id] = command.key
+                if command.source == "manual":
+                    self.scheduler.presented(command.key, None, now)
             else:
                 # Showing over an active overlay retires it as `replaced`; the scheduler already did.
                 self.overlay.show_message(command.text, command.dismissible, command.duration_ms)
@@ -67,5 +82,5 @@ class PolicyPresenter(QObject):
     def _completed(self, presentation_id: str, reason: str) -> None:
         key = self._keys.pop(presentation_id, None)
         # Replacement and clearing were decided by the scheduler; only user/duration ends report back.
-        if key is not None and reason in ("dismissed", "expired"):
-            self.scheduler.dismissed(key, self._now())
+        if key is not None and reason in ("dismissed", "expired") and not key.startswith("endtime-warning:"):
+            self.scheduler.dismissed(key, self._now(), reason)

@@ -177,17 +177,24 @@ def test_manifest_and_sqlite_wal_never_contain_title(tmp_path):
         for path in tmp_path.glob("sync.sqlite*"):
             assert title.encode() not in path.read_bytes()
 
-def test_ack_conflict_and_action_offer_fail_closed(tmp_path):
+def test_ack_conflict_and_malformed_offer_fail_closed_while_valid_offers_are_recorded(tmp_path):
     s=store(tmp_path); pair(s)
     ack=dict(id="00000000-0000-4000-8000-000000000004",kind="settings",revision=0,appliedAt=NOW)
     s.queue_ack(ack); s.queue_ack(ack)
     with pytest.raises(ValueError): s.queue_ack({**ack,"revision":1})
-    request=s.prepare_request(HEALTH); answer=response(request)
     from json import loads
     fixtures=loads((Path(__file__).parents[2]/"contracts/fixtures/wire.json").read_text(encoding="utf8"))
-    answer["deliveryOffers"]=[next(x["value"] for x in fixtures if x["contract"]=="action" and x["valid"])]
+    offer=next(x["value"] for x in fixtures if x["contract"]=="action" and x["valid"])
+    request=s.prepare_request(HEALTH); answer=response(request)
+    answer["deliveryOffers"]=[{**offer,"options":{**offer["options"],"script":"x"}}]
+    before=list(s.connection.iterdump())
     with pytest.raises(ValueError): s.apply_sync(answer)
-    assert ack["id"] in {x.id for x in s.pending_acks()}
+    assert list(s.connection.iterdump())==before
+    answer["deliveryOffers"]=[offer]; s.apply_sync(answer)
+    receipts=[a for a in s.pending_acks() if a.kind=="action"]
+    assert [(a.actionId,a.eventSequence) for a in receipts]==[(offer["id"],1)]
+    assert receipts[0].status in ("accepted","expired")
+    assert ack["id"] not in {x.id for x in s.pending_acks()}  # acknowledged by the successful response
 
 def test_retention_keeps_counters_controls_and_unknown_canceled_ids(tmp_path):
     s=store(tmp_path); pair(s); old=s.commit_day(day(),NOW)

@@ -534,6 +534,36 @@ Endtime slice done ahead of this task (commit dbb1c7f, not independently reviewe
 allowance policy, the manual action executor/offer store, and the app main loop
 that owns one presenter, without a second overlay slot.
 
+Checkpoint 8a (2026-10-29, local, not independently reviewed): the action executor.
+- **Storage:** LocalStore schema 4 adds `actions`; offers are accepted durably and
+  acknowledged once (see sync-storage.md).
+- **Slots:** `Scheduler` keeps one overlay slot (newest due wins, shared with endtime),
+  a card slot and a countdown slot.
+- **Receipts:** every receipt (`presented`, `dismissed`, `completed`, `replaced`,
+  `expired`, `skipped`, `failed`, `unconfirmed`) commits in the same transaction as
+  the scheduler state, with per-action event sequences and occurrences.
+- **Timing:** an immediate action must begin strictly before expiry; a timer may begin
+  through target+5 s; waking past the deadline expires it without display. A delayed
+  action with `countdown` drives the top-left timer until its target.
+- **Repeats:** they start from dismissal and end at the target date's Kyiv midnight,
+  which removes a visible instance with `completed`.
+- **Buttonless and cards:** a buttonless overlay completes at its duration. Notification
+  cards last 10 s and report `completed`, or `replaced` when a newer card or an
+  endtime warning takes the slot.
+- **Free use and clearing:** timers due during free use are `skipped` (`free_use`),
+  never replayed. Fenced actions are hidden and `canceled`.
+- **Crash recovery:** a visible manual overlay or card after restart is `unconfirmed`
+  (`crash_during_presentation`) and never shown again.
+- **Presentation evidence:** following the owner's endtime decision, an accepted show
+  request (any result except `failed`) and a shown companion card count as `presented`.
+- `add_manual` is removed; manual families come only from accepted actions, and the
+  harness delivers a real offer.
+
+Companion 311. Remaining for Task 8: 8b, the allowance engine (local 15/10/5 warnings
+and the repeating expiry overlay gated by active counted use, AFK and companion-owned
+foreground); 8c, the app main loop that runs the sync IO worker and the GUI presenter
+on separate store connections; and the Windows manual checks.
+
 **Files:** create companion/src/aw_telegram/{policy,scheduler}.py,
 companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate storage and UI.
 
