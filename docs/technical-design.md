@@ -36,7 +36,7 @@ notification suppression, and lack of controllable overlays conflict with our UI
 | Cloud state | Firestore Standard, one database, deny all direct client access |
 | Background reliability | Cloud Tasks for outbox delivery and command deadline checks |
 | Cleanup | One daily Cloud Scheduler function after Kyiv midnight |
-| Region | europe-west1 for functions/tasks and regional Firestore; co-locate |
+| Region | europe-central2 for functions/tasks/scheduler, matching the existing regional Firestore; co-locate |
 | Companion | Python 3.12, PySide6 Qt Widgets, requests, sqlite3, zoneinfo + tzdata |
 | AW queries | aw-client query builder with explicit parameters and configured client |
 | Windows integration | ctypes Win32 APIs; keyring Windows credential backend |
