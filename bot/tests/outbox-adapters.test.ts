@@ -83,3 +83,10 @@ it('retains Task6 evidence for seven Kyiv dates, tombstones operation identity a
   const tasks=new TaskService(f.repo,{create:async()=>{}},{} as any,f.clock);await tasks.sweep();expect(f.db.data.has(ref)).toBe(false);expect(f.db.data.has(ref+'/evidence/1')).toBe(false);expect(f.db.data.has(root+'/receipts/old')).toBe(false);expect(f.db.data.has('events/old')).toBe(false);expect(f.db.data.get('outbox/completed').text).toBeNull();
   expect(f.db.data.get(op)).toMatchObject({expired:true});expect(f.db.data.get(op).result).toBeUndefined();await expect(actions.createAction(parent(),draft,'retained')).rejects.toThrow('expired');
 });
+
+it('sweeps Telegram update markers once redelivery can no longer occur',async()=>{
+  const {TaskService}=await module(),f=fixture();
+  f.db.data.set('telegramUpdates/1',{at:'2026-10-27T11:59:59.999Z'});f.db.data.set('telegramUpdates/2',{at:'2026-10-27T12:00:00.001Z'});
+  await new TaskService(f.repo,{create:async()=>{}},{} as any,f.clock).sweep();
+  expect(f.db.data.has('telegramUpdates/1')).toBe(false);expect(f.db.data.has('telegramUpdates/2')).toBe(true);
+});

@@ -1,0 +1,131 @@
+/** Telegram update dispatch. Call only after the webhook secret is verified; replies are sent outside transactions.
+ *
+ * Every update is authorized afresh from its private sender. A redelivered update that already
+ * completed is skipped; one that failed part-way is processed again, and its mutations replay
+ * through deterministic operation IDs, so only the reply may repeat (at-least-once).
+ */
+import {GrammyError,type Api} from 'grammy';
+import {BoundaryError,FirestoreRepository,type ParentIdentity,type PrivateActor} from '../repository.js';
+import type {Instant} from '../contracts.js';
+import type {ActionService} from '../actions.js';
+import type {SettingsService} from '../settings.js';
+import {privateActor} from '../pairing.js';
+import {EndtimeController} from './commands.js';
+import {NavigationController} from './navigation.js';
+import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,HELP,
+  hourlySaved,type Reply} from './uk.js';
+
+export interface TelegramClient {
+  send(chatId: string, reply: Reply): Promise<void>;
+  edit(chatId: string, messageId: number, reply: Reply): Promise<void>;
+  answer(callbackId: string): Promise<void>;
+  delete(chatId: string, messageId: number): Promise<void>;
+}
+
+/** grammY Bot API client; tests and the deployed function inject the same interface. */
+export function grammyClient(api: Api): TelegramClient {
+  const markup = (reply: Reply) => reply.buttons.length ?
+    {reply_markup: {inline_keyboard: reply.buttons.map(row => row.map(b => ({text: b.text, callback_data: b.data})))}} : {};
+  return {
+    async send(chatId, reply) {await api.sendMessage(Number(chatId), reply.text, {...markup(reply), link_preview_options: {is_disabled: true}});},
+    async edit(chatId, messageId, reply) {
+      try {await api.editMessageText(Number(chatId), messageId, reply.text, {...markup(reply), link_preview_options: {is_disabled: true}});}
+      catch (error) {if (!(error instanceof GrammyError && error.description.includes('message is not modified'))) throw error;}
+    },
+    async answer(callbackId) {await api.answerCallbackQuery(callbackId);},
+    async delete(chatId, messageId) {await api.deleteMessage(Number(chatId), messageId);},
+  };
+}
+
+const KEY = /^[A-Za-z0-9_-]{22}$/;
+const command = (text: string) => /^\/([a-z_]+)(?:@[A-Za-z0-9_]{1,64})?(?:\s+([\s\S]*))?$/.exec(text.trim());
+const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
+
+export class TelegramBot {
+  private readonly endtime: EndtimeController;
+  private readonly navigation: NavigationController;
+  constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService,
+              _actions: ActionService, private readonly client: TelegramClient,
+              private readonly clock: () => Instant = () => new Date().toISOString()) {
+    this.endtime = new EndtimeController(repository, settings, clock);
+    this.navigation = new NavigationController(repository, settings, this.endtime, clock);
+  }
+
+  async handleUpdate(update: unknown): Promise<void> {
+    let actor: PrivateActor;
+    try {actor = privateActor(update);} catch {return;} // groups, channels, bots, forwards: silently ignored
+    const updateId = (update as {update_id?: unknown}).update_id;
+    if (!Number.isSafeInteger(updateId) || (updateId as number) < 0) return;
+    const marker = this.repository.db.doc(`telegramUpdates/${updateId}`);
+    if (await this.repository.db.runTransaction(async tx => (await tx.get(marker)).exists)) return;
+    const identity = await this.identity(actor);
+    const callback = (update as any).callback_query;
+    if (callback) await this.onCallback(actor, identity, callback);
+    else await this.onMessage(actor, identity, (update as any).message, updateId as number);
+    const at = this.clock();
+    await this.repository.db.runTransaction(async tx => {tx.set(marker, {at});});
+  }
+
+  private async identity(actor: PrivateActor): Promise<ParentIdentity | null> {
+    try {return await this.repository.authorizeParent(actor);}
+    catch (error) {if (unauthorized(error)) return null; throw error;}
+  }
+
+  private async onCallback(actor: PrivateActor, identity: ParentIdentity | null, callback: any): Promise<void> {
+    try {await this.client.answer(String(callback.id));} catch {/* an expired query must not block the reply */}
+    const data = callback.data;
+    let reply: Reply;
+    if (!identity) reply = {text: PAIRING, buttons: []};
+    else if (typeof data === 'string' && data.startsWith('et:')) {
+      reply = await this.endtime.callback(identity, data);
+      if (reply.navigate === 'settings') reply = await this.navigation.openSettings(identity);
+    } else if (typeof data === 'string' && data.startsWith('nv:')) reply = await this.navigation.callback(identity, data);
+    else reply = {text: STALE_NAV, buttons: []};
+    const messageId = callback.message?.message_id;
+    if (Number.isSafeInteger(messageId)) {
+      try {await this.client.edit(actor.chatId, messageId, reply); return;} catch {/* fall back to a new message */}
+    }
+    await this.client.send(actor.chatId, reply);
+  }
+
+  private async onMessage(actor: PrivateActor, identity: ParentIdentity | null, message: any, updateId: number): Promise<void> {
+    const text = typeof message?.text === 'string' ? message.text : '';
+    const parsed = command(text);
+    if (!identity) return this.onUnpaired(actor, parsed, message);
+    await this.client.send(actor.chatId, await this.reply(identity, text, parsed, updateId));
+  }
+
+  private async onUnpaired(actor: PrivateActor, parsed: RegExpExecArray | null, message: any): Promise<void> {
+    const key = parsed && (parsed[1] === 'pair' || parsed[1] === 'start') ? (parsed[2] ?? '').trim() : '';
+    if (!KEY.test(key)) return this.client.send(actor.chatId, {text: PAIRING, buttons: []});
+    try {
+      await this.repository.pairParent(key, actor.userId, actor.chatId);
+    } catch (error) {
+      if (!(error instanceof BoundaryError)) throw error;
+      return this.client.send(actor.chatId, {text: error.status === 429 ? PAIR_THROTTLED : PAIR_FAILED, buttons: []});
+    }
+    let removed = false;
+    try {await this.client.delete(actor.chatId, message.message_id); removed = true;} catch {/* the key is single-use anyway */}
+    const identity = await this.repository.authorizeParent(actor);
+    await this.client.send(actor.chatId, await this.navigation.openMain(identity,
+      PAIRED + (removed ? ' Повідомлення з ключем видалено.' : ' Видаліть повідомлення з ключем із чату.')));
+  }
+
+  private async reply(identity: ParentIdentity, text: string, parsed: RegExpExecArray | null, updateId: number): Promise<Reply> {
+    const plain = (value: string): Reply => ({text: value, buttons: []});
+    if (!parsed) return (await this.endtime.text(identity, text)) ?? plain(HINT);
+    const args = (parsed[2] ?? '').trim();
+    switch (parsed[1]) {
+      case 'start': return this.navigation.openMain(identity);
+      case 'settings': return this.navigation.openSettings(identity);
+      case 'help': return plain(HELP);
+      case 'pair': return plain(ALREADY_PAIRED);
+      case 'endtime': return this.endtime.command(identity, text, updateId);
+      case 'hourly':
+        if (args !== 'on' && args !== 'off') return plain(HOURLY_USAGE);
+        await this.settings.setHourly(identity, args === 'on', `tg:${updateId}`);
+        return plain(hourlySaved(args === 'on'));
+      default: return plain(UNKNOWN_COMMAND);
+    }
+  }
+}

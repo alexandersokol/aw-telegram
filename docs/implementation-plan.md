@@ -391,6 +391,23 @@ the Endtime submenu, persisted nonce/version sessions and an `EndtimeController`
 This task must add grammY webhook routing into that controller (command, Settings
 row, callbacks, time-entry text) and send its replies outside transactions.
 
+Checkpoint 7a (2026-10-29, local, not independently reviewed): `POST /telegram/webhook`
+checks `X-Telegram-Bot-Api-Secret-Token` in constant time (401 otherwise) and returns
+500 on handler failure so Telegram redelivers. `TelegramBot.handleUpdate` ignores
+non-private, bot, forwarded and malformed updates. It authorizes each update afresh,
+answers unpaired users with pairing instructions, and pairs via `/pair KEY` or
+`/start KEY`, deleting the key message best-effort. It also provides `/start`,
+`/settings`, `/help`, `/hourly on|off` and `/endtime`, and edits menus in place on
+callbacks. Per-menu nonce/version sessions (`nav`, `endtime`) reject stale buttons.
+`telegramUpdates/{update_id}` markers skip completed redeliveries; a part-failed
+update reprocesses, and its mutations replay by operation ID. The daily sweep deletes
+markers older than a day. Outbound calls use the pinned `grammy@1.46.0` `Api` through
+`grammyClient`, as plain text with no `parse_mode`. `createBackend({webhook})` wires
+it. Remaining checkpoints: 7b `/status` and `/usage` reports; 7c limit, categories,
+`/free`, `/restore`, `/clear`; 7d reminders `/notify`, `/overlay`, `/pending`; then
+`bot/scripts/webhook.ts`, set at deploy time with the function URL. Bot unit 196;
+emulator 48; build and bundle checks passed.
+
 **Prerequisite:** complete/review the application-name usage checkpoint above.
 Today/yesterday render AW app names/durations sorted descending, only selected
 category intervals incl descendants once and uncategorized opt-in; complete rows

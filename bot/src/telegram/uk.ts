@@ -32,3 +32,31 @@ export function endtimeSaved(settings: Settings, acknowledged: Counter | null, c
 
 export const endtimeReview = (localTime: string): string =>
   `Перевірте зміну\n\nЧас завершення: ${localTime}\nПісля підтвердження його буде увімкнено, а інших батьків повідомлено.`;
+
+export const PAIRING = 'Щоб підключитися, створіть ключ у програмі на ноутбуці («Доступ батьків») і надішліть його сюди командою /pair КЛЮЧ.';
+export const PAIRED = 'Доступ підтверджено.';
+export const PAIR_FAILED = 'Не вдалося підключитися: ключ недійсний, використаний або прострочений.';
+export const PAIR_THROTTLED = 'Забагато спроб підключення. Спробуйте пізніше.';
+export const ALREADY_PAIRED = 'Цей обліковий запис уже підключено.';
+export const STALE_NAV = 'Це меню застаріло. Відкрийте /start знову.';
+export const MAIN_MENU = 'Головне меню';
+export const SETTINGS_MENU = '⚙️ Налаштування';
+export const SECTION_PENDING = 'Цей розділ ще готується.';
+export const HINT = 'Оберіть дію в меню: /start';
+export const UNKNOWN_COMMAND = 'Невідома команда. Список команд: /help';
+export const HOURLY_USAGE = 'Використання: /hourly on або /hourly off.';
+export const hourlySaved = (enabled: boolean): string => `Щогодинні звіти ${enabled ? 'увімкнено' : 'вимкнено'}.`;
+export const HELP = [
+  'Команди:',
+  '/start — головне меню',
+  '/settings — налаштування',
+  '/hourly on|off — ваші щогодинні звіти',
+  '/endtime — час завершення (status, set ГГ:ХХ, on, off)',
+  '/help — ця довідка',
+].join('\n');
+export const NAV_LABELS = {
+  usage: '📊 Використання', status: '💻 Стан ноутбука', reminders: '💬 Нагадування', limit: '⏱ Ліміт часу',
+  settings: '⚙️ Налаштування', help: 'Допомога', back: LABELS.back,
+} as const;
+export const hourlyLabel = (enabled: boolean): string => `Щогодинні звіти: ${enabled ? 'увімкнено' : 'вимкнено'}`;
+export const endtimeLabel = (settings: Settings): string => `Час завершення: ${settings.endtimeEnabled ? settings.endtimeLocalTime : 'вимкнено'}`;

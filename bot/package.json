@@ -15,8 +15,9 @@
   "dependencies": {
     "ajv": "8.20.0",
     "firebase-admin": "14.5.0",
-    "moment-timezone": "0.6.0",
-    "google-auth-library": "11.3.1"
+    "google-auth-library": "11.3.1",
+    "grammy": "1.46.0",
+    "moment-timezone": "0.6.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",

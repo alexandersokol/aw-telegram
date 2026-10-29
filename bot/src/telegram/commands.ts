@@ -44,14 +44,14 @@ export class EndtimeController {
 
   /** Status view; opening it again invalidates earlier Endtime buttons. */
   async openMenu(identity: ParentIdentity): Promise<Reply> {
-    return this.render(identity, await this.sessions.open(identity, STATUS), STATUS);
+    return this.render(identity, await this.sessions.open(identity, 'endtime', STATUS), STATUS);
   }
 
   async callback(identity: ParentIdentity, data: unknown): Promise<Reply> {
     const parsed = decodeCallback(data);
     if (!parsed) return stale();
     try {
-      return await this.apply(identity, await this.sessions.read(identity, parsed), inputFor(parsed.action));
+      return await this.apply(identity, await this.sessions.read<EndtimeMenuState>(identity, parsed, 'endtime'), inputFor(parsed.action));
     } catch (error) {
       if (unauthorized(error)) return stale();
       throw error;
@@ -60,7 +60,7 @@ export class EndtimeController {
 
   /** Plain text belongs to the menu only while it is waiting for a time. */
   async text(identity: ParentIdentity, text: string): Promise<Reply | null> {
-    const session = await this.sessions.current(identity);
+    const session = await this.sessions.current<EndtimeMenuState>(identity, 'endtime');
     if (session?.state.step !== 'enterTime') return null;
     try {
       return await this.apply(identity, session, {kind: 'text', text});
@@ -70,7 +70,7 @@ export class EndtimeController {
     }
   }
 
-  private async apply(identity: ParentIdentity, session: MenuSession, input: MenuInput): Promise<Reply> {
+  private async apply(identity: ParentIdentity, session: MenuSession<EndtimeMenuState>, input: MenuInput): Promise<Reply> {
     const result = transitionEndtimeMenu(session.state, input);
     if (result.error === 'stale') return stale();
     let prefix: string | undefined;
@@ -79,7 +79,7 @@ export class EndtimeController {
       const saved = await this.settings.updateSettings(identity, result.change, `menu:${session.nonce}:${session.version}`, session);
       prefix = endtimeSaved(saved.settings, saved.acknowledgedRevision, saved.changed !== false);
     } else if (result.notice === 'canceled') prefix = CANCELED;
-    const guard = await this.sessions.advance(identity, session, result.state);
+    const guard = await this.sessions.advance(identity, session, 'endtime', result.state);
     if (!result.state) return {text: '', buttons: [], navigate: 'settings'};
     if (result.error === 'time') return {text: TIME_FORMAT, buttons: [[this.button(guard, 'cancel')]]};
     return this.render(identity, guard, result.state, prefix);

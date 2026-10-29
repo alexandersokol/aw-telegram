@@ -164,9 +164,11 @@ export class TaskService {
             const messages = await tx.get(this.repo.db.collection('outbox').where('state', 'in', ['delivered', 'undeliverable', 'canceled', 'exhausted']).where('createdAt', '<', dayAgo).limit(20));
             const eventMessages = await tx.get(this.repo.db.collection('events').where('at', '<', dayAgo).limit(20));
             const completed = await tx.get(this.repo.db.collection('taskIntents').where('state', '==', 'completed').where('dueAt', '<', cutoff).limit(20));
+            // Telegram stops redelivering an update well within a day; markers exist only to skip redelivery.
+            const updates = await tx.get(this.repo.db.collection('telegramUpdates').where('at', '<', dayAgo).limit(100));
             // This product has one laptop. Bound the device scan as well as each evidence page.
             const devices = await tx.get(this.repo.db.collection('devices').limit(1));
-            const deletions = [...oldEvents.docs, ...oldOutbox.docs, ...completed.docs];
+            const deletions = [...oldEvents.docs, ...oldOutbox.docs, ...completed.docs, ...updates.docs];
             const patches: {
                 ref: any;
                 value: Record<string, any>;
