@@ -2,7 +2,9 @@
 
 This checkpoint defines JSON contracts, Python dataclasses, TypeScript types,
 strict validators and pure time/invariant helpers. The AW adapter produces v2
-daily aggregates. Task 5 adds reviewed durable storage and authenticated sync; command/policy/UI schedulers remain pending. Task 4
+daily aggregates. Task 5 adds reviewed durable storage and authenticated sync. The endtime
+amendment adds the companion endtime policy and overlay scheduler; the allowance engine and
+manual action executor (base Task 8) remain pending. Task 4
 enrollment/access uses its separate protocol v1. Schema validation cannot establish parent identity, private-chat status,
 device scope, durable acceptance, clock honesty or retention enforcement in storage.
 
@@ -73,8 +75,16 @@ segments; overlapping selected ancestors include each disjoint leaf once.
 The dedicated endtime presentation receipt carries its date, settings revision,
 configured time, generation, and confirmed presentation instant. Both runtimes
 resolve Kyiv overlaps to the earliest instant and shift nonexistent local times
-forward across the gap. Receipt delivery and persisted-settings migration remain
-later checkpoints; the current backend explicitly rejects endtime receipts.
+forward across the gap. Persisted cloud/SQLite settings missing all three endtime
+fields migrate once to the defaults; partial fields fail closed; the wire stays strict.
+The companion queues at most one receipt per date/generation, once its show request
+was accepted (any result except `failed`; owner decision). The backend validates
+it against retained generation history: the generation was enabled with that time,
+the receipt's settings revision lies inside that generation's revision window, and
+`presentedAt` is not after server time. Mismatches reject the sync atomically. A
+receipt for an unretained date, or a date under free use or Clear all, is
+acknowledged without an alert. Receipts beyond a 200-write planning budget stay
+unacknowledged, and the companion resends them.
 
 Cloud settings revisions are durable. Task 5 transactional handlers increment
 with overflow rejection, set date-scoped values using the server Kyiv date, and clear

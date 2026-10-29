@@ -281,8 +281,8 @@ would exceed the transaction budget, the backend acknowledges a bounded subset;
 the companion retains the remainder for later sync. Recipient generation and
 hourly preferences were verified; callbacks and report privacy await Task 7, and
 live action execution remains pending Task 8.
-Existing settings coordination currently includes the issuing caregiver; correct
-that when implementing the endtime settings and Telegram coordination flow.
+Settings coordination now excludes only the issuer (commit 88aee42); a warning made
+due by the issuer's own edit is still sent to them separately.
 
 ## Task 5: Durable local storage and authenticated synchronization
 
@@ -313,15 +313,19 @@ companion/tests/test_sync.py, bot/src/{deviceApi,settings}.ts, bot/tests/sync.te
 
 Checkpoint: independent review approved after one correction round. Focused Python: 182 passed; Node: 19 passed; local Firestore sync emulator: 5 passed; build and isolated bundle passed. See [sync-storage.md](sync-storage.md) for interfaces and remaining integration limits.
 
-### Approved Task 5 endtime settings amendment (pending)
+### Approved Task 5 endtime settings amendment
 
-- [ ] Migrate pre-amendment persisted cloud/SQLite settings to disabled/`21:00`
+- [x] Migrate pre-amendment persisted cloud/SQLite settings to disabled/`21:00`
   while keeping wire v2 strict. Add closed settings changes for set-and-enable,
   enable saved time, and disable while retaining time; every mutation increments
   revision and records a bounded retained endtime policy generation for later
   receipt validation.
-- [ ] Test reordered sync, same-revision conflicts, changing a visible endtime,
+- [x] Test reordered sync, same-revision conflicts, changing a visible endtime,
   acknowledgement status, and old persisted state without fabricating a wire default.
+
+Implemented locally (commits 5ded164, 88aee42), not yet independently reviewed.
+Revision and generation advance only on effective changes; an idempotent no-op
+reserves its operation ID without side effects.
 
 ## Task 6: Backend command lifecycle, alert policy, and reliable parent messages
 
@@ -355,7 +359,7 @@ Implementation is locally verified and approved by independent review. Final che
 Task 7 is unstarted, and Task 8 LocalStore still rejects nonempty offers. Stop after
 Task 6's reviewed checkpoint; this status update does not start the next task.
 
-### Approved Task 6 endtime delivery amendment (pending)
+### Approved Task 6 endtime delivery amendment
 
 **Files:** add bot/src/endtime.ts and endtime unit/emulator cases; integrate
 deviceApi, settings, outbox, alert planning, and ten-recipient bounds.
@@ -365,17 +369,27 @@ presentation receipt against retained policy generation and current suppression;
 `cancelEndtimeDelivery(...)` marks matching unsent rows canceled during free use
 or Clear all; delivery rechecks suppression after leasing and before Telegram send.
 
-- [ ] Test first confirmed presentation, failed/unconfirmed presentation, duplicate
+- [x] Test first confirmed presentation, failed/unconfirmed presentation, duplicate
   sync receipt, repeats in one generation, deliberate later same-day generation,
   receipt after a later edit, missed/offline date, ten-recipient fan-out, revocation,
   and suppression before event creation, while queued, leased, and retrying.
-- [ ] Implement deterministic device/date/revision event identity, bounded policy
+- [x] Implement deterministic device/date/generation event identity, bounded policy
   history validation, all-caregiver recipient snapshots, retroactive cancellation,
   and repairable outbox/task intents. Preserve the documented post-send uncertainty.
-- [ ] Run delivery/sync unit and emulator suites plus build/bundle checks; update
+- [x] Run delivery/sync unit and emulator suites plus build/bundle checks; update
   backend checkpoint evidence without rewriting the already approved Task 6 history.
 
+Implemented locally (commit 9344289), not yet independently reviewed. The cancel
+function is `planEndtimeSuppression`. Per the owner decision, an accepted show
+request (any result except failed) counts as presented. See backend-delivery.md.
+
 ## Task 7: Telegram private-chat commands and approved button navigation
+
+Endtime slice done ahead of this task (commit 9f69b7e, not independently reviewed):
+`bot/src/telegram/{commands,menus,sessions,uk}.ts` provide the `/endtime` parser,
+the Endtime submenu, persisted nonce/version sessions and an `EndtimeController`.
+This task must add grammY webhook routing into that controller (command, Settings
+row, callbacks, time-entry text) and send its replies outside transactions.
 
 **Prerequisite:** complete/review the application-name usage checkpoint above.
 Today/yesterday render AW app names/durations sorted descending, only selected
@@ -410,6 +424,12 @@ bot/tests/{telegram,reports,menus}.test.ts; finish bot/src/index.ts, bot/scripts
 - [ ] Commit usable bot interface.
 
 ## Task 8: Offline scheduler, allowance engine, and presentation integration
+
+Endtime slice done ahead of this task (commit dbb1c7f, not independently reviewed):
+`policy.py`, `scheduler.py` (newest-overlay-wins, manual families via
+`add_manual`), `ui/presenter.py` and LocalStore schema 3. This task must add the
+allowance policy, the manual action executor/offer store, and the app main loop
+that owns one presenter, without a second overlay slot.
 
 **Files:** create companion/src/aw_telegram/{policy,scheduler}.py,
 companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate storage and UI.

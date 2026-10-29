@@ -13,10 +13,31 @@ LocalStore deliberately rejects nonempty offers. Task 10 owns deployment/IAM/Sch
 Stop after the Task 6 reviewed checkpoint; this handoff does not authorize next-task
 implementation, production service calls or additional Windows/game work.
 
-The owner approved the endtime/caregiver/overlay-ordering amendment on 2026-10-29.
-It is documented in
-[the design](superpowers/specs/2026-10-29-endtime-design.md) and planned as
-follow-up work; it is not part of the reviewed Task 4/6 implementations.
+The owner approved the endtime/caregiver/overlay-ordering amendment on 2026-10-29
+([design](superpowers/specs/2026-10-29-endtime-design.md),
+[plan](superpowers/plans/2026-10-29-endtime.md)). Amendment Tasks 1–6 are
+implemented locally on `codex/windows-companion` (through commit 6c15410) and are
+not yet independently reviewed:
+
+- Ten caregivers; persisted endtime settings with effective-change-only generations.
+- Confirmed-receipt Telegram alerts with retroactive free-use/Clear-all suppression.
+- `/endtime` command/menu logic in `bot/src/telegram/`. No webhook routes into it
+  yet (base Task 7).
+- Companion endtime policy, newest-overlay-wins scheduler and Qt presenter. No app
+  main loop runs them yet (base Task 8).
+
+Owner decision: an accepted show request (any result except failed) counts as
+presented for the endtime alert.
+
+Verification on 2026-10-29: companion 290, bot unit 176, emulator
+auth/pairing/rules/sync/delivery 48 (needs Java 21+; use PyCharm's JBR 25 via
+`JAVA_HOME`), build and bundle checks. Pending:
+
+- Independent review of amendment Tasks 3–6.
+- The owner's visual re-run of the fixed `endtime-sequence` harness
+  (see windows-validation.md).
+- The end-to-end acceptance matrix. It needs a deployed backend, base Tasks 7–8,
+  authorized test chats and explicit owner deployment authorization.
 
 ## Earlier Windows evidence and integration context
 
@@ -194,8 +215,9 @@ bucket IDs, and never expose AW publicly. Do not reset/delete the existing AW da
   their own timing, optional repeat, and stop repeating at midnight.
 - Endtime defaults off with `21:00` saved, accepts `00:15`–`23:59`, warns only the
   laptop at minus 15/10/5 minutes, then repeats its overlay each minute until
-  midnight. A companion-confirmed first presentation per settings generation
-  alerts every active caregiver; free use/Clear all cancels undelivered alerts.
+  midnight. The first accepted presentation per settings generation alerts every
+  active caregiver; accepted means any result except failed, not pixel proof.
+  Free use/Clear all cancels undelivered alerts.
 - The newest due overlay always replaces and finishes the visible overlay. A
   replaced manual repeat family is canceled; endtime remains eligible as daily
   policy for a later occurrence.
@@ -259,16 +281,15 @@ describe the native suite as diagnostic-free.
 
 ## Suggested continuation prompt
 
-> Read docs/windows-handoff.md and its linked specification/plan. Continue the
-> approved implementation plan in this repository. Task 2 is committed at
-> 138bb66; Task 3 adapter/counting corrections passed independent scoped review,
-> with 74 focused tests and 127 full native tests after the timer amendment;
-> included in the reviewed implementation checkpoint. Task 4 implementation and
-> focused tests are complete with independent review approved. Read
-> docs/enrollment-security.md, complete/review the usage
-> amendment before Task 5 synchronization.
-> Carry forward Task 1's pending
-> real-game acceptance and the deferred Task 8 notification scroll reset.
+> Read docs/windows-handoff.md and its linked specification/plans. Base Tasks 1–6
+> and the application-usage amendment are reviewed. Endtime amendment Tasks 1–6 are
+> implemented through commit 6c15410 but not independently reviewed; Task 7's
+> automated suites and docs are done, and its end-to-end matrix is blocked on
+> deployment. Review endtime Tasks 3–6, then continue base Task 7 (grammY webhook
+> routing into bot/src/telegram, reports, other menus) and base Task 8 (allowance
+> engine, action executor, app loop around ui/presenter.py).
+> Carry forward Task 1's pending real-game acceptance, the owner's visual
+> endtime-sequence re-run, and the deferred Task 8 notification scroll reset.
 > Implement inline, preserve all documented product decisions,
 > and use meaningful automated tests plus real Windows fullscreen validation.
 > Record progress and actual evidence so another session can resume. Do not deploy

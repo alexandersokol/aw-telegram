@@ -119,11 +119,13 @@ atomically updates the key, parent, binding and device `activeParentIds`. The
 device document serializes the maximum of ten active caregivers. Named keys do not
 reserve parent slots. Re-pairing requires revoking the current access first.
 
-The ten-account limit supersedes Task 4's implemented two-account guard. Follow-up
-work must update `activeDevice`, the pairing transaction, recipient reads, outbox
-bounds, and emulator races together. The eleventh concurrent pairing must fail
-without consuming its key; revocation frees a slot. Existing generation-bound
-authorization and revocation behavior is unchanged.
+The ten-account limit supersedes Task 4's two-account guard. It is implemented as
+the shared `MAX_ACTIVE_CAREGIVERS` (commit d113476) in `activeDevice`, the pairing
+transaction, recipient reads and outbox bounds. An emulator race proves the eleventh
+concurrent pairing fails without consuming its key and revocation frees a slot.
+Existing generation-bound authorization and revocation behavior is unchanged. The
+`/endtime` menu sessions use `requireCallback` with a per-caregiver nonce/version
+and 30-minute expiry. Revocation deletes the session, so old buttons are rejected.
 
 Callbacks must store the same pairingId with chat, nonce, version and expiry, then
 call `requireCallback(tx, identity, nonce, version)` inside their protected

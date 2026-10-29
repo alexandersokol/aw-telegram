@@ -479,6 +479,10 @@ The complete approved design is
   of source. The displaced overlay is terminal with status `replaced`; a manual
   repeat family is canceled. Endtime recurrence remains daily policy and may create
   a new occurrence one minute after its prior occurrence was dismissed or replaced.
+- ENDTIME-07 (owner decision, 2026-10-29): Windows never reports pixel visibility,
+  so for ENDTIME-05 "shown" means the companion's show request was accepted (any
+  presentation result except failed). It does not prove visibility over, for
+  example, an exclusive-fullscreen game, or that the child read the message.
 
 ## Category-selection changes
 

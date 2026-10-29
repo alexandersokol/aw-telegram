@@ -6,10 +6,13 @@ intentionally rejects nonempty offers. No production deployment, Telegram send o
 Google service behavior is claimed.
 
 The 2026-10-29 approved [endtime amendment](superpowers/specs/2026-10-29-endtime-design.md)
-requires a follow-up to this completed checkpoint: recipient fan-out rises from
-two to ten, device sync accepts strict endtime presentation receipts, and free
-use/Clear all retroactively cancel undelivered endtime events. None of that
-follow-up is implemented by the checkpoint described below.
+required a follow-up to this completed checkpoint. It is implemented locally
+(commits d113476, 88aee42, 9344289) but not yet independently reviewed: recipient
+fan-out rises from two to ten, device sync accepts strict endtime presentation
+receipts, and free use/Clear all retroactively cancel undelivered endtime events.
+Settings coordination now excludes only the issuer, who still gets their own
+allowance warning when an edit makes one due. The approved Task 6 history below is
+unchanged.
 
 ## Entry points and authority
 
@@ -62,13 +65,17 @@ Unknown coverage at hourly enablement records a pending baseline; the first usab
 projection establishes its floor. Category coordination includes the updated total
 and reserves milestones. Free use/suppression leave hourly and coordination enabled.
 
-Endtime follow-up adds one deterministic automatic event per
-device/local-date/settings-generation only after confirmed overlay presentation.
-The backend must retain enough bounded policy-generation history to validate a
-receipt that arrives after a later settings edit. Repeated occurrences do not
-create more events; an intentional later same-day generation may. Suppression
-mutation cancels matching pending/uncertain endtime rows, and the delivery lease
-transaction rechecks current free-use/Clear-all state before sending.
+Endtime follow-up (`bot/src/endtime.ts`) plans one event per device/local-date/
+endtime-generation, with ID `sha256("endtime:"+device+":"+date+":"+generation)`.
+Recipients are all active caregivers, and outbox rows carry
+`policy {kind:'endtime',deviceId,endtimeDate,endtimeGeneration}`. `policy/current`
+retains `endtimeGenerations` for the seven Kyiv dates plus the last pre-window baseline,
+capped at 256 entries, so a receipt arriving after a later edit still validates.
+Repeated occurrences create no more events; an intentional later same-day generation
+may. Free use, Clear all and the Clear-all setting cancel up to 100 pending/uncertain
+rows for the date in their own transaction. The worker cancels at lease time and
+again after recipient authorization, immediately before `sendMessage`, when free use
+or Clear all covers the row's date. A single ten-caregiver receipt plans 21 writes.
 
 ## Delivery, recovery and limits
 
