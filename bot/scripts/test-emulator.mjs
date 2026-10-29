@@ -10,7 +10,7 @@ if(process.env.FIRESTORE_EMULATOR_HOST) {
   if(!Number.isInteger(port) || port<1 || port>65535) throw new Error('Refusing invalid emulator port');
 }
 const selectors=process.argv.slice(2);
-if(selectors.some(s=>!['auth','pairing','rules','sync','delivery'].includes(s))) throw new Error('Only auth, pairing, rules, sync, delivery selectors supported');
+if(selectors.some(s=>!['auth','pairing','rules','sync','delivery','purge'].includes(s))) throw new Error('Only auth, pairing, rules, sync, delivery, purge selectors supported');
 const scratch=fileURLToPath(new URL('../../.firebase/',import.meta.url)); mkdirSync(scratch,{recursive:true});
 const env={...process.env,GCLOUD_PROJECT:'demo-aw-telegram',METADATA_SERVER_DETECTION:'none',FIREBASE_CLI_DISABLE_UPDATE_CHECK:'true',FIREBASE_EMULATORS_PATH:scratch+'emulators',XDG_CONFIG_HOME:scratch+'config'};
 const cli=fileURLToPath(new URL('../node_modules/firebase-tools/lib/bin/firebase.js',import.meta.url));

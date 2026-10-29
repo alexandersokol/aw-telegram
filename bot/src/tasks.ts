@@ -6,7 +6,7 @@ import { parseJson, MAX_BODY_BYTES } from './contracts.js';
 import type { HttpTransport } from './outbox.js';
 import { fetchTransport, OutboxService } from './outbox.js';
 import { ActionService } from './actions.js';
-import { retentionStart } from './clock.js';
+import { cleanup, type CleanupResult } from './cleanup.js';
 export interface TaskConfiguration {
     project: string;
     location: string;
@@ -154,57 +154,10 @@ export class TaskService {
             tx.update(candidate.ref, { state: 'completed', completedAt: this.clock() });
         });
     }
-    /** Protected Task6 repair only; Task10 owns deployed Scheduler and broader repository cleanup. */
-    async sweep(): Promise<void> {
+    /** Daily Scheduler task: re-arm lost intents, then retention and delivery repair (cleanup.ts). */
+    async sweep(): Promise<CleanupResult> {
         await this.repair(50);
-        const now = this.clock(), cutoff = retentionStart(now), dayAgo = new Date(Date.parse(now) - 86400000).toISOString();
-        await this.repo.db.runTransaction(async (tx) => {
-            const oldEvents = await tx.get(this.repo.db.collection('events').where('at', '<', cutoff).limit(20));
-            const oldOutbox = await tx.get(this.repo.db.collection('outbox').where('createdAt', '<', cutoff).limit(20));
-            const messages = await tx.get(this.repo.db.collection('outbox').where('state', 'in', ['delivered', 'undeliverable', 'canceled', 'exhausted']).where('createdAt', '<', dayAgo).limit(20));
-            const eventMessages = await tx.get(this.repo.db.collection('events').where('at', '<', dayAgo).limit(20));
-            const completed = await tx.get(this.repo.db.collection('taskIntents').where('state', '==', 'completed').where('dueAt', '<', cutoff).limit(20));
-            // Telegram stops redelivering an update well within a day; markers exist only to skip redelivery.
-            const updates = await tx.get(this.repo.db.collection('telegramUpdates').where('at', '<', dayAgo).limit(100));
-            // This product has one laptop. Bound the device scan as well as each evidence page.
-            const devices = await tx.get(this.repo.db.collection('devices').limit(1));
-            const deletions = [...oldEvents.docs, ...oldOutbox.docs, ...completed.docs, ...updates.docs];
-            const patches: {
-                ref: any;
-                value: Record<string, any>;
-            }[] = [];
-            for (const device of devices.docs) {
-                const root = device.ref;
-                const operations = await tx.get(root.collection('operations').where('expired', '==', false).where('at', '<', cutoff).limit(20));
-                const receipts = await tx.get(root.collection('receipts').where('receivedAt', '<', cutoff).limit(20));
-                const alertStates = await tx.get(root.collection('alertStates').where('date', '<', cutoff.slice(0, 10)).limit(10));
-                const actions = await tx.get(root.collection('actions').where('action.createdAt', '<', cutoff).limit(1));
-                deletions.push(...receipts.docs, ...alertStates.docs);
-                for (const op of operations.docs)
-                    patches.push({ ref: op.ref, value: { digest: op.data().digest, at: op.data().at, expired: true } });
-                for (const action of actions.docs) {
-                    const evidence = await tx.get(action.ref.collection('evidence').limit(50));
-                    const occurrences = await tx.get(action.ref.collection('occurrences').limit(50));
-                    deletions.push(...evidence.docs, ...occurrences.docs);
-                    if (evidence.size < 50 && occurrences.size < 50) {
-                        deletions.push(action);
-                        patches.push({ ref: this.repo.db.doc('actionLocations/' + action.id), value: { deviceId: device.id, expired: true } });
-                    }
-                }
-            }
-            const deleted = new Set(deletions.map(doc => doc.ref.path));
-            for (const doc of messages.docs)
-                if (doc.data().text !== null && !deleted.has(doc.ref.path))
-                    patches.push({ ref: doc.ref, value: { ...doc.data(), text: null } });
-            for (const doc of eventMessages.docs)
-                if (doc.data().text !== null && !deleted.has(doc.ref.path))
-                    patches.push({ ref: doc.ref, value: { ...doc.data(), text: null, actions: null } });
-            // Every query and snapshot is complete before any mutation begins.
-            for (const doc of deletions)
-                tx.delete(doc.ref);
-            for (const patch of patches)
-                tx.set(patch.ref, patch.value);
-        });
+        return cleanup(this.repo, this.clock());
     }
 }
 export function createTaskHandler(verifier: {

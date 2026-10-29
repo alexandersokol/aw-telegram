@@ -92,10 +92,26 @@ produce a duplicate Telegram message. Laptop action deduplication is separate.
 Cloud Tasks use authenticated REST and real Google OIDC verification with exact
 configured audience/service-account checks. Durable logical task identities and
 persisted dispatch generations repair enqueue crashes and lost-enqueued work.
-The protected bounded Task 6 sweeper is available; actual daily deployment is Task 10.
-Evidence content uses seven Kyiv dates and completed message text clears after 24 hours;
-physical cleanup can lag. Minimal expired-operation digest tombstones prevent replay
+The daily sweep task (`kind:'sweep'`) re-arms lost task intents, then runs
+`cleanup(now)` (`src/cleanup.ts`). It repeats bounded rounds until nothing changes:
+- **Evidence:** retained for seven Kyiv dates, compared as Kyiv dates. Completed
+  message text clears after 24 hours.
+- **Inactive laptop:** days outside the seven retained dates are deleted even when the
+  laptop no longer syncs. A laptop silent past retention loses its last window title.
+- **Short-lived records:** expired menu sessions and throttle windows go.
+- **Keys and enrollments:** pairing keys of any state go a week after expiry. Unused
+  enrollments also go a week after expiry; consumed ones stay for owner recovery.
+- **Operation tombstones:** after 30 days, when a replay is impossible.
+- **Delivery repair:** a pending or uncertain outbox message whose task intent was lost
+  gets a new one.
+
+Physical cleanup can lag. Minimal expired-operation digest tombstones prevent replay
 from creating a new action after its cached result is removed.
+
+`scripts/purge.ts --project P --device-id ID --confirm ID` (owner IAM, irreversible)
+deletes a device's document tree and every top-level document that names it: keys,
+Telegram bindings (freeing those accounts for a replacement laptop), events, outbox,
+task intents, action locations and the enrollment. Revoke the device first.
 
 ## Local verification
 

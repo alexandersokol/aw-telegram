@@ -886,6 +886,35 @@ acknowledged entries, pending revocations and one-time key values.
 
 ## Task 10: Retention, deployment controls, and end-to-end acceptance
 
+Checkpoints:
+- **10a:** retention and repair, and the purge CLI.
+- **10b:** deployment wiring: Functions entry, daily Scheduler, secrets, instance limits,
+  log redaction, the webhook registration script and docs/operations.md.
+- **10c:** simulated end-to-end suites.
+- **10d:** staging deployment and live acceptance, only with the owner's authorization
+  and test configuration.
+
+Checkpoint 10a (2026-10-29, local, not independently reviewed): retention and purge.
+- **`cleanup(repo, now)`:** in `src/cleanup.ts`, called by the sweep task after
+  `repair(50)`. It moves the Task 6 evidence sweep there unchanged and adds the rest:
+  - an inactive laptop's days outside the seven Kyiv dates, across DST;
+  - its last live title once silent past retention;
+  - expired sessions and throttle windows;
+  - keys a week past expiry, and unused enrollments a week past expiry;
+  - operation tombstones after 30 days, which resolves the Task 7 deferral;
+  - stranded pending or uncertain outbox messages re-armed.
+
+  Rounds repeat, each bounded, until nothing changes.
+- **Boundary fix:** alert states were compared with the UTC date of the retention start,
+  so the oldest expired Kyiv date survived one extra day. They now use the oldest
+  retained Kyiv date.
+- **Purge:** `src/purge.ts` and `scripts/purge.ts` delete one device's tree and the 8
+  kinds of index documents that name it. The CLI demands `--confirm` repeating the
+  device ID. An emulator test (`test:emulator -- purge`) proves another device stays
+  intact and a mismatched confirmation deletes nothing.
+
+Bot unit 291, emulator sync, delivery and purge 29, build passes.
+
 **Files:** create bot/src/cleanup.ts, bot/scripts/purge.ts,
 bot/tests/{cleanup,e2e}.test.ts, docs/{operations,setup}.md,
 companion/tests/test_e2e_simulated.py; lockfiles and Firebase configuration updates.
