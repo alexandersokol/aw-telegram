@@ -168,3 +168,42 @@ describe('grammY client adapter',()=>{
     expect(seen[0]!.payload.parse_mode).toBeUndefined();expect(seen[3]!.payload.reply_markup).toBeUndefined();
   });
 });
+
+describe('reports through the bot',()=>{
+  const games={id:'["Games"]',path:['Games']};
+  const source=(apps:[string,number][])=>({date:'2026-10-28',leafTotalsMs:[{category:games,totalMs:apps.reduce((s,a)=>s+a[1],0)}],
+    appLeafTotalsMs:apps.map(([app,totalMs])=>({app,categoryId:games.id,totalMs})),totalActiveMs:apps.reduce((s,a)=>s+a[1],0),selectedTotalMs:0,
+    settingsRevision:0,rulesRevision:'r',availableFrom:'2026-10-28T10:00:00.000Z',availableThrough:'2026-10-28T12:00:00.000Z',partial:false,sequence:1});
+  async function withUsage(apps:[string,number][]=[['Minecraft',1800000],['Chrome',600000]]){
+    const s=await setup();
+    s.db.data.set(root+'/settings/current',{...s.db.data.get(root+'/settings/current'),revision:1,selectedPaths:[{segments:['Games']}]});
+    s.db.data.set(root+'/days/2026-10-28',{source:source(apps)});
+    return s;
+  }
+  it('answers /usage privately with today by default and validates the period',async()=>{
+    const s=await withUsage();
+    await s.handle(s.message('1','/usage'));
+    expect(s.last()).toMatchObject({kind:'send',chatId:'1'});
+    expect(s.last().text).toContain('📊 Сьогодні, 28.10\nВраховано: 40 хв');expect(s.last().text).toContain('1. Minecraft — 30 хв\n2. Chrome — 10 хв');
+    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Сьогодні','Учора','Останні 7 днів'],['← Назад']]);
+    await s.handle(s.message('1','/usage week'));expect(s.last().text.startsWith('📊 Останні 7 днів')).toBe(true);
+    await s.handle(s.message('1','/usage month'));expect(s.last().text).toBe('Використання: /usage, /usage today, /usage yesterday або /usage week.');
+    expect(events(s)).toEqual([]);expect(s.calls.every(c=>c.chatId===undefined||c.chatId==='1')).toBe(true);
+  });
+  it('navigates Usage and Status from the main menu',async()=>{
+    const s=await withUsage();await s.handle(s.message('1','/start'));
+    await s.handle(s.press('1',s.button('Використання')));expect(s.last().text).toBe('📊 Використання\n\nОберіть період:');
+    await s.handle(s.press('1',s.button('Учора')));expect(s.last()).toMatchObject({kind:'edit'});expect(s.last().text).toBe('📊 Учора, 27.10\nДаних за цей день немає.');
+    await s.handle(s.press('1',s.button('Назад')));await s.handle(s.press('1',s.button('Стан ноутбука')));
+    expect(s.last().text).toContain('💻 Стан ноутбука\nЗв’язок: ноутбук ще не синхронізувався');
+    await s.handle(s.press('1',s.button('Оновити')));expect(s.last().text.startsWith('💻 Стан ноутбука')).toBe(true);
+    await s.handle(s.message('1','/status'));expect(s.last()).toMatchObject({kind:'send'});
+  });
+  it('sends further pages of a long report as follow-up messages',async()=>{
+    const apps:[string,number][]=Array.from({length:120},(_,i)=>[`Програма ${String(i).padStart(3,'0')} ${'ж'.repeat(40)}`,50000-i*100]);
+    const s=await withUsage(apps);await s.handle(s.message('1','/usage'));
+    const sends=s.calls.filter(c=>c.kind==='send');
+    expect(sends.length).toBeGreaterThan(1);expect(sends[0]!.buttons!.length).toBe(2);expect(sends.slice(1).every(c=>!c.buttons!.length)).toBe(true);
+    expect(sends.map(c=>c.text).join('\n').match(/^\d+\. Програма/gm)).toHaveLength(120);
+  });
+});

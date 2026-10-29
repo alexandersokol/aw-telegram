@@ -2,7 +2,8 @@
 import type {Settings,Counter} from '../contracts.js';
 
 export interface Button {text: string; data: string}
-export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings'}
+/** extra holds follow-up pages of a long report, sent after the main message without buttons. */
+export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings'; extra?: string[]}
 
 export const STALE_MENU = 'Це меню застаріло. Відкрийте /endtime знову.';
 export const TIME_FORMAT = 'Вкажіть час у форматі ГГ:ХХ від 00:15 до 23:59, наприклад 21:00.';
@@ -45,10 +46,14 @@ export const SECTION_PENDING = 'Цей розділ ще готується.';
 export const HINT = 'Оберіть дію в меню: /start';
 export const UNKNOWN_COMMAND = 'Невідома команда. Список команд: /help';
 export const HOURLY_USAGE = 'Використання: /hourly on або /hourly off.';
+export const USAGE_USAGE = 'Використання: /usage, /usage today, /usage yesterday або /usage week.';
+export const CHOOSE_PERIOD = '📊 Використання\n\nОберіть період:';
 export const hourlySaved = (enabled: boolean): string => `Щогодинні звіти ${enabled ? 'увімкнено' : 'вимкнено'}.`;
 export const HELP = [
   'Команди:',
   '/start — головне меню',
+  '/usage — використання (today, yesterday, week)',
+  '/status — стан ноутбука',
   '/settings — налаштування',
   '/hourly on|off — ваші щогодинні звіти',
   '/endtime — час завершення (status, set ГГ:ХХ, on, off)',

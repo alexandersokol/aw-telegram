@@ -4,16 +4,19 @@ import type {Instant} from '../contracts.js';
 import type {CallbackGuard,SettingsService} from '../settings.js';
 import type {EndtimeController} from './commands.js';
 import {MenuSessions} from './sessions.js';
-import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,SECTION_PENDING,HELP,STALE_NAV,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
+import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,SECTION_PENDING,HELP,STALE_NAV,CHOOSE_PERIOD,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
+import {loadReport,renderStatus,renderUsage,type UsagePeriod} from './reports.js';
 
 export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status' | 'reminders' | 'limit';
-export interface NavState {screen: NavScreen}
-export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourly' | 'endtime' | 'help' | 'back';
+export interface NavState {screen: NavScreen; period?: UsagePeriod}
+export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourly' | 'endtime' | 'help' | 'back' |
+  UsagePeriod | 'refresh';
 /** A null state leaves this menu: openEndtime hands over to the Endtime submenu. */
 export interface NavResult {state: NavState | null; effect?: 'toggleHourly' | 'openEndtime'; error?: 'stale'}
 
 const SECTIONS: readonly NavScreen[] = ['usage', 'status', 'reminders', 'limit'];
-const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourly', 'endtime', 'help', 'back'];
+const PERIODS: readonly UsagePeriod[] = ['today', 'yesterday', 'week'];
+const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourly', 'endtime', 'help', 'back', ...PERIODS, 'refresh'];
 
 export function transitionNav(state: NavState, action: NavAction): NavResult {
   const to = (screen: NavScreen): NavResult => ({state: {screen}});
@@ -26,6 +29,10 @@ export function transitionNav(state: NavState, action: NavAction): NavResult {
     if (action === 'back') return to('main');
   } else if (state.screen === 'help') {
     if (action === 'back') return to('settings');
+  } else if (state.screen === 'usage' && PERIODS.includes(action as UsagePeriod)) {
+    return {state: {screen: 'usage', period: action as UsagePeriod}};
+  } else if (state.screen === 'status' && action === 'refresh') {
+    return {state};
   } else if (action === 'back') return to('main');
   return {state, error: 'stale'};
 }
@@ -44,12 +51,17 @@ const stale = (): Reply => ({text: STALE_NAV, buttons: []});
 export class NavigationController {
   private readonly sessions: MenuSessions;
   constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService,
-              private readonly endtime: EndtimeController, clock: () => Instant) {
+              private readonly endtime: EndtimeController, private readonly clock: () => Instant) {
     this.sessions = new MenuSessions(repository, clock);
   }
 
   openMain(identity: ParentIdentity, prefix?: string): Promise<Reply> {return this.open(identity, 'main', prefix);}
   openSettings(identity: ParentIdentity, prefix?: string): Promise<Reply> {return this.open(identity, 'settings', prefix);}
+  openStatus(identity: ParentIdentity): Promise<Reply> {return this.open(identity, 'status');}
+  async openUsage(identity: ParentIdentity, period: UsagePeriod): Promise<Reply> {
+    const state = {screen: 'usage' as const, period};
+    return this.render(identity, await this.sessions.open(identity, 'nav', state), state);
+  }
 
   private async open(identity: ParentIdentity, screen: NavScreen, prefix?: string): Promise<Reply> {
     const state = {screen};
@@ -93,6 +105,15 @@ export class NavigationController {
         [button('help')], [button('back')]]};
     } else if (state.screen === 'help') {
       reply = {text: HELP, buttons: [[button('back')]]};
+    } else if (state.screen === 'usage') {
+      const periods = [[button('today', 'Сьогодні'), button('yesterday', 'Учора'), button('week', 'Останні 7 днів')], [button('back')]];
+      if (!state.period) reply = {text: CHOOSE_PERIOD, buttons: periods};
+      else {
+        const [first, ...extra] = renderUsage(state.period, await loadReport(this.repository, identity, this.clock()));
+        reply = {text: first!, buttons: periods, ...(extra.length ? {extra} : {})};
+      }
+    } else if (state.screen === 'status') {
+      reply = {text: renderStatus(await loadReport(this.repository, identity, this.clock())), buttons: [[button('refresh', '🔄 Оновити'), button('back')]]};
     } else {
       reply = {text: SECTION_PENDING, buttons: [[button('back')]]};
     }

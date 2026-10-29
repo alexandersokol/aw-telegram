@@ -19,6 +19,8 @@ export function advanceMilestone(old:MilestoneState|undefined,total:number|null,
   if(mode==='delivered')next.deliveredHighWater=Math.max(next.deliveredHighWater,hour);
   return next;
 }
+/** A today-only override applies on its own Kyiv date; otherwise the recurring default. */
+export const effectiveLimitMs=(settings:Settings,date:string):number=>settings.todayOverride?.date===date?settings.todayOverride.limitMs:settings.defaultLimitMs;
 export function evaluateAlerts(input:AlertInput):AlertEvent[]{
   const m=input.measurement;if(!m)return [];
   const events:AlertEvent[]=[],hour=Math.floor(m.selectedTotalMs/3600000);
@@ -27,8 +29,7 @@ export function evaluateAlerts(input:AlertInput):AlertEvent[]{
     if(parent.hourlyEnabled&&!s?.pendingBaseline&&hour>Math.max(s?.observedFloor??0,s?.reservedHighWater??0,s?.deliveredHighWater??0))
       events.push({...m,kind:'hourly',recipient:parent,hour,totalMs:m.selectedTotalMs});
   }
-  const limit=input.settings.todayOverride?.date===input.date?input.settings.todayOverride.limitMs:input.settings.defaultLimitMs;
-  const remaining=limit-m.selectedTotalMs;
+  const remaining=effectiveLimitMs(input.settings,input.date)-m.selectedTotalMs;
   const severity=remaining<=0?'expired':remaining<=300000?'5m':remaining<=600000?'10m':remaining<=900000?'15m':null;
   if(severity&&severity!==input.lastWarning&&input.settings.freeUseDate!==input.date&&input.settings.suppressedDate!==input.date)
     events.push({...m,kind:'warning',severity,totalMs:m.selectedTotalMs});

@@ -408,6 +408,21 @@ it. Remaining checkpoints: 7b `/status` and `/usage` reports; 7c limit, categori
 `bot/scripts/webhook.ts`, set at deploy time with the function URL. Bot unit 196;
 emulator 48; build and bundle checks passed.
 
+Checkpoint 7b (2026-10-29, local, not independently reviewed): `telegram/reports.ts`
+provides `loadReport` (one transaction after the caregiver check), `renderUsage` and
+`renderStatus`. Rows are re-projected from each stored source under the current
+selection and sorted by duration, and the selected total and limit come from the
+same accounting. Partial, first-day and missing data are stated explicitly, never
+as a measured zero. The empty-selection case is explained. Only today shows the
+single live app/title: "Зараз" within 2 minutes, otherwise last-known with its time,
+and AFK is distinct. The week view lists seven Kyiv dates with today last and a
+total over days with data. Status shows connection (online within 60 s of the last
+sync), ActivityWatch state, usage against the limit, free use and suppression. Pages
+stay under 3500 characters; extra pages follow as messages without buttons.
+`/usage [today|yesterday|week]`, `/status` and the main menu's Usage/Status screens
+are wired; reports create no events. Bot unit 209; emulator 48; build and bundle
+checks passed.
+
 **Prerequisite:** complete/review the application-name usage checkpoint above.
 Today/yesterday render AW app names/durations sorted descending, only selected
 category intervals incl descendants once and uncategorized opt-in; complete rows

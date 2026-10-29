@@ -12,7 +12,7 @@ import type {SettingsService} from '../settings.js';
 import {privateActor} from '../pairing.js';
 import {EndtimeController} from './commands.js';
 import {NavigationController} from './navigation.js';
-import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,HELP,
+import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
   hourlySaved,type Reply} from './uk.js';
 
 export interface TelegramClient {
@@ -81,18 +81,24 @@ export class TelegramBot {
       if (reply.navigate === 'settings') reply = await this.navigation.openSettings(identity);
     } else if (typeof data === 'string' && data.startsWith('nv:')) reply = await this.navigation.callback(identity, data);
     else reply = {text: STALE_NAV, buttons: []};
-    const messageId = callback.message?.message_id;
+    await this.deliver(actor.chatId, reply, callback.message?.message_id);
+  }
+
+  /** Edit the menu message in place when possible, then send any further report pages. */
+  private async deliver(chatId: string, reply: Reply, messageId?: unknown): Promise<void> {
+    let edited = false;
     if (Number.isSafeInteger(messageId)) {
-      try {await this.client.edit(actor.chatId, messageId, reply); return;} catch {/* fall back to a new message */}
+      try {await this.client.edit(chatId, messageId as number, reply); edited = true;} catch {/* fall back to a new message */}
     }
-    await this.client.send(actor.chatId, reply);
+    if (!edited) await this.client.send(chatId, reply);
+    for (const page of reply.extra ?? []) await this.client.send(chatId, {text: page, buttons: []});
   }
 
   private async onMessage(actor: PrivateActor, identity: ParentIdentity | null, message: any, updateId: number): Promise<void> {
     const text = typeof message?.text === 'string' ? message.text : '';
     const parsed = command(text);
     if (!identity) return this.onUnpaired(actor, parsed, message);
-    await this.client.send(actor.chatId, await this.reply(identity, text, parsed, updateId));
+    await this.deliver(actor.chatId, await this.reply(identity, text, parsed, updateId));
   }
 
   private async onUnpaired(actor: PrivateActor, parsed: RegExpExecArray | null, message: any): Promise<void> {
@@ -117,6 +123,12 @@ export class TelegramBot {
     const args = (parsed[2] ?? '').trim();
     switch (parsed[1]) {
       case 'start': return this.navigation.openMain(identity);
+      case 'status': return this.navigation.openStatus(identity);
+      case 'usage': {
+        const period = args || 'today';
+        if (period !== 'today' && period !== 'yesterday' && period !== 'week') return plain(USAGE_USAGE);
+        return this.navigation.openUsage(identity, period);
+      }
       case 'settings': return this.navigation.openSettings(identity);
       case 'help': return plain(HELP);
       case 'pair': return plain(ALREADY_PAIRED);

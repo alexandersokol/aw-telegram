@@ -69,6 +69,11 @@ export function kyivDate(now: string): string {
   return parseDate(moment(parseInstant(now)).tz(ZONE).format('YYYY-MM-DD'));
 }
 
+/** Kyiv wall-clock `HH:mm` for display only. */
+export function kyivTime(instant: string): string {
+  return moment(parseInstant(instant)).tz(ZONE).format('HH:mm');
+}
+
 export function retainedDates(now: string): string[] {
   const today = moment.utc(kyivDate(now), 'YYYY-MM-DD', true);
   return Array.from({length: 7}, (_, n) => parseDate(today.clone().subtract(n, 'days').format('YYYY-MM-DD')));
