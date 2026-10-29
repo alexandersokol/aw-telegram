@@ -58,6 +58,10 @@ Clear advances a revisioned sequence fence; Clear-all independently suppresses
 allowance warnings for the current Kyiv date. Free use cancels current manual
 families with complete explicit IDs (max 100), preserves future initial timers and
 skips timers due during free use. Restore/free-off never revives fenced work.
+Evidence the laptop sends after a fence or during free use it had not yet learned
+about (CANCEL-02) is recorded, not rejected. The action stays `canceled` or
+`skipped`, and the parent status explains that the reminder appeared before the
+change reached the laptop, including inside a batched status message.
 
 Alerts use measured current-day projection with partial/freshness context. Hourly
 observed/reserved/delivered highwaters belong to each parent pairing generation.

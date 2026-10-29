@@ -29,12 +29,16 @@ class Recorder:
         self.h.time = parse_instant(self.offered_at) + laptop_offset
         self.h.store.receive_offers([body], server_now=self.offered_at)
 
-    def sync(self, server_now, clear=None):
+    def sync(self, server_now, clear_at=None, free_use_at=None):
+        """clear_at / free_use_at: a parent's manual clear or free use committed before this sync,
+        which the laptop learns only from its response."""
         acks = [a for a in self.h.store.pending_acks() if isinstance(a, ActionAck) and a.id not in self.sent]
         self.sent.update(a.id for a in acks)
         step = dict(serverNow=format_instant(server_now), acks=[a.to_wire() for a in acks])
-        if clear:
-            step["clear"] = clear
+        if clear_at:
+            step["clear"] = dict(scope="manual", at=format_instant(clear_at))
+        if free_use_at:
+            step["freeUse"] = dict(at=format_instant(free_use_at))
         self.steps.append(step)
 
     def scenario(self, name):
@@ -67,7 +71,7 @@ def clear_between_repeats(tmp):
     cleared = parse_instant(NOW) + timedelta(minutes=3)
     r.h.time = cleared + timedelta(seconds=1)
     r.h.fence(through=1)  # the companion learns the fence from the clearing sync's response
-    r.sync(cleared, clear="manual")
+    r.sync(cleared, clear_at=cleared)
     r.h.tick(cleared + timedelta(minutes=20))
     r.sync(cleared + timedelta(minutes=21))
     return r.scenario("clear between repeats")
@@ -133,9 +137,36 @@ def free_use_hides_visible(tmp):
     return r.scenario("free use removes a visible overlay")
 
 
+def _shown_offline_at_target(tmp):
+    r = Recorder(tmp, action(1, delay=1))
+    r.h.tick()
+    r.sync(parse_instant(NOW) + timedelta(seconds=1))
+    [overlay] = r.h.shown(r.h.show(at("14:01:00")))  # offline: the change has not reached the laptop
+    r.h.scheduler.dismissed(overlay.key, at("14:01:03"))
+    return r
+
+
+def shown_before_a_clear_arrived(tmp):
+    r = _shown_offline_at_target(tmp)
+    r.sync(at("14:01:10"), clear_at=at("14:00:30"))
+    r.h.fence(through=1)
+    r.sync(at("14:01:25"))
+    return r.scenario("shown before a clear reached the laptop")
+
+
+def shown_before_free_use_arrived(tmp):
+    r = _shown_offline_at_target(tmp)
+    r.sync(at("14:01:10"), free_use_at=at("14:00:20"))
+    r.h.settings(revision=1, freeUseDate="2026-10-28")
+    r.h.tick(at("14:01:11"))
+    r.sync(at("14:01:25"))
+    return r.scenario("shown before free use reached the laptop")
+
+
 SCENARIOS = [restart_after_presented_overlay, restart_after_presented_card, clear_between_repeats, slow_laptop_clock,
              clock_corrected_backwards, repeat_visible_at_midnight, asleep_across_midnight,
-             dismissed_just_after_midnight, free_use_hides_visible]
+             dismissed_just_after_midnight, free_use_hides_visible, shown_before_a_clear_arrived,
+             shown_before_free_use_arrived]
 
 
 def generate(tmp_path) -> dict:

@@ -194,7 +194,10 @@
     {
      "serverNow": "2026-10-28T12:03:00.000Z",
      "acks": [],
-     "clear": "manual"
+     "clear": {
+      "scope": "manual",
+      "at": "2026-10-28T12:03:00.000Z"
+     }
     },
     {
      "serverNow": "2026-10-28T12:24:00.000Z",
@@ -609,6 +612,157 @@
        "reason": "free_use"
       }
      ]
+    }
+   ]
+  },
+  {
+   "name": "shown before a clear reached the laptop",
+   "action": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "actorId": "1",
+    "kind": "overlay",
+    "createdAt": "2026-10-28T12:00:00.000Z",
+    "targetAt": "2026-10-28T12:01:00.000Z",
+    "expiresAt": "2026-10-28T12:01:05.000Z",
+    "options": {
+     "message": "Нагадування 1",
+     "countdown": false,
+     "dismissible": true,
+     "repeatEveryMinutes": null
+    },
+    "sequence": 1,
+    "settingsRevision": 0
+   },
+   "offeredAt": "2026-10-28T12:00:00.000Z",
+   "steps": [
+    {
+     "serverNow": "2026-10-28T12:00:01.000Z",
+     "acks": [
+      {
+       "id": "00000000-0000-4000-9000-000900000001",
+       "kind": "action",
+       "actionId": "00000000-0000-4000-8000-000000000001",
+       "eventSequence": 1,
+       "occurrence": 0,
+       "status": "accepted",
+       "at": "2026-10-28T12:00:00.000Z",
+       "acceptedAt": "2026-10-28T12:00:00.000Z",
+       "presentedAt": null,
+       "reason": null
+      }
+     ]
+    },
+    {
+     "serverNow": "2026-10-28T12:01:10.000Z",
+     "acks": [
+      {
+       "id": "00000000-0000-4000-9000-000900000002",
+       "kind": "action",
+       "actionId": "00000000-0000-4000-8000-000000000001",
+       "eventSequence": 2,
+       "occurrence": 0,
+       "status": "presented",
+       "at": "2026-10-28T12:01:00.000Z",
+       "acceptedAt": "2026-10-28T12:00:00.000Z",
+       "presentedAt": "2026-10-28T12:01:00.000Z",
+       "reason": null
+      },
+      {
+       "id": "00000000-0000-4000-9000-000900000003",
+       "kind": "action",
+       "actionId": "00000000-0000-4000-8000-000000000001",
+       "eventSequence": 3,
+       "occurrence": 0,
+       "status": "dismissed",
+       "at": "2026-10-28T12:01:03.000Z",
+       "acceptedAt": "2026-10-28T12:00:00.000Z",
+       "presentedAt": null,
+       "reason": null
+      }
+     ],
+     "clear": {
+      "scope": "manual",
+      "at": "2026-10-28T12:00:30.000Z"
+     }
+    },
+    {
+     "serverNow": "2026-10-28T12:01:25.000Z",
+     "acks": []
+    }
+   ]
+  },
+  {
+   "name": "shown before free use reached the laptop",
+   "action": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "actorId": "1",
+    "kind": "overlay",
+    "createdAt": "2026-10-28T12:00:00.000Z",
+    "targetAt": "2026-10-28T12:01:00.000Z",
+    "expiresAt": "2026-10-28T12:01:05.000Z",
+    "options": {
+     "message": "Нагадування 1",
+     "countdown": false,
+     "dismissible": true,
+     "repeatEveryMinutes": null
+    },
+    "sequence": 1,
+    "settingsRevision": 0
+   },
+   "offeredAt": "2026-10-28T12:00:00.000Z",
+   "steps": [
+    {
+     "serverNow": "2026-10-28T12:00:01.000Z",
+     "acks": [
+      {
+       "id": "00000000-0000-4000-9000-001000000001",
+       "kind": "action",
+       "actionId": "00000000-0000-4000-8000-000000000001",
+       "eventSequence": 1,
+       "occurrence": 0,
+       "status": "accepted",
+       "at": "2026-10-28T12:00:00.000Z",
+       "acceptedAt": "2026-10-28T12:00:00.000Z",
+       "presentedAt": null,
+       "reason": null
+      }
+     ]
+    },
+    {
+     "serverNow": "2026-10-28T12:01:10.000Z",
+     "acks": [
+      {
+       "id": "00000000-0000-4000-9000-001000000002",
+       "kind": "action",
+       "actionId": "00000000-0000-4000-8000-000000000001",
+       "eventSequence": 2,
+       "occurrence": 0,
+       "status": "presented",
+       "at": "2026-10-28T12:01:00.000Z",
+       "acceptedAt": "2026-10-28T12:00:00.000Z",
+       "presentedAt": "2026-10-28T12:01:00.000Z",
+       "reason": null
+      },
+      {
+       "id": "00000000-0000-4000-9000-001000000003",
+       "kind": "action",
+       "actionId": "00000000-0000-4000-8000-000000000001",
+       "eventSequence": 3,
+       "occurrence": 0,
+       "status": "dismissed",
+       "at": "2026-10-28T12:01:03.000Z",
+       "acceptedAt": "2026-10-28T12:00:00.000Z",
+       "presentedAt": null,
+       "reason": null
+      }
+     ],
+     "freeUse": {
+      "at": "2026-10-28T12:00:20.000Z"
+     }
+    },
+    {
+     "serverNow": "2026-10-28T12:01:25.000Z",
+     "acks": []
     }
    ]
   }

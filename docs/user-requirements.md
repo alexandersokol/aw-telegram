@@ -483,6 +483,10 @@ The complete approved design is
   so for ENDTIME-05 "shown" means the companion's show request was accepted (any
   presentation result except failed). It does not prove visibility over, for
   example, an exclusive-fullscreen game, or that the child read the message.
+- CANCEL-02 (owner decision, 2026-10-29): the laptop learns of a clear or free use
+  only at its next sync, so a reminder can truly be shown after either. The backend
+  records that evidence, keeps the reminder cleared or skipped, and tells parents it
+  appeared before the change reached the laptop. It never fails the sync over it.
 
 ## Category-selection changes
 

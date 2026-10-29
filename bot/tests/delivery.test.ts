@@ -74,13 +74,13 @@ describe('delivery lifecycle',()=>{
   });
 });
 
-it('rejects regressing receipts and presentation evidence after a cancellation while accepting prior history',async()=>{
+it('rejects regressing receipts and records presentation evidence after a cancellation as late',async()=>{
   const f=await setup();const {action}=await f.actions.createAction(parent(),draft,'1');await f.api.syncDevice(identity,request());
   await f.api.syncDevice(identity,{...request(),acks:[ack(action,'presented',{presentedAt:NOW})]});f.advance(1);
   await expect(f.api.syncDevice(identity,{...request(),acks:[ack(action,'accepted',{eventSequence:2,at:f.clock()})]})).rejects.toThrow();
   const g=await setup();const b=(await g.actions.createAction(parent(),draft,'1')).action;await g.api.syncDevice(identity,request());g.advance(1000);await g.actions.clearActions(parent(),'manual','clear');g.advance(1000);
-  await expect(g.api.syncDevice(identity,{...request(),acks:[ack(b,'presented',{at:g.clock(),presentedAt:g.clock()})]})).rejects.toThrow();
-  await g.api.syncDevice(identity,{...request(),acks:[ack(b,'presented',{presentedAt:NOW})]});expect(g.db.data.get(root+'/actions/'+b.id).state).toBe('canceled');
+  // Shown before the clear reached the laptop: recorded, and the reminder stays cleared (late-evidence.test.ts).
+  await g.api.syncDevice(identity,{...request(),acks:[ack(b,'presented',{at:g.clock(),presentedAt:g.clock()})]});expect(g.db.data.get(root+'/actions/'+b.id).state).toBe('canceled');
 });
 it('skips timers due during historical free use even after free use was turned off',async()=>{
   const f=await setup();const {action}=await f.actions.createAction(parent(),{...draft,delayMinutes:1},'1');await f.api.syncDevice(identity,request());

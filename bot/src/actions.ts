@@ -129,6 +129,8 @@ export function freeAt(policy: any, settings: Settings, instant: string): boolea
     return settings.freeUseDate === kyivDate(instant);
 }
 const terminal = new Set(['canceled', 'skipped', 'failed', 'expired', 'completed', 'replaced']);
+const LATE_CLEAR = 'Нагадування встигло з’явитися на ноутбуці до того, як туди дійшло очищення (це не означає прочитання).';
+const LATE_FREE = 'Нагадування встигло з’явитися на ноутбуці до того, як туди дійшов вільний режим (це не означає прочитання).';
 export function planCancellation(snapshot: ActionSnapshot, current: Cancellations, now: string, mode: 'clear' | 'free'): Cancellations {
     if (current.revision === Number.MAX_SAFE_INTEGER)
         throw new BoundaryError('Cancellation revision exhausted', 409);
@@ -279,6 +281,7 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
     const writes: PlannedWrite[] = [], events: ParentEvent[] = [], rows = new Map([...snapshot.rows].map(([id, v]) => [id, { ref: v.ref, row: structuredClone(v.row) }]));
     const offerCandidates: {ref: DocumentReference; row: ActionRow}[] = [];
     const cached = new Map<string, any>();
+    const lateTexts = new Set<string>();  // explanations a batched status message must keep
     const read = async (ref: DocumentReference) => { if (!cached.has(ref.path))
         cached.set(ref.path, (await tx.get(ref)).data() ?? null); return cached.get(ref.path); };
     for (const ack of acks) {
@@ -318,9 +321,12 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
             if (!prior?.dismissedAt || !interval || effective < new Date(Date.parse(prior.dismissedAt) + interval * 60000).toISOString() || effective >= dayBounds(kyivDate(a.targetAt)).end)
                 throw new BoundaryError('Invalid repeated occurrence');
         }
+        // Truthful late evidence: the laptop learns of a clear or free use only at its next sync, so a reminder
+        // can really be accepted or shown after either. It is recorded and the reminder stays cleared or
+        // skipped; failing the sync would leave the receipt queued and stop every later sync.
         const fence = (snapshot.policy.fences ?? []).find((f: any) => a.sequence <= f.throughActionSequence || f.canceledIds.includes(a.id));
-        if (fence && (ack.presentedAt !== null && ack.presentedAt >= fence.at || ack.acceptedAt !== null && ack.acceptedAt >= fence.at))
-            throw new BoundaryError('Receipt contradicts cancellation fence');
+        const afterFence = !!fence && (ack.presentedAt !== null && ack.presentedAt >= fence.at || ack.acceptedAt !== null && ack.acceptedAt >= fence.at);
+        const duringFree = ack.acceptedAt !== null && ack.presentedAt !== null && freeAt(snapshot.policy, settings, a.targetAt);
         const ranks: Record<string, number> = { accepted: 0, presenting: 1, unconfirmed: 1, presented: 2, dismissed: 3, completed: 3, replaced: 3 };
         if (occ && ack.eventSequence > occ.sequence && (ranks[ack.status] ?? 3) < (ranks[occ.status] ?? 3))
             throw new BoundaryError('Receipt status regression');
@@ -336,8 +342,6 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
             throw new BoundaryError('Receipt ordering conflict', 409);
         if (terminal.has(row.state) && !['canceled', 'skipped'].includes(row.state) && ack.eventSequence > row.latestSequence)
             throw new BoundaryError('Action is terminal');
-        if (ack.acceptedAt !== null && freeAt(snapshot.policy, settings, a.targetAt) && ack.presentedAt !== null)
-            throw new BoundaryError('Presentation during free use');
         const nextOcc = { ...occ, sequence: Math.max(occ?.sequence ?? 0, ack.eventSequence), status: ack.eventSequence > (occ?.sequence ?? 0) ? ack.status : occ.status,
             presentedAt: occ?.presentedAt ?? ack.presentedAt, dismissedAt: ack.status === 'dismissed' ? ack.at : occ?.dismissedAt ?? null, terminal: !!occ?.terminal || ['dismissed', 'completed', 'replaced', 'failed', 'expired', 'canceled', 'skipped'].includes(ack.status) };
         cached.set(occRef.path, nextOcc);
@@ -351,7 +355,8 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
             row.acceptedAt = ack.acceptedAt;
         if (ack.presentedAt !== null)
             row.presentedAt = ack.presentedAt;
-        const fenced = actionCanceled(a, cancellations) || ['canceled', 'skipped'].includes(row.state);
+        const canceled = actionCanceled(a, cancellations);
+        const fenced = canceled || duringFree || ['canceled', 'skipped'].includes(row.state);
         if (ack.eventSequence > row.latestSequence) {
             row.latestSequence = ack.eventSequence;
             row.latestAt = ack.at;
@@ -359,13 +364,15 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
                 row.state = ack.status;
         }
         if (fenced)
-            row.state = row.state === 'skipped' ? 'skipped' : 'canceled';
+            row.state = row.state === 'skipped' || duringFree && !canceled ? 'skipped' : 'canceled';
         const familyEnd = repeatFamilyEnd(a);
         const lifecycleClosed = terminal.has(row.state) || !familyEnd && row.state === 'dismissed';
         row.open = !fenced && !lifecycleClosed && !(row.presentedAt && !familyEnd) && (!familyEnd || now < familyEnd);
         row.version++;
         const correction = uncertain && presentationConfirmed;
-        const statusText = presentationConfirmed ? 'Показ підтверджено (це не означає прочитання)' : ack.status === 'accepted' ? 'Розклад прийнято ноутбуком' : 'Оновлено стан команди; показ не підтверджено';
+        const late = ack.presentedAt === null ? null : duringFree ? LATE_FREE : afterFence ? LATE_CLEAR : null;
+        if (late) lateTexts.add(late);
+        const statusText = late ?? (presentationConfirmed ? 'Показ підтверджено (це не означає прочитання)' : ack.status === 'accepted' && !fenced ? 'Розклад прийнято ноутбуком' : 'Оновлено стан команди; показ не підтверджено');
         events.push({
             ...eventFor(row.deviceId, (correction ? 'correction:' : 'receipt:') + a.id + ':' + (correction ? 'presented:' + ack.occurrence : ack.eventSequence), now, statusText, snapshot.parents),
             actions: [{id:a.id,status:row.state,eventSequence:ack.eventSequence,occurrence:ack.occurrence,presentedAt:nextOcc.presentedAt}]
@@ -403,7 +410,7 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
         const confirmedOccurrences = new Set(actionEvidence.filter(a => a.presentedAt !== null).map(a => a.id + ':' + a.occurrence));
         const changedActions = new Set(actionEvidence.map(a => a.id));
         const combined: ParentEvent = { id: digest('receipt-batch:' + ids.join(':')), deviceId: events[0]!.deviceId, at: now, kind: 'status', recipients: snapshot.parents,
-            text: `Оновлено стан ${changedActions.size} команд. Підтверджено показ: ${confirmedOccurrences.size}. Показ не означає прочитання.`, actions: actionEvidence };
+            text: [`Оновлено стан ${changedActions.size} команд. Підтверджено показ: ${confirmedOccurrences.size}. Показ не означає прочитання.`, ...lateTexts].join(' '), actions: actionEvidence };
         writes.push(...await planParentEvent(repo, tx, combined));
     }
     else

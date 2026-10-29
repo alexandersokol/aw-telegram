@@ -631,15 +631,14 @@ Fixed (companion; LocalStore schema 5 adds `last_status` and `last_at` to `actio
   as `skipped`/`free_use` (FREE-04).
 - New cross-language test: `companion/tests/test_receipt_fixture.py` generates
   `contracts/fixtures/action-receipts.json` from the real scheduler and store, and
-  `bot/tests/receipt-replay.test.ts` replays it through the real device sync. Nine
+  `bot/tests/receipt-replay.test.ts` replays it through the real device sync. Eleven
   scenarios are accepted end to end. Regenerate with `AW_TELEGRAM_REGENERATE_FIXTURES=1`.
-
-Open, needs an owner decision:
-- The backend rejects truthful late evidence: `presented` at or after a cancellation
-  fence, or a presentation during free use the laptop had not yet learned about
-  (offline or within the 15 s sync gap). The companion cannot avoid this, so it still
-  stops sync. Either the backend records such evidence without failing the sync, or
-  the response reports per-receipt rejections the companion can drop.
+- Owner decision CANCEL-02 (bot): the backend rejected truthful late evidence, i.e.
+  `presented` at or after a cancellation fence, or a presentation during free use the
+  laptop had not yet learned about (offline or within the 15 s sync gap). That stopped
+  sync. `planActionSync` now records it, keeps the action `canceled` or `skipped`, and
+  tells parents the reminder appeared before the change reached the laptop. Two replay
+  scenarios cover it; they fail against the previous bot code.
 
 Deferred:
 - Minimizing a fullscreen game may hand the foreground to another window, so the
@@ -655,7 +654,7 @@ Deferred:
 - A laptop clock far ahead of the server makes receipts wait until server time catches
   up (the backend rejects receipts from its future).
 
-Companion 357, bot unit 278.
+Companion 357, bot unit 283, emulator sync and delivery 27.
 
 **Files:** create companion/src/aw_telegram/{policy,scheduler}.py,
 companion/tests/{test_policy,test_scheduler,test_action_recovery}.py; integrate storage and UI.

@@ -5,13 +5,14 @@ import {describe,it,expect} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {DeviceApi} from '../src/deviceApi.js';
 import {ActionService} from '../src/actions.js';
+import {SettingsService} from '../src/settings.js';
 import {fixture,parent,identity,request} from './delivery-fixture.js';
 
 const {scenarios}=JSON.parse(readFileSync(new URL('../../contracts/fixtures/action-receipts.json',import.meta.url),'utf8'));
 
 describe('companion receipt replay',()=>{
   it.each(scenarios.map((s:any)=>[s.name,s]))('accepts: %s',async(_name:string,s:any)=>{
-    const f=fixture(),actions=new ActionService(f.repo,f.clock),api=new DeviceApi(f.repo,f.clock);
+    const f=fixture(),actions=new ActionService(f.repo,f.clock),api=new DeviceApi(f.repo,f.clock),settings=new SettingsService(f.repo,f.clock);
     const body=s.action;
     f.setTime(body.createdAt);
     const delayMinutes=(Date.parse(body.targetAt)-Date.parse(body.createdAt))/60000;
@@ -22,8 +23,10 @@ describe('companion receipt replay',()=>{
     f.setTime(s.offeredAt);
     expect((await api.syncDevice(identity,request())).deliveryOffers.map((o:any)=>o.id)).toEqual([action.id]);
     for(const step of s.steps){
+      // A parent's change commits before this sync; the laptop learns it only from the response.
+      if(step.clear){f.setTime(step.clear.at);await actions.clearActions(parent(),step.clear.scope,'replay-clear');}
+      if(step.freeUse){f.setTime(step.freeUse.at);await settings.updateSettings(parent(),{kind:'setFreeUse',enabled:true},'replay-free');}
       f.setTime(step.serverNow);
-      if(step.clear)await actions.clearActions(parent(),step.clear,'replay-clear');
       const acks=step.acks.map((a:any)=>({...a,actionId:action.id}));
       const response=await api.syncDevice(identity,{...request(),acks});
       expect(response.acknowledgedAckIds).toEqual(acks.map((a:any)=>a.id));
