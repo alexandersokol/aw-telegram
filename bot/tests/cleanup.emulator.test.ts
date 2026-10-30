@@ -43,3 +43,15 @@ it('clears, deletes and keeps the right records on real Firestore',async()=>{
     expect(intents.size).toBe(1);
   } finally {await db.terminate();}
 });
+
+it('removes alert states outside the retained dates by their date ID, with or without a date field',async()=>{
+  const db=fixtureDb();
+  try {
+    await db.doc(ACTIVE).set({status:'active',activeParentIds:[]});
+    await db.doc(`${ACTIVE}/alertStates/2026-10-20`).set({parents:{},lastWarning:null});  // /hourly before 11d wrote no date
+    await db.doc(`${ACTIVE}/alertStates/2026-10-21`).set({date:'2026-10-21',parents:{},lastWarning:null});
+    await db.doc(`${ACTIVE}/alertStates/2026-10-22`).set({parents:{},lastWarning:null});
+    await cleanup(new FirestoreRepository(db,()=>nowMs),NOW);
+    expect((await db.collection(`${ACTIVE}/alertStates`).get()).docs.map(d=>d.id)).toEqual(['2026-10-22']);
+  } finally {await db.terminate();}
+});

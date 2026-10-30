@@ -41,7 +41,8 @@ function observedUpdate(latest:Seen|undefined,value:{observedAt:Instant},sequenc
     throw new BoundaryError('Observation conflict',409);
   return seen;
 }
-/** Timestamps alone never rewrite live or health; stored health is still refreshed every 5 minutes. */
+/** Timestamps alone never rewrite live or health; stored health is still refreshed every 5 minutes. So stored
+ * `health.lastSuccessAt` can be up to 5 minutes old: nothing server-side may read it without lifting this skip. */
 const HEALTH_REFRESH_MS=5*60000;
 const unstamped=(value:any):string|undefined=>value&&canonical({...value,observedAt:null,lastSuccessAt:null});
 

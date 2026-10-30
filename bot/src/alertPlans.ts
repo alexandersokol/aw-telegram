@@ -8,6 +8,8 @@ import { kyivDate } from './clock.js';
 import { canonical } from './deviceApi.js';
 export interface AlertSnapshot {
     ref: DocumentReference;
+    /** The stored document predates `date` (written by /hourly before 11d); the next plan rewrites it. */
+    undated: boolean;
     value: {
         parents: Record<string, MilestoneState>;
         lastWarning: string | null;
@@ -15,7 +17,7 @@ export interface AlertSnapshot {
 }
 export async function readAlerts(repo: FirestoreRepository, tx: Transaction, deviceId: string, now: string): Promise<AlertSnapshot> {
     const ref = repo.db.doc(`devices/${deviceId}/alertStates/${kyivDate(now)}`), data = (await tx.get(ref)).data();
-    return { ref, value: { parents: data?.parents ?? {}, lastWarning: data?.lastWarning ?? null } };
+    return { ref, undated: !!data && data.date === undefined, value: { parents: data?.parents ?? {}, lastWarning: data?.lastWarning ?? null } };
 }
 export function measurement(evidence: any): Measurement | null {
     return evidence?.source?.availableThrough == null ? null : { selectedTotalMs: evidence.projection.selectedTotalMs, partial: evidence.source.partial, availableThrough: evidence.source.availableThrough };
@@ -61,8 +63,9 @@ export async function planAlerts(repo: FirestoreRepository, tx: Transaction, dev
         events.push({ id: digest(coordination.id), deviceId, at: now, kind: 'coordination', text: coordinationText, recipients: others, ...(coordination.category && m ? { milestone: { date, hour: Math.floor(m.selectedTotalMs / 3600000) } } : {}) });
     for (const event of events)
         writes.push(...await planParentEvent(repo, tx, event));
-    // Unchanged state is not rewritten: a missing document reads as the same empty state.
-    if (canonical(state) !== canonical(snapshot.value))
+    // Unchanged state is not rewritten (a missing document reads as the same empty state) unless it lacks the
+    // `date` that retention cleanup selects by.
+    if (snapshot.undated || canonical(state) !== canonical(snapshot.value))
         writes.push({ ref: snapshot.ref, value: { ...state, date } });
     return writes;
 }

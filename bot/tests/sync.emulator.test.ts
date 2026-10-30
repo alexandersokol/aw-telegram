@@ -9,6 +9,7 @@ import {defaultSettings,minimalHealth,type SyncRequest} from '../src/contracts.j
 import {encodeSettings} from '../src/settingsCodec.js';
 import {operationRef,ActionService} from '../src/actions.js';
 import {createRouter} from '../src/index.js';
+import {cleanup} from '../src/cleanup.js';
 const db=fixtureDb();
 const START='2026-10-28T10:00:00.000Z',NOW='2026-10-28T12:00:00.000Z';
 let now:number,repo:FirestoreRepository,api:DeviceApi,settings:SettingsService;
@@ -212,6 +213,16 @@ describe('sync Firestore transactions',()=>{
     expect(first).toEqual({reads:14,writes:2});expect(summary).toEqual({reads:14,writes:2});
     expect((await db.doc(path('days/2026-10-28')).get()).data()).toMatchObject({sequence:2,source:{totalActiveMs:2000}});
     expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({maxRequestSequence:4,serverReceivedAt:NOW});
+  });
+  test('alert states keep the date retention cleanup selects by after /hourly and unchanged summaries',async()=>{
+    const state=async()=>(await db.doc(path('alertStates/2026-10-28')).get()).data();
+    await settings.setHourly(p1,false,'hourly:off');
+    expect(await state()).toEqual({date:'2026-10-28',parents:{},lastWarning:null});
+    await db.doc(path('alertStates/2026-10-28')).set({parents:{},lastWarning:null});  // as /hourly wrote it before 11d
+    await api.syncDevice(identity,{...request(1),summaries:[day()]});  // unchanged, but rewritten with its date
+    expect(await state()).toEqual({date:'2026-10-28',parents:{},lastWarning:null});
+    await cleanup(repo,'2026-11-05T12:00:00.000Z');
+    expect(await state()).toBeUndefined();
   });
   test('v2 HTTP route sanitizes raw requests and preserves Task4 envelope version',async()=>{
     const router=createRouter(repo),headers={authorization:`Bearer ${deviceSecret}`};

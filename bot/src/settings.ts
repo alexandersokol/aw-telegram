@@ -159,7 +159,7 @@ export class SettingsService {
       const root=this.repository.db.doc(`devices/${identity.deviceId}`),day=(await tx.get(root.collection('days').doc(kyivDate(now)))).data();
       const alerts=await readAlerts(this.repository,tx,identity.deviceId,now),m=measurement(day);
       if(enabled&&!parent.hourlyEnabled)alerts.value.parents[identity.pairingId]=advanceMilestone(alerts.value.parents[identity.pairingId],m?.selectedTotalMs??null,'enable');
-      tx.set(alerts.ref,alerts.value);tx.update(root.collection('parents').doc(identity.userId),{hourlyEnabled:enabled});tx.set(op.ref,{digest:op.hash,result:null,at:now,expired:false});
+      tx.set(alerts.ref,{...alerts.value,date:kyivDate(now)});tx.update(root.collection('parents').doc(identity.userId),{hourlyEnabled:enabled});tx.set(op.ref,{digest:op.hash,result:null,at:now,expired:false});
     });
   }
   async status(identity:ParentIdentity):Promise<SettingsUpdateResult> {
