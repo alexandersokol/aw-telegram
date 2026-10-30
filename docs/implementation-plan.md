@@ -1301,6 +1301,32 @@ the owner reorders. 11i is owner-run and can happen at any time.
     message text is shown unchanged.
   - Qt's `qtbase_uk` translator is installed only when the effective language is Ukrainian.
   - It ships as a release from 11b and is checked on the owner's desktop in both languages.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-english-companion.md.
+  - **Catalogue:** `texts.py` holds `UK` and `EN` (about 190 keys, same keys and placeholders, all
+    non-empty) and `t(key, **params)`. Every window, panel, the tray, the status lines, the
+    scheduler's limit and endtime texts, the uninstall prompts and report, start-up errors and the
+    presentation harness read from it. Ukrainian wording is unchanged. An AST scan test fails on any
+    Cyrillic string literal outside `texts.py` (docstrings and comments excepted); it was shown to
+    fail on a reintroduced literal.
+  - **Setting:** «Мова / Language» in «Налаштування» (System, Українська, English), stored as
+    `language` in the local store's app config (default `system`), read before the uninstall
+    prompts and kept when an enrollment is forgotten. System uses `GetUserDefaultUILanguage`
+    (`windows/language.py`): Ukrainian for primary language `uk`, English otherwise or on failure.
+  - **Switching:** `CompanionApp.apply_language` retranslates the window tabs, tray, Settings and
+    Parent access (including remembered messages and the table) and refreshes the status; the
+    overlay, card and countdown translate their own chrome whenever shown. `qtbase_uk` is installed
+    only for Ukrainian and removed for English. The own-window titles used to ignore the
+    companion in the foreground match in both languages.
+  - **Tests:** companion 510 passing (481 before this subtask), including
+    `tests/test_texts.py` (parity, detection for `uk-UA`, `en-US` and others with the native call
+    mocked, the scan) and `tests/test_language_setting.py` (persistence across a restart, live
+    re-render, English limit/endtime warnings, status, uninstall report, caregiver text unchanged,
+    Qt translator). `tests/conftest.py` pins `uk` and a mocked Ukrainian Windows for every test.
+    `tools/licenses.py check` passes.
+  - **Owner-pending:**
+    - a released build (11b) checked on the owner's desktop in both languages, including the
+      System default on an English and a Ukrainian Windows display language;
+    - LANG-01 in `user-requirements.md` is left to 11f, which rewrites it for the bot and laptop.
 
 ### 11h: README and license (note 6)
 
