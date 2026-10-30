@@ -1096,7 +1096,29 @@ Checkpoint 10d, first deployment (2026-10-30, owner-authorized), from main 2c66e
   also enabled the Firebase Extensions API on its own; nothing uses it.
 - **Webhook:** registered the same day with `webhook.ts set`; `info` showed the URL, one
   connection, `message` and `callback_query`, no pending updates and no error.
-- **Not done yet:**
-  - the client-IP check for enrollment throttling;
-  - cold-start latency after idle;
-  - live acceptance with two caregiver chats and the laptop.
+- **Live acceptance (2026-10-30, owner's workstation, one caregiver account):**
+  - **Laptop:** enrolled with a rebuilt companion (self-check all `ok`). It synced every 15 s
+    with 200s in 0.15–0.4 s.
+  - **Client IP:** the enrollment throttle subject matched the client IP that Google's front end
+    logged.
+  - **Pairing and replies:** one caregiver paired. Webhook replies averaged 0.43 s, at most 1.37 s.
+    Cloud Tasks deliveries returned 204, and all 16 outbox messages were delivered.
+  - **Reports:** `/status`, `/usage` and the `/hourly` on/off toggle.
+  - **Laptop messages:**
+    - a notify was shown and completed;
+    - a delayed overlay was shown on time and dismissed;
+    - `/clear manual` canceled two scheduled countdown notifies.
+  - **Limit:** `/limit 0:10 today` and `/restore` were acknowledged, and a limit warning was
+    delivered.
+  - **Endtime:** 12:00 Kyiv time fired, with one Telegram alert, then `/endtime off`.
+  - **Offline:** a change made while the companion was closed was applied after a restart.
+  - **Self-removal:** `/unpair` through Settings revoked the caregiver and the binding and
+    notified nobody. The laptop stored `activeCaregivers: 0` and paused its rules.
+- **Not covered live:**
+  - two-caregiver fan-out and coordination (one account was available);
+  - limit expiry and its overlay;
+  - `/free` and `/clear all` (they never reached settings);
+  - a countdown actually shown;
+  - re-pairing after `/unpair`;
+  - cold-start latency (the companion's 15 s sync keeps `api` warm).
+- **Findings:** collected in docs/review-notes.md.
