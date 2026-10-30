@@ -1,6 +1,6 @@
 # README and License (Task 11h) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** A new reader understands what the project does, how to set it up and how to work on it,
 without the task history.
@@ -29,8 +29,8 @@ section 4. Task: implementation-plan.md, 11h.
 
 ## Tasks
 
-- [ ] Add `LICENSE`; run `tools/licenses.py check`.
-- [ ] Rewrite `README.md`; draw the Mermaid diagram with quoted labels only.
-- [ ] Replace `companion/README.md` with developer notes.
-- [ ] Check every relative link and anchor, and every command against the sources above.
-- [ ] Record 11h as done in `docs/implementation-plan.md`.
+- [x] Add `LICENSE`; run `tools/licenses.py check`.
+- [x] Rewrite `README.md`; draw the Mermaid diagram with quoted labels only.
+- [x] Replace `companion/README.md` with developer notes.
+- [x] Check every relative link and anchor, and every command against the sources above.
+- [x] Record 11h as done in `docs/implementation-plan.md`.

@@ -1473,6 +1473,34 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - The README references no images that don't exist.
   - It contains no task-progress text, which remains in implementation-plan.md.
   - `LICENSE` is present, and `tools/licenses.py check` and CI still pass.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-readme-license.md.
+  - **LICENSE:** MIT, `Copyright (c) 2026 alexandersokol`, at the repository root.
+  - **README.md:** rewritten in English in the spec's order: title and badges (CI workflow badge,
+    latest release and license shields for `alexandersokol/aw-telegram`), what it does (reports,
+    limits and categories, endtime, reminders and overlays, free use and clearing, ten caregivers,
+    self-removal, English and Ukrainian, app version), how it works (Mermaid flowchart with quoted
+    labels, the 30 s pull), privacy, an eight-step owner guide that links to setup.md and
+    operations.md for the commands, using the bot (commands from `/help` and the registered menu,
+    «🏠 Головне меню»), development (layout, toolchain, bot and companion test commands, contract
+    regeneration, building, CI and release workflows, bumping `VERSION`), contributing, security,
+    license and acknowledgements (ActivityWatch, PySide6 under LGPL-3.0). It links to the releases
+    page, not a release, and says the cloud hardening is not yet done. No task-progress text and
+    no images.
+  - **companion/README.md:** short developer notes (the two virtual environments, tests, build and
+    self-check, the manual harness) linking to the root README.
+  - **Verified:** all 34 relative links and anchors in both READMEs resolve (script check); the
+    bot commands match `bot/package.json`; the gcloud/firebase/webhook/enroll/build commands match
+    setup.md, operations.md and enrollment-security.md; `contracts/generate_schemas.py` writes
+    `contracts/v2` and the companion's packaged schemas; `tools/licenses.py check` prints
+    "license texts complete" with the new `LICENSE`. No code changed, so no suites were re-run.
+  - **Owner-pending:**
+    - view the README on GitHub once pushed, to confirm the Mermaid diagram and badges render
+      (the badges show data only after the first CI run and the first release);
+    - enable GitHub private vulnerability reporting, which the Security section mentions, or
+      replace it with a contact address;
+    - the copyright holder is the GitHub account name; change it in `LICENSE` if a personal name
+      is wanted;
+    - add `docs/images/` and screenshots when supplied (the README references none).
 
 ### 11i: Cloud hardening (proposal C, owner-run)
 
