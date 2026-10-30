@@ -115,6 +115,14 @@ export const CLEAR_ALL_CONFIRM = 'Скасувати всі активні та 
 /** savedText descriptions of the two clears. */
 export const CLEARED_MANUAL = 'ручні нагадування буде скасовано.';
 export const CLEARED_ALL = 'усі нагадування буде скасовано, попередження про ліміт вимкнено до опівночі.';
+/** What a clear's "applied" message says (UX-03); settings changes reuse their coordination summary. */
+export const CLEAR_APPLIED = {manual: 'ручні нагадування скасовано', all: 'усі нагадування скасовано, попередження про ліміт вимкнено до опівночі'} as const;
+export const APPLIED_PREFIX = '✅ Ноутбук застосував: ';
+/** One outbox message per author per sync, the changes in order, within the outbox's 3500 characters. */
+export const appliedText = (summaries: string[]): string => {
+  const text = APPLIED_PREFIX + summaries.join('; ') + '.';
+  return text.length > 3500 ? text.slice(0, 3499) + '…' : text;
+};
 export const LIMIT_LABELS = {
   today: 'Змінити на сьогодні', daily: 'Змінити щоденний ліміт', categories: 'Категорії', freeOn: 'Увімкнути вільний режим',
   freeOff: 'Вимкнути вільний режим', restore: 'Відновити нагадування', add: 'Додати', remove: 'Видалити', prev: '‹', next: '›',

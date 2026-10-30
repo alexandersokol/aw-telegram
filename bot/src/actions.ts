@@ -9,6 +9,8 @@ import { decodeSettings, encodeSettings, needsSettingsMigration } from './settin
 import type { CallbackGuard } from './settings.js';
 import { applyPlan, planParentEvent, taskIntent, ensureTaskIntent, type PlannedWrite, type ParentEvent } from './outbox.js';
 import { planEndtimeSuppression } from './endtime.js';
+import { noticeWrite } from './notices.js';
+import { CLEAR_APPLIED } from './telegram/uk.js';
 export type ActionDraft = ({
     kind: 'notify';
     options: Extract<Action, {
@@ -235,7 +237,7 @@ export class ActionService {
             if (scope === 'all' || needsSettingsMigration(s!.data()))
                 tx.set(root.collection('settings').doc('current'), encodeSettings(settings));
             tx.set(op.ref, { digest: op.hash, result: cancellations, at: now, expired: false });
-            applyPlan(tx, events);
+            applyPlan(tx, [...events, noticeWrite(this.repo, identity, 'cancellation', cancellations.revision, CLEAR_APPLIED[scope], now)]);
             return cancellations;
         });
     }

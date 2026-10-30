@@ -91,7 +91,7 @@ async function scrubRound(repo: FirestoreRepository, now: string): Promise<Round
 }
 
 /** One device's tree: operations, receipts, alert states, old actions, days and the last title of an inactive
- * laptop, and expired sessions. At most about 440 writes. */
+ * laptop, expired sessions and applied notices the laptop never acknowledged. At most about 465 writes. */
 async function deviceRound(repo: FirestoreRepository, root: DocumentReference, now: string): Promise<Round> {
     const nowMs = Date.parse(now), cutoff = retentionStart(now), retained = retainedDates(now);
     const tombstoneCutoff = new Date(nowMs - TOMBSTONE_RETENTION_MS).toISOString();
@@ -106,8 +106,10 @@ async function deviceRound(repo: FirestoreRepository, root: DocumentReference, n
         // Sync reads only the dates it is sent, so cleanup alone keeps every device to the seven Kyiv dates.
         const days = (await tx.get(root.collection('days').limit(20))).docs.filter(d => !retained.includes(d.id));
         const sessions = await tx.get(root.collection('sessions').where('expiresAt', '<', nowMs).limit(50));
+        // Deleted unsent: a change the laptop has not applied within the retention window is no longer news.
+        const notices = await tx.get(root.collection('appliedNotices').where('createdAt', '<', cutoff).limit(20));
         const live = await tx.get(root.collection('live').doc('current'));
-        const deletions: { ref: any; }[] = [...tombstones.docs, ...receipts.docs, ...alertStates, ...days, ...sessions.docs];
+        const deletions: { ref: any; }[] = [...tombstones.docs, ...receipts.docs, ...alertStates, ...days, ...sessions.docs, ...notices.docs];
         const patches: { ref: any; value: Record<string, any>; }[] = [];
         for (const op of operations.docs)
             patches.push({ ref: op.ref, value: { digest: op.data().digest, at: op.data().at, expired: true } });

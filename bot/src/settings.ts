@@ -9,6 +9,7 @@ import {advanceMilestone} from './alerts.js';
 import {applyPlan} from './outbox.js';
 import {planEndtimeSuppression} from './endtime.js';
 import {canonical,checkSettingsCapacity,emptyCancellations} from './deviceApi.js';
+import {noticeWrite} from './notices.js';
 import {duration,selectionLabel} from './format.js';
 
 /** addCategory/removeCategory apply to current settings atomically; a null path is the uncategorized opt-in. */
@@ -145,7 +146,7 @@ export class SettingsService {
       if(policy!==actions.policy)tx.set(root.collection('policy').doc('current'),policy);
       tx.set(operation.ref,{digest:operation.hash,result:{...result,settings:encodeSettings(result.settings)},at:now,expired:false});
       tx.set(root.collection('cancellations').doc('current'),cancellations);
-      applyPlan(tx,[...alertWrites,...suppressionWrites]);
+      applyPlan(tx,[...alertWrites,...suppressionWrites,noticeWrite(this.repository,identity,'settings',settings.revision,changeSummary(change,settings),now)]);
       tx.set(settingsRef,encodeSettings(settings));
       if(evidence) tx.set(dayRef,{...evidence,projection});
       return result;

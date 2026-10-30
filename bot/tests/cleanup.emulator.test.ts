@@ -25,6 +25,9 @@ it('clears, deletes and keeps the right records on real Firestore',async()=>{
       writer.set(db.doc(`${ACTIVE}/actions/a${i}/evidence/1`),{digest:'x',at:'2026-10-19T12:00:00.000Z'});
     }
     writer.set(db.doc(`${ACTIVE}/actions/recent`),{action:{createdAt:'2026-10-27T12:00:00.000Z'},open:true});
+    // More than one round's 20: rounds repeat until the old notices are gone.
+    for(let i=1;i<=25;i++) writer.set(db.doc(`${ACTIVE}/appliedNotices/s-${i}`),{pairingId:'p',userId:'1',summary:'x',createdAt:'2026-10-20T12:00:00.000Z',settingsRevision:i});
+    writer.set(db.doc(`${ACTIVE}/appliedNotices/c-1`),{pairingId:'p',userId:'1',summary:'x',createdAt:'2026-10-27T12:00:00.000Z',cancellationRevision:1});
     writer.set(db.doc('enrollments/unused'),{expiresAt:nowMs-8*DAY,consumedAt:null,deviceId:null,allowedDeviceCount:1});
     writer.set(db.doc('enrollments/consumed'),{expiresAt:nowMs-30*DAY,consumedAt:nowMs-30*DAY,deviceId:'d',allowedDeviceCount:1});
     writer.set(db.doc('outbox/stranded'),{state:'pending',createdAt:'2026-10-28T11:00:00.000Z',nextAttemptAt:'2026-10-28T11:30:00.000Z',text:'x',scrubbed:false});
@@ -38,6 +41,7 @@ it('clears, deletes and keeps the right records on real Firestore',async()=>{
     const exists=async(path:string)=>(await db.doc(path).get()).exists;
     expect([await exists(`${REVOKED}/days/2026-10-01`),await exists(`${ACTIVE}/days/2026-10-02`),await exists(`${ACTIVE}/days/2026-10-28`)]).toEqual([false,false,true]);
     expect((await db.collection(`${ACTIVE}/actions`).get()).docs.map(d=>d.id)).toEqual(['recent']);
+    expect((await db.collection(`${ACTIVE}/appliedNotices`).get()).docs.map(d=>d.id)).toEqual(['c-1']);
     expect([await exists('enrollments/unused'),await exists('enrollments/consumed')]).toEqual([false,true]);
     const intents=await db.collection('taskIntents').where('kind','==','outbox').where('resourceId','==','stranded').get();
     expect(intents.size).toBe(1);

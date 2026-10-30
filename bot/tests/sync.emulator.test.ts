@@ -214,6 +214,42 @@ describe('sync Firestore transactions',()=>{
     expect((await db.doc(path('days/2026-10-28')).get()).data()).toMatchObject({sequence:2,source:{totalActiveMs:2000}});
     expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({maxRequestSequence:4,serverReceivedAt:NOW});
   });
+  // An acknowledging sync: the idle 7, its receipt, action controls and policy, the device again and two parents.
+  const BASE_ACK_READS=13;
+  const settingsAck=(sequence:number,revision:number):SyncRequest=>({...request(sequence),acks:[{id:randomUUID(),kind:'settings',revision,appliedAt:NOW}]});
+  const applied=async()=>(await db.collection('events').where('kind','==','applied').get()).docs.map(d=>d.data());
+  test('applied notices cost an acknowledging sync one query, one event read and four writes, and an idle sync nothing',async()=>{
+    await api.syncDevice(identity,request(1));
+    await settings.updateSettings(p1,{kind:'setTodayLimit',ms:600000},'limit');
+    const first=await counted(()=>api.syncDevice(identity,settingsAck(2,1)));
+    const repeated=await counted(()=>api.syncDevice(identity,settingsAck(3,1)));  // no advance: no notice work
+    const idle=await counted(()=>api.syncDevice(identity,request(4)));
+    // The repeated acknowledgement is the baseline. The first adds the notice query and the event check, and writes
+    // the event, its outbox row and task intent, and deletes the notice. hosting-cost-estimate.md quotes these.
+    expect(repeated).toEqual({reads:BASE_ACK_READS,writes:2});
+    expect(first).toEqual({reads:BASE_ACK_READS+2,writes:6});
+    expect(idle).toEqual({reads:7,writes:1});
+    expect((await applied()).map(e=>[e.recipients.map((r:any)=>r.userId),e.text])).toEqual([[['1'],'✅ Ноутбук застосував: ліміт на сьогодні 10 хв.']]);
+    expect((await db.collection(path('appliedNotices')).get()).empty).toBe(true);
+  });
+  test('the notice query inside the sync transaction is bounded by revision and to 50, the rest on the next sync',async()=>{
+    await db.doc(path('settings/current')).set(encodeSettings({...defaultSettings(),revision:60}));
+    const writer=db.bulkWriter();
+    for(let i=1;i<=55;i++){
+      const p=i%2?p1:p2;
+      writer.set(db.doc(path('appliedNotices/s-'+i)),{pairingId:p.pairingId,userId:p.userId,summary:'зміна '+i,createdAt:new Date(Date.parse(NOW)-60000+i).toISOString(),settingsRevision:i});
+    }
+    writer.set(db.doc(path('appliedNotices/s-60')),{pairingId:p1.pairingId,userId:'1',summary:'пізніше',createdAt:NOW,settingsRevision:60});
+    await writer.close();
+    const first=await counted(()=>api.syncDevice(identity,settingsAck(1,55)));
+    expect(first.reads).toBe(BASE_ACK_READS+50+2);  // 50 notices and two event checks, however many are due
+    expect((await applied()).map(e=>e.text.split('; ').length).sort()).toEqual([25,25]);
+    expect((await db.doc(path('sync/current')).get()).data()!.noticesDue).toBe(true);
+    await api.syncDevice(identity,request(2));
+    expect((await db.collection(path('appliedNotices')).get()).docs.map(d=>d.id)).toEqual(['s-60']);
+    expect((await db.doc(path('sync/current')).get()).data()!.noticesDue).toBeUndefined();
+    expect((await applied()).length).toBe(4);
+  });
   test('alert states keep the date retention cleanup selects by after /hourly and unchanged summaries',async()=>{
     const state=async()=>(await db.doc(path('alertStates/2026-10-28')).get()).data();
     await settings.setHourly(p1,false,'hourly:off');
