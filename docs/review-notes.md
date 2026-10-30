@@ -287,7 +287,8 @@ Neither affects the running functions.
 
 ## 9. A laptop whose clock is ahead of the server never syncs
 
-- **Status:** fixed (55b8262, 7a5d0b9, 27a07fb, a6bebe4, 1663ae8); deploy pending
+- **Status:** fixed (55b8262, 7a5d0b9, 27a07fb, a6bebe4, 1663ae8); deployed 2026-10-30 from
+  7088c89 (`api-00003-vog`, 19:46:26Z)
 - **Found:** 2026-10-30, production incident.
 - **Area:** `bot/src/contracts.ts` (`validateActivityContext`), `bot/src/deviceApi.ts`.
 
@@ -312,3 +313,8 @@ laptop's offset as `clockSkewMs` on `sync/current` (operations.md, troubleshooti
 reminders on its own clock: a laptop ahead makes immediate reminders and short timers expire as missed,
 and one behind shows them late. A laptop behind also waits after its first pairing until its clock
 passes collection start (companion-side, at most the offset).
+
+**Confirmed live.** The incident laptop's syncs were refused until 19:34:53Z and succeeded from
+19:39:01Z on the old backend, once its Windows clock had been resynchronized, before the fix was
+deployed. After the deploy it syncs every 30 s with `clockSkewMs` about -0.9 s (normal: health is
+observed just before the sync).
