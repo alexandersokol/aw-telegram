@@ -40,8 +40,8 @@ receipt IDs remain atomic; optional offers fit both the 131072-byte UTF-8 respon
 ## Lifecycle and policy
 
 Immediate offers use the same action ID at most 3 times, at least 20 seconds apart,
-strictly before created+60 seconds. Three is a ceiling: 15-second polling may yield
-only 2. Scheduled timers retain created+1..1439minutes and the inclusive target+5s
+strictly before created+60 seconds. Three is a ceiling: 30-second polling yields
+1 or 2. Scheduled timers retain created+1..1439minutes and the inclusive target+5s
 initial-presentation bound; they do not inherit the immediate 60-second window.
 Repeat families always end at their original target date's Kyiv midnight.
 

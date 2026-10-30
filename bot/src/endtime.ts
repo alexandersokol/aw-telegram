@@ -5,6 +5,7 @@ import type {EndtimeAck,Settings,Instant,LocalDate} from './contracts.js';
 import {retainedDates} from './clock.js';
 import {freeAt} from './actions.js';
 import {planParentEvent,endtimeSuppressed,type PlannedWrite} from './outbox.js';
+import {both} from './telegram/i18n/index.js';
 
 /** Bulk cancellation is best effort; the delivery worker rechecks suppression before every send. */
 export const SUPPRESSION_BATCH = 100;
@@ -29,7 +30,7 @@ export async function planEndtimeAck(repo: FirestoreRepository, tx: Transaction,
   if (endtimeSuppressed(settings, ack.date) || freeAt(policy, settings, ack.presentedAt) || !parents.length) return [];
   return planParentEvent(repo, tx, {
     id: endtimeEventId(deviceId, ack.date, ack.endtimeGeneration), deviceId, at: now, kind: 'endtime', recipients: parents,
-    text: `Настав час завершення ${ack.endtimeLocalTime} (${ack.date}); нагадування показано на ноутбуці.`,
+    text: both(t => t.endtimeReached(ack.endtimeLocalTime, ack.date)),
     policy: {kind: 'endtime', deviceId, endtimeDate: ack.date, endtimeGeneration: ack.endtimeGeneration},
   });
 }

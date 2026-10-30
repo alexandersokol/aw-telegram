@@ -191,6 +191,18 @@ unspecified details are still open.
 - UX-01: Provide buttons for common/frequent commands; less common commands may
   use typed commands or navigable menus. An exhaustive flat button list is not
   required.
+- UX-02 (2026-10-30): Every bot reply without buttons offers «🏠 Головне меню», which
+  replaces that message with the main menu. Exceptions: pop-up notices, the pairing hint,
+  the pairing failure and throttle texts, the farewell after `/unpair`, and everything
+  sent as a notification (alerts, coordination, action statuses, UX-03 messages). The
+  button holds no menu state, so it never goes stale and sending it never makes another
+  open menu stale. Telegram's command menu lists the eight core commands (`/start`,
+  `/status`, `/usage`, `/limit`, `/pending`, `/clear`, `/settings`, `/help`).
+- UX-03 (2026-10-30): When the laptop acknowledges a settings change or a clear, the
+  caregiver who made it receives one message per sync, «✅ Ноутбук застосував: …», listing
+  their applied changes in order. Other caregivers keep receiving only the coordination
+  message. A removed caregiver receives nothing; a change not applied within the retention
+  window is never reported.
 - ACCESS-04: Use the companion-managed named pairing-key flow specified in
   PAIR-01 through PAIR-07.
 
@@ -222,7 +234,11 @@ These decisions supersede conflicting statements elsewhere in this draft.
   ends before a timer is due, it remains scheduled and can execute normally.
   If its deadline passes during free use, skip it without replay.
 - FREE-05: A remote change takes effect on the laptop when received; the bot must
-  distinguish saving the setting from the companion acknowledging it.
+  distinguish saving the setting from the companion acknowledging it. The save reply
+  reports only the saved change, adding «Ноутбук зараз не на зв’язку — застосується, коли
+  він увімкнеться.» when the laptop has not synced for 2 minutes. The acknowledgement
+  reaches the author as a UX-03 message; status screens (`/limit`, `/endtime`) still
+  show whether the current revision is applied (updated 2026-10-30, Task 11e).
 
 ### Manual overlay options
 
@@ -281,10 +297,20 @@ These decisions supersede conflicting statements elsewhere in this draft.
 - MILESTONE-05: Hourly milestones measure combined usage of the categories
   selected for the shared daily allowance, not all laptop usage. For example,
   Games + Media share the same cumulative milestone counter as the daily limit.
-- LANG-01: All built-in bot and companion text is Ukrainian only, including
-  replies, reports, menus, button labels, default notifications, overlays,
-  countdown labels, errors, and confirmations. Remove English localization and
-  language selection from this version.
+- LANG-01: Bot text is in Ukrainian or English per Telegram user (default from the
+  Telegram app language). Laptop text is in Ukrainian or English, set on the laptop
+  (default from the Windows display language, otherwise English).
+  - Bot: a caregiver's stored choice (`/language uk|en` or «🌐 Мова» in Settings) wins;
+    without one, a Telegram `language_code` starting with `uk` or `ru` gives Ukrainian and
+    anything else, or none, English. Unpaired users get the pairing hint in that default.
+    The choice is the caregiver's own: nobody else is told, and it survives leaving and
+    pairing again. Shared messages (alerts, coordination, action statuses, "applied"
+    messages) reach each caregiver in their language; one who has never chosen gets
+    Ukrainian, as before. Telegram's command menu is English by default and Ukrainian
+    for Telegram apps set to Ukrainian, which may differ from the in-bot choice.
+  - Laptop: «Налаштування» → «Мова / Language» offers System, Українська and English
+    (Task 11g). Covered texts include replies, reports, menus, button labels, default
+    notifications, overlays, countdown labels, errors, and confirmations.
 - LANG-02: Command names remain unchanged and are not localized. Parent-authored
   messages, application names, category names, and window titles remain as entered
   or reported; no automatic translation is required.

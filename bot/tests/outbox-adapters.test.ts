@@ -71,7 +71,7 @@ it('does not revive a task completed by a fast queue callback before enqueue fin
 });
 it('does not retry Telegram before a retry_after larger than one day',async()=>{
   await module();const {OutboxService}=await import('../src/outbox.js'),f=fixture();let calls=0;const outbox=new OutboxService(f.repo,{send:async()=>{calls++;return {kind:'retry',retryAfter:100000};}},f.clock);
-  await outbox.enqueueParentEvent({id:'long-retry',deviceId:parent().deviceId,at:NOW,kind:'status',text:'Запит',recipients:[parent()]});const id=[...f.db.data.keys()].find(k=>k.startsWith('outbox/'))!.slice(7);await outbox.deliverOutbox(id);f.advance(86400001);await outbox.deliverOutbox(id);expect(calls).toBe(1);
+  await outbox.enqueueParentEvent({id:'long-retry',deviceId:parent().deviceId,at:NOW,kind:'status',text:{uk:'Запит',en:'Request'},recipients:[parent()]});const id=[...f.db.data.keys()].find(k=>k.startsWith('outbox/'))!.slice(7);await outbox.deliverOutbox(id);f.advance(86400001);await outbox.deliverOutbox(id);expect(calls).toBe(1);
 });
 
 it('retains Task6 evidence for seven Kyiv dates, tombstones operation identity and clears completed message text after24h',async()=>{

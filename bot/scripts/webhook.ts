@@ -8,7 +8,7 @@ async function main() {
   const [operation,...args]=process.argv.slice(2);
   if(operation==='--help' || operation===undefined) {
     console.log('After npm run build: node --experimental-strip-types scripts/webhook.ts info --project PROJECT');
-    console.log('  set --project PROJECT --url https://HOST/telegram/webhook   (secret_token, message+callback_query, max_connections 1)');
+    console.log('  set --project PROJECT --url https://HOST/telegram/webhook   (secret_token, message+callback_query, max_connections 1; command menu)');
     console.log('  remove --project PROJECT                                     (rollback; Telegram keeps updates for 24 h)');
     return;
   }

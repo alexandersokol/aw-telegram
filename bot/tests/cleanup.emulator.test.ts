@@ -25,6 +25,9 @@ it('clears, deletes and keeps the right records on real Firestore',async()=>{
       writer.set(db.doc(`${ACTIVE}/actions/a${i}/evidence/1`),{digest:'x',at:'2026-10-19T12:00:00.000Z'});
     }
     writer.set(db.doc(`${ACTIVE}/actions/recent`),{action:{createdAt:'2026-10-27T12:00:00.000Z'},open:true});
+    // More than one round's 20: rounds repeat until the old notices are gone.
+    for(let i=1;i<=25;i++) writer.set(db.doc(`${ACTIVE}/appliedNotices/s-${i}`),{pairingId:'p',userId:'1',summary:'x',createdAt:'2026-10-20T12:00:00.000Z',settingsRevision:i});
+    writer.set(db.doc(`${ACTIVE}/appliedNotices/c-1`),{pairingId:'p',userId:'1',summary:'x',createdAt:'2026-10-27T12:00:00.000Z',cancellationRevision:1});
     writer.set(db.doc('enrollments/unused'),{expiresAt:nowMs-8*DAY,consumedAt:null,deviceId:null,allowedDeviceCount:1});
     writer.set(db.doc('enrollments/consumed'),{expiresAt:nowMs-30*DAY,consumedAt:nowMs-30*DAY,deviceId:'d',allowedDeviceCount:1});
     writer.set(db.doc('outbox/stranded'),{state:'pending',createdAt:'2026-10-28T11:00:00.000Z',nextAttemptAt:'2026-10-28T11:30:00.000Z',text:'x',scrubbed:false});
@@ -38,8 +41,21 @@ it('clears, deletes and keeps the right records on real Firestore',async()=>{
     const exists=async(path:string)=>(await db.doc(path).get()).exists;
     expect([await exists(`${REVOKED}/days/2026-10-01`),await exists(`${ACTIVE}/days/2026-10-02`),await exists(`${ACTIVE}/days/2026-10-28`)]).toEqual([false,false,true]);
     expect((await db.collection(`${ACTIVE}/actions`).get()).docs.map(d=>d.id)).toEqual(['recent']);
+    expect((await db.collection(`${ACTIVE}/appliedNotices`).get()).docs.map(d=>d.id)).toEqual(['c-1']);
     expect([await exists('enrollments/unused'),await exists('enrollments/consumed')]).toEqual([false,true]);
     const intents=await db.collection('taskIntents').where('kind','==','outbox').where('resourceId','==','stranded').get();
     expect(intents.size).toBe(1);
+  } finally {await db.terminate();}
+});
+
+it('removes alert states outside the retained dates by their date ID, with or without a date field',async()=>{
+  const db=fixtureDb();
+  try {
+    await db.doc(ACTIVE).set({status:'active',activeParentIds:[]});
+    await db.doc(`${ACTIVE}/alertStates/2026-10-20`).set({parents:{},lastWarning:null});  // /hourly before 11d wrote no date
+    await db.doc(`${ACTIVE}/alertStates/2026-10-21`).set({date:'2026-10-21',parents:{},lastWarning:null});
+    await db.doc(`${ACTIVE}/alertStates/2026-10-22`).set({parents:{},lastWarning:null});
+    await cleanup(new FirestoreRepository(db,()=>nowMs),NOW);
+    expect((await db.collection(`${ACTIVE}/alertStates`).get()).docs.map(d=>d.id)).toEqual(['2026-10-22']);
   } finally {await db.terminate();}
 });

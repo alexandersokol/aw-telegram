@@ -53,7 +53,7 @@ describe('private-chat boundary and update delivery',()=>{
     const update=s.message('1','/endtime set 21:30');
     await expect(s.handle(update)).rejects.toThrow('Telegram unavailable');
     await s.handle(update);
-    expect(s.calls.filter(c=>c.kind==='send').map(c=>c.text)).toEqual(['Збережено: час завершення увімкнено, 21:30.\nНоутбук: очікує застосування.']);
+    expect(s.calls.filter(c=>c.kind==='send').map(c=>c.text)).toEqual(['Збережено: час завершення увімкнено, 21:30.\nНоутбук зараз не на зв’язку — застосується, коли він увімкнеться.']);
     expect(s.db.data.get(root+'/settings/current').revision).toBe(1);expect(events(s,'coordination')).toHaveLength(1);
   });
 });
@@ -64,7 +64,7 @@ describe('paired navigation',()=>{
     expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['📊 Використання','💻 Стан ноутбука'],['💬 Нагадування','⏱ Ліміт часу'],['⚙️ Налаштування']]);
     await s.handle(s.press('1',s.button('Налаштування')));
     expect(s.last()).toMatchObject({kind:'edit',messageId:7});
-    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Щогодинні звіти: вимкнено'],['Час завершення: вимкнено'],['Допомога'],['🚪 Відключитися'],['← Назад']]);
+    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Щогодинні звіти: вимкнено'],['Час завершення: вимкнено'],['🌐 Мова: Українська'],['Допомога'],['🚪 Відключитися'],['← Назад']]);
     expect(s.calls.filter(c=>c.kind==='answer')).toHaveLength(1);
     await s.handle(s.press('1',s.button('Час завершення')));expect(s.last().text.startsWith('🌙 Час завершення')).toBe(true);
     await s.handle(s.press('1',s.button('Назад')));expect(s.last().buttons!.flat().map(b=>b.text)).toContain('Допомога');
@@ -134,7 +134,7 @@ describe('paired navigation',()=>{
   });
   it('names the issuing caregiver in settings coordination',async()=>{
     const s=await setup();await s.handle(s.message('1','/free on'));
-    expect(events(s,'coordination').at(-1).text.startsWith('Налаштування змінив(-ла) «Parent».')).toBe(true);
+    expect(events(s,'coordination').at(-1).text.uk.startsWith('Налаштування змінив(-ла) «Parent».')).toBe(true);
   });
   it('routes time entry text into the Endtime menu',async()=>{
     const s=await setup();await s.handle(s.message('1','/endtime'));
@@ -202,6 +202,66 @@ describe('self-removal (ACCESS-09)',()=>{
   });
   it('lists /unpair in /help',async()=>{
     const s=await setup();await s.say('/help');expect(s.last().text).toContain('/unpair — відключитися від ноутбука');
+  });
+});
+
+describe('main menu button (UX-02)',()=>{
+  const HOME=[[{text:'🏠 Головне меню',data:'nv:home'}]];
+  it.each([
+    ['/help'],['/hourly on'],['/hourly maybe'],['/usage month'],['/limit nonsense'],['/limit 99:99 today'],['/endtime bogus'],
+    ['/endtime set 25:00'],['/free maybe'],['/clear nonsense'],['/add_category'],['/nonsense'],['просто текст'],
+    ['/pair AAAAAAAAAAAAAAAAAAAAAA'],['/limit 2:00 today'],['/limit 3:00 daily'],['/free on'],['/restore'],['/endtime set 21:30'],
+    ['/clear manual'],['/notify Привіт'],['/overlay +5 Привіт'],
+  ])('adds it to the plain reply to %s',async text=>{
+    const s=await setup();await s.say(text);
+    expect(s.last()).toMatchObject({kind:'send',buttons:HOME});
+  });
+  it('adds it to a save reply that closes a menu',async()=>{
+    const s=await setup();await s.say('/clear');await s.tap('Лише ручні');
+    expect(s.last().text.startsWith('Збережено: ручні нагадування буде скасовано.')).toBe(true);expect(s.last().buttons).toEqual(HOME);
+  });
+  it('leaves replies that have their own buttons unchanged',async()=>{
+    const s=await setup();
+    for(const text of ['/start','/settings','/limit','/clear','/pending','/usage','/endtime']){
+      await s.say(text);expect(s.last().buttons!.flat().map(b=>b.data)).not.toContain('nv:home');
+    }
+  });
+  it('keeps the pairing hint, the pairing failure and throttling bare',async()=>{
+    const s=await setup();
+    await s.say('/start','3');expect(s.last()).toMatchObject({text:PAIRING,buttons:[]});
+    await s.handle(s.press('3','nv:home'));expect(s.last()).toMatchObject({kind:'edit',text:PAIRING,buttons:[]});
+    await s.say('/pair AAAAAAAAAAAAAAAAAAAAAA','3');expect(s.last().text).toContain('Не вдалося підключитися');expect(s.last().buttons).toEqual([]);
+    for(let i=0;i<10;i++)await s.say('/pair AAAAAAAAAAAAAAAAAAAAAA','3');
+    expect(s.last()).toMatchObject({text:'Забагато спроб підключення. Спробуйте пізніше.',buttons:[]});
+  });
+  it('keeps the farewell after /unpair bare',async()=>{
+    const s=await setup();await s.say('/unpair');await s.tap('Так, відключитися');
+    expect(s.last().text.startsWith('Вас відключено.')).toBe(true);expect(s.last().buttons).toEqual([]);
+  });
+  it('keeps toasts bare and leaves the tapped message alone',async()=>{
+    const s=await setup();await s.say('/start');const old=s.button('Налаштування');
+    await s.handle(s.press('1',old));const before=s.calls.length;await s.handle(s.press('1',old));
+    expect(s.calls.slice(before)).toEqual([{kind:'answer',text:'Це меню застаріло. Відкрийте /start знову.'}]);
+  });
+  it('keeps the reply to a refused request bare',async()=>{
+    const s=await setup();
+    for(let i=0;i<201;i++)s.db.data.set(root+'/actions/a'+i,{open:true,action:{id:'a'+i}});
+    await s.say('/notify Привіт');
+    expect(s.last()).toMatchObject({text:'Забагато активних нагадувань. Очистьте їх через /clear і спробуйте знову.',buttons:[]});
+  });
+  it('opens the main menu in place of the tapped reply, without a session',async()=>{
+    const s=await setup();await s.say('/help');
+    await s.handle(s.press('1',s.button('Головне меню'),42));
+    expect(s.last()).toMatchObject({kind:'edit',messageId:42,text:'Головне меню'});
+    expect(s.labels()).toEqual([['📊 Використання','💻 Стан ноутбука'],['💬 Нагадування','⏱ Ліміт часу'],['⚙️ Налаштування']]);
+    await s.tap('Налаштування');expect(s.last().text).toBe('⚙️ Налаштування');
+    s.advance(3*3600000);  // every session long expired: the button still works
+    await s.handle(s.press('1','nv:home'));expect(s.last().text).toBe('Головне меню');
+  });
+  it('sends a reply with the button without making an open menu stale',async()=>{
+    const s=await setup();await s.say('/limit');const today=s.button('Змінити на сьогодні');
+    await s.say('/help');expect(s.last().buttons).toEqual(HOME);
+    await s.handle(s.press('1',today));expect(s.last().text).toBe('Введіть ліміт на сьогодні, наприклад 2:30 або 90 хв.');
   });
 });
 

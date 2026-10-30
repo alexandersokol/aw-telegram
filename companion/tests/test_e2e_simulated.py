@@ -125,8 +125,13 @@ class World:
         self.scheduler = Scheduler(self.store)
 
     def step(self):
-        """One laptop cycle 15 s later, the real sync interval: sync and poll are due; summaries every 30 s."""
-        self.advance(seconds=15)
+        """One laptop cycle 30 s later, the real sync interval: sync, poll and the today summary are due."""
+        self.advance(seconds=30)
+        self.coordinator.step(self.clock(), self.mono)
+
+    def tick(self):
+        """The IO thread's next step, a moment later: a receipt queued since the last sync goes out at once."""
+        self.advance(seconds=1)
         self.coordinator.step(self.clock(), self.mono)
 
     def cycle(self):
@@ -169,7 +174,7 @@ def test_the_companion_and_the_bot_work_together(server, tmp_path):
     w.step()
     assert w.store.settings.selectedPaths == [["Games"]]
     assert w.store.settings.todayOverride == {"date": kyiv_date(w.now), "limitMs": 60 * MIN}
-    w.step()
+    w.tick()  # the settings receipts go out at once, not at the next 30 s sync
     assert not [a for a in w.store.pending_acks() if a.kind == "settings"]  # the backend confirmed them
 
     # A reminder: offered, accepted, shown, and confirmed back to the caregiver.
@@ -178,7 +183,7 @@ def test_the_companion_and_the_bot_work_together(server, tmp_path):
     commands = w.show()
     assert [c.text for c in commands if getattr(c, "source", None) == "manual"] == ["Час на перерву"]
     reminder = next(c for c in commands if getattr(c, "source", None) == "manual")
-    w.step()
+    w.tick()  # the shown receipt goes out at once, well inside the reminder's 60 s delivery window
     assert any("Підтверджено показ: 1" in t or "Показ підтверджено" in t for t in w.inbox("101"))
     w.scheduler.dismissed(reminder.key, w.now)
 

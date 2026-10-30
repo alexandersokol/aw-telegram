@@ -2,13 +2,21 @@
 
 Status: base navigation and reminder flow recorded 2026-10-27; Endtime Settings
 flow approved 2026-10-29. This is a user-interface specification, not implemented
-behavior. All built-in text is Ukrainian. See user-requirements.md for timing,
+behavior. Built-in text is Ukrainian or English per caregiver (LANG-01, Task 11f); the
+examples here are the Ukrainian copy. See user-requirements.md for timing,
 privacy, pairing, and delivery rules.
 
 ## General behavior
 
 - Private chats only; unpaired users receive pairing instructions.
 - `/start` shows the main menu after pairing.
+- A reply without buttons carries «🏠 Головне меню» (UX-02), which opens the main menu in
+  place of that message. Pop-up notices, pairing texts, the farewell after `/unpair` and
+  notifications stay without it.
+- A save reply says only what was saved («Збережено: …»), plus «Ноутбук зараз не на
+  зв’язку — застосується, коли він увімкнеться.» when the laptop has not synced for
+  2 minutes. The author learns that the laptop applied it from «✅ Ноутбук застосував: …»
+  (UX-03).
 - Each submenu provides «← Назад»; unfinished input flows provide «Скасувати».
 - Canceling an unfinished flow does not submit a laptop command.
 - Report requests stay private. Shared-laptop actions and settings changes notify
@@ -73,11 +81,18 @@ when needed. Category selections include descendants and do not double-count.
 ```text
 [ Щогодинні звіти: увімкнено/вимкнено ]
 [ Час завершення: вимкнено/21:00 ]
+[ 🌐 Мова: Українська ]
 [ Допомога ]
+[ 🚪 Відключитися ]
 [ ← Назад ]
 ```
 
-Hourly updates are per parent. No language selector. Named pairing-key creation,
+Hourly updates and the language are per parent. The language row reads
+"🌐 Language: English" in English; it opens «🌐 Оберіть мову бота:» with «Українська»,
+"English" and «← Назад». A choice saves it for that caregiver only (no coordination
+message) and returns to Settings in the chosen language, prefixed «Мову бота змінено:
+українська.» / "Bot language changed: English.". `/language uk` and `/language en` do the
+same; a bare `/language` shows the choice. Named pairing-key creation,
 listing, and revocation stay in the companion app.
 
 ### Endtime

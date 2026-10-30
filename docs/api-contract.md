@@ -279,7 +279,7 @@ LocalStore uses SQLite WAL/FULL transactions, unfiltered latest-only day evidenc
 stable Ack IDs, retained report bodies and title-free manifests. It persists pairing,
 counters and cancellation fences before exposing activity. Query-success timestamps
 survive restart; unknown canceled IDs remain fenced conservatively. One IO owner
-runs explicit steps at 10s AW poll / 15s sync / 30s today-summary cadence, prioritizing
+runs explicit steps at 10s AW poll / 30s sync (new receipts at once) / 30s today-summary cadence, prioritizing
 controls before one bounded historical date. Midnight/wake finalizes closed retained
 dates using Kyiv calendar bounds. Actual IO duration can degrade cadence targets.
 Transport uses verified HTTPS without redirects, body limits, socket timeouts and a

@@ -9,6 +9,7 @@ import {defaultSettings,minimalHealth,type SyncRequest} from '../src/contracts.j
 import {encodeSettings} from '../src/settingsCodec.js';
 import {operationRef,ActionService} from '../src/actions.js';
 import {createRouter} from '../src/index.js';
+import {cleanup} from '../src/cleanup.js';
 const db=fixtureDb();
 const START='2026-10-28T10:00:00.000Z',NOW='2026-10-28T12:00:00.000Z';
 let now:number,repo:FirestoreRepository,api:DeviceApi,settings:SettingsService;
@@ -18,6 +19,19 @@ const day=(sequence=1,totalMs=1000)=>({date:'2026-10-28',sequence,settingsRevisi
   leafTotalsMs:[{category:{id:'["Study"]',path:['Study']},totalMs}],appLeafTotalsMs:[{app:'Editor 😀',categoryId:'["Study"]',totalMs}],
   totalActiveMs:totalMs,selectedTotalMs:0,availableFrom:START,availableThrough:NOW,partial:false});
 const path=(suffix:string)=>`devices/${identity.deviceId}/${suffix}`;
+/** Billable operations of the transactions `body` runs: each document read, a query at least one. */
+async function counted(body:()=>Promise<unknown>):Promise<{reads:number;writes:number}> {
+  const ops={reads:0,writes:0},run=db.runTransaction.bind(db);
+  (db as any).runTransaction=(fn:(tx:any)=>Promise<unknown>,options?:any)=>run(tx=>fn(new Proxy(tx,{get(target:any,key){
+    const value=target[key];
+    if(key==='get')return async(ref:any)=>{const result=await value.call(target,ref);ops.reads+=result.docs?Math.max(1,result.size):1;return result;};
+    if(key==='getAll')return (...refs:any[])=>{ops.reads+=refs.length;return value.apply(target,refs);};
+    if(['set','create','update','delete'].includes(key as string))return (...args:any[])=>{ops.writes++;return value.apply(target,args);};
+    return typeof value==='function'?value.bind(target):value;
+  }})),options);
+  try{await body();}finally{delete (db as any).runTransaction;}
+  return ops;
+}
 beforeEach(async()=>{
   await resetFixture();now=Date.parse(START);repo=new FirestoreRepository(db,()=>now);
   const code=randomBytes(32).toString('base64url');await repo.issueEnrollment(code);
@@ -183,6 +197,68 @@ describe('sync Firestore transactions',()=>{
     await expect(api.syncDevice(identity,{...request(3),acks:[{...ack,appliedAt:START}]})).rejects.toThrow('conflict');
     await expect(api.syncDevice(identity,{...request(4),summaries:[day(),{...day(),date:'2026-10-20',availableFrom:null,availableThrough:null,partial:true,leafTotalsMs:[],appLeafTotalsMs:[],totalActiveMs:0}]})).rejects.toThrow();
     expect((await db.collection(path('days')).get()).empty).toBe(true);
+  });
+  test('an idle sync costs at most 7 reads and 2 writes and a summary is still stored',async()=>{
+    await api.syncDevice(identity,request(1));
+    const idle=await counted(()=>api.syncDevice(identity,request(2)));
+    const first=await counted(()=>api.syncDevice(identity,{...request(3),summaries:[day()]}));
+    // Six more stored days cost nothing: only the summarized date is read.
+    for(const date of ['2026-10-22','2026-10-23','2026-10-24','2026-10-25','2026-10-26','2026-10-27'])
+      await db.doc(path('days/'+date)).set({source:{date},sequence:1});
+    const summary=await counted(()=>api.syncDevice(identity,{...request(4),summaries:[day(2,2000)]}));
+    // Idle: device, settings, cancellations, sync, live, health and the open-action query; only sync/current is written.
+    expect(idle.reads).toBeLessThanOrEqual(7);expect(idle.writes).toBeLessThanOrEqual(2);expect(idle).toEqual({reads:7,writes:1});
+    // A summary adds its day, action controls, the device again, two parents and today's alert state, and writes the
+    // day and sync/current; the alert state is unchanged. hosting-cost-estimate.md projects from these.
+    expect(first).toEqual({reads:14,writes:2});expect(summary).toEqual({reads:14,writes:2});
+    expect((await db.doc(path('days/2026-10-28')).get()).data()).toMatchObject({sequence:2,source:{totalActiveMs:2000}});
+    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({maxRequestSequence:4,serverReceivedAt:NOW});
+  });
+  // An acknowledging sync: the idle 7, its receipt, action controls and policy, the device again and two parents.
+  const BASE_ACK_READS=13;
+  const settingsAck=(sequence:number,revision:number):SyncRequest=>({...request(sequence),acks:[{id:randomUUID(),kind:'settings',revision,appliedAt:NOW}]});
+  const applied=async()=>(await db.collection('events').where('kind','==','applied').get()).docs.map(d=>d.data());
+  test('applied notices cost an acknowledging sync one query, one event read and four writes, and an idle sync nothing',async()=>{
+    await api.syncDevice(identity,request(1));
+    await settings.updateSettings(p1,{kind:'setTodayLimit',ms:600000},'limit');
+    const first=await counted(()=>api.syncDevice(identity,settingsAck(2,1)));
+    const repeated=await counted(()=>api.syncDevice(identity,settingsAck(3,1)));  // no advance: no notice work
+    const idle=await counted(()=>api.syncDevice(identity,request(4)));
+    // The repeated acknowledgement is the baseline. The first adds the notice query and the event check, and writes
+    // the event, its outbox row and task intent, and deletes the notice. hosting-cost-estimate.md quotes these.
+    expect(repeated).toEqual({reads:BASE_ACK_READS,writes:2});
+    expect(first).toEqual({reads:BASE_ACK_READS+2,writes:6});
+    expect(idle).toEqual({reads:7,writes:1});
+    expect((await applied()).map(e=>[e.recipients.map((r:any)=>r.userId),e.text.uk])).toEqual([[['1'],'✅ Ноутбук застосував: ліміт на сьогодні 10 хв.']]);
+    expect((await db.collection(path('appliedNotices')).get()).empty).toBe(true);
+  });
+  test('the notice query inside the sync transaction is bounded by revision and to 50, the rest on the next sync',async()=>{
+    await db.doc(path('settings/current')).set(encodeSettings({...defaultSettings(),revision:60}));
+    const writer=db.bulkWriter();
+    for(let i=1;i<=55;i++){
+      const p=i%2?p1:p2;
+      writer.set(db.doc(path('appliedNotices/s-'+i)),{pairingId:p.pairingId,userId:p.userId,summary:'зміна '+i,createdAt:new Date(Date.parse(NOW)-60000+i).toISOString(),settingsRevision:i});
+    }
+    writer.set(db.doc(path('appliedNotices/s-60')),{pairingId:p1.pairingId,userId:'1',summary:'пізніше',createdAt:NOW,settingsRevision:60});
+    await writer.close();
+    const first=await counted(()=>api.syncDevice(identity,settingsAck(1,55)));
+    expect(first.reads).toBe(BASE_ACK_READS+50+2);  // 50 notices and two event checks, however many are due
+    expect((await applied()).map(e=>e.text.uk.split('; ').length).sort()).toEqual([25,25]);
+    expect((await db.doc(path('sync/current')).get()).data()!.noticesDue).toBe(true);
+    await api.syncDevice(identity,request(2));
+    expect((await db.collection(path('appliedNotices')).get()).docs.map(d=>d.id)).toEqual(['s-60']);
+    expect((await db.doc(path('sync/current')).get()).data()!.noticesDue).toBeUndefined();
+    expect((await applied()).length).toBe(4);
+  });
+  test('alert states keep the date retention cleanup selects by after /hourly and unchanged summaries',async()=>{
+    const state=async()=>(await db.doc(path('alertStates/2026-10-28')).get()).data();
+    await settings.setHourly(p1,false,'hourly:off');
+    expect(await state()).toEqual({date:'2026-10-28',parents:{},lastWarning:null});
+    await db.doc(path('alertStates/2026-10-28')).set({parents:{},lastWarning:null});  // as /hourly wrote it before 11d
+    await api.syncDevice(identity,{...request(1),summaries:[day()]});  // unchanged, but rewritten with its date
+    expect(await state()).toEqual({date:'2026-10-28',parents:{},lastWarning:null});
+    await cleanup(repo,'2026-11-05T12:00:00.000Z');
+    expect(await state()).toBeUndefined();
   });
   test('v2 HTTP route sanitizes raw requests and preserves Task4 envelope version',async()=>{
     const router=createRouter(repo),headers={authorization:`Bearer ${deviceSecret}`};

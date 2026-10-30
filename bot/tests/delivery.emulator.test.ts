@@ -65,7 +65,7 @@ describe('delivery emulator races and rollback',()=>{
  });
  it('isolates recipient leases, revoked generations, provider 403 and 429',async()=>{
   let calls=0;const outbox=new OutboxService(repo,{send:async(chat)=>{calls++;return chat==='1'?{kind:'forbidden'}:{kind:'retry',retryAfter:120};}},clock);
-  await outbox.enqueueParentEvent({id:'test-event',deviceId:identity.deviceId,at:NOW,kind:'status',text:'Запит',recipients:[p1,p2]});const docs=(await db.collection('outbox').get()).docs;
+  await outbox.enqueueParentEvent({id:'test-event',deviceId:identity.deviceId,at:NOW,kind:'status',text:{uk:'Запит',en:'Request'},recipients:[p1,p2]});const docs=(await db.collection('outbox').get()).docs;
   await Promise.all(docs.flatMap(doc=>[outbox.deliverOutbox(doc.id),outbox.deliverOutbox(doc.id)]));expect(calls).toBe(2);expect((await db.doc(path('parents/1')).get()).data()?.revokedAt).toBeNull();
   const pending=(await db.collection('outbox').where('state','==','pending').get()).docs[0]!;time+=120000;await repo.revokeAccess(identity,`parent:2:${p2.pairingId}`);await outbox.deliverOutbox(pending.id);expect(calls).toBe(2);expect((await pending.ref.get()).data()?.state).toBe('canceled');
  });
@@ -97,7 +97,7 @@ describe('delivery emulator races and rollback',()=>{
   const bot=new TelegramBot(repo,settings,actions,client,clock);
   await db.doc(path('live/current')).set({sequence:1,value:{observedAt:NOW,state:'active',app:'Minecraft',title:null,category:null,rulesRevision:'r',
     categoryCatalog:[{id:'["Games","Minecraft"]',path:['Games','Minecraft']},{id:'uncategorized',path:null}]}});
-  let update=0;const from={id:1,is_bot:false,first_name:'P'},chat={id:1,type:'private'};
+  let update=0;const from={id:1,is_bot:false,first_name:'P',language_code:'uk'},chat={id:1,type:'private'};
   const say=(text:string)=>bot.handleUpdate({update_id:++update,message:{message_id:update,date:0,chat,from,text}});
   const tap=(label:string)=>bot.handleUpdate({update_id:++update,callback_query:{id:'cb'+update,from,chat_instance:'i',
     data:replies.at(-1).buttons.flat().find((b:any)=>b.text===label).data,message:{message_id:1,date:0,chat}}});
@@ -140,6 +140,6 @@ it('persists null-visibility repeat dismissal and its interval without falsely c
  expect((await api.syncDevice(identity,{...request(2),acks:[first]})).acknowledgedAckIds).toEqual([first.id]);
  time+=60000;await actions.expireAction(action.id);let row=(await db.doc(path('actions/'+action.id)).get()).data()!;expect(row.state).toBe('dismissed');expect(row.open).toBe(true);expect(row.initialOccurrence.presentedAt).toBeNull();
  await api.syncDevice(identity,{...request(3),acks:[{...first,id:randomUUID(),eventSequence:2,occurrence:1,at:clock()}]});expect((await db.doc(path('actions/'+action.id+'/occurrences/1')).get()).data()?.presentedAt).toBeNull();
- const statuses=(await db.collection('events').where('kind','==','status').get()).docs.map(doc=>doc.data());expect(statuses.filter(e=>e.actions?.some((a:any)=>a.id===action.id)).every(e=>!e.text.includes('Показ підтверджено'))).toBe(true);
+ const statuses=(await db.collection('events').where('kind','==','status').get()).docs.map(doc=>doc.data());expect(statuses.filter(e=>e.actions?.some((a:any)=>a.id===action.id)).every(e=>!e.text.uk.includes('Показ підтверджено'))).toBe(true);
  time=Date.parse('2026-10-28T22:00:00.000Z');await actions.expireAction(action.id);row=(await db.doc(path('actions/'+action.id)).get()).data()!;expect(row.open).toBe(false);
 });

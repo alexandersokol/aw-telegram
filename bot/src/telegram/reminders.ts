@@ -13,7 +13,7 @@ import {decodeSettings} from '../settingsCodec.js';
 import type {CallbackGuard} from '../settings.js';
 import {MenuSessions,type MenuSession} from './sessions.js';
 import {paginate} from './reports.js';
-import {LABELS,CANCELED,STALE_NAV,type Button,type Reply} from './uk.js';
+import {text as copy,type Button,type Catalogue,type Reply} from './i18n/index.js';
 
 export const MAX_DELAY_MINUTES = 1439;
 export const MAX_BUTTONLESS_SECONDS = 3600;
@@ -28,34 +28,11 @@ export interface RemindState {step: Step; draft?: Draft}
 const INPUTS: readonly Step[] = ['text', 'delayInput', 'repeatInput', 'durationInput'];
 const PRESETS = [5, 10, 15, 30] as const;
 
-const T = {
-  home: '💬 Нагадування\n\nНадішліть повідомлення на ноутбук або\nперегляньте активні й заплановані нагадування.',
-  text: 'Введіть текст повідомлення:', when: 'Коли показати повідомлення?', delay: 'Через скільки показати повідомлення?',
-  delayInput: 'Введіть затримку в хвилинах, від 1 до 1439.', minutes: 'Вкажіть ціле число хвилин від 1 до 1439.',
-  countdown: 'Показувати зворотний відлік у верхньому лівому куті?', options: 'Додаткові параметри',
-  repeatInput: 'Через скільки хвилин повторювати після закриття? Від 1 до 1439.',
-  durationInput: 'Скільки секунд показувати без кнопки закриття? Від 1 до 3600.', seconds: 'Вкажіть ціле число секунд від 1 до 3600.',
-  message: 'Текст має містити від 1 до 1000 символів.',
-  queued: '⏳ Запит збережено. Очікуємо підтвердження від ноутбука.',
-  free: 'ℹ️ Увімкнено вільний режим до опівночі.\nЦе нагадування буде пропущено.',
-  pending: '📋 Активні та заплановані', none: 'Немає активних або запланованих нагадувань.',
-  notifyUsage: 'Використання: /notify [+ХВИЛИНИ] [countdown] ТЕКСТ, наприклад /notify +15 countdown Час на перерву.',
-  overlayUsage: 'Використання: /overlay [+ХВИЛИНИ] [countdown] [repeat=ХВИЛИНИ | nodismiss=СЕКУНДИ] ТЕКСТ.',
-  conflict: 'Повторення не поєднується з показом без кнопки закриття.',
-  countdownDelay: 'Зворотний відлік можливий лише для відкладеного нагадування.',
-};
-const TITLE = {notify: '🔔 Сповіщення', overlay: '🖥 Повідомлення на екрані'} as const;
 const ICON = {notify: '🔔', overlay: '🖥'} as const;
 
 const scalars = (text: string) => [...text].length;
 const validMessage = (text: string) => scalars(text) >= 1 && scalars(text) <= MAX_MESSAGE;
 const whole = (text: string, max: number): number | null => /^[1-9]\d{0,3}$/.test(text.trim()) && Number(text) <= max ? Number(text) : null;
-/** Ukrainian plural of «хвилина» after a number. */
-function minutesWord(n: number): string {
-  const ten = n % 10, hundred = n % 100;
-  if (ten === 1 && hundred !== 11) return 'хвилину';
-  return ten >= 2 && ten <= 4 && (hundred < 12 || hundred > 14) ? 'хвилини' : 'хвилин';
-}
 
 export function toActionDraft(d: Draft): ActionDraft {
   const base = {message: d.message, countdown: d.countdown};
@@ -65,9 +42,10 @@ export function toActionDraft(d: Draft): ActionDraft {
   return {kind: 'overlay', delayMinutes: d.delayMinutes, options};
 }
 
-/** Options precede the text: `+ХВИЛИНИ`, `countdown`, and for overlays `repeat=ХВ` or `nodismiss=С`. */
-export function parseReminder(kind: 'notify' | 'overlay', args: string): Draft | string {
-  const usage = kind === 'notify' ? T.notifyUsage : T.overlayUsage;
+/** Options precede the text: `+ХВИЛИНИ`, `countdown`, and for overlays `repeat=ХВ` or `nodismiss=С`. Errors are
+ * Ukrainian unless the reader's catalogue is given. */
+export function parseReminder(kind: 'notify' | 'overlay', args: string, t: Catalogue = copy('uk')): Draft | string {
+  const T = t.REMIND, usage = kind === 'notify' ? T.notifyUsage : T.overlayUsage;
   const draft: Draft = {kind, message: '', delayMinutes: 0, countdown: false, mode: 'once', repeatMinutes: null, durationSeconds: null};
   let rest = args.replace(/^\s+/, ''), match: RegExpExecArray | null;
   for (let token = /^(\S+)(\s+|$)/.exec(rest); token; token = /^(\S+)(\s+|$)/.exec(rest)) {
@@ -92,15 +70,10 @@ export function parseReminder(kind: 'notify' | 'overlay', args: string): Draft |
   return draft;
 }
 
-function review(d: Draft, now: Instant): string {
-  const lines = [TITLE[d.kind], '', `Текст: ${d.message}`];
-  lines.push(d.delayMinutes ? `Показати: через ${d.delayMinutes} ${minutesWord(d.delayMinutes)}, о ${kyivTime(new Date(Date.parse(now) + d.delayMinutes * 60000).toISOString())}` : 'Показати: зараз');
-  if (d.delayMinutes) lines.push(`Зворотний відлік: ${d.countdown ? 'увімкнено' : 'вимкнено'}`);
-  if (d.kind === 'overlay') {
-    lines.push(d.mode === 'buttonless' ? `Кнопка закриття: немає, показ ${d.durationSeconds} с` : 'Кнопка закриття: є');
-    lines.push(d.mode === 'repeat' ? `Повторення: через ${d.repeatMinutes} хв після закриття, до опівночі` : 'Повторення: немає');
-  }
-  return lines.join('\n');
+function review(d: Draft, now: Instant, t: Catalogue): string {
+  return t.reminderReview({kind: d.kind, message: d.message, countdown: d.countdown,
+    delay: d.delayMinutes ? {minutes: d.delayMinutes, at: kyivTime(new Date(Date.parse(now) + d.delayMinutes * 60000).toISOString())} : null,
+    buttonless: d.mode === 'buttonless' ? d.durationSeconds : null, repeat: d.mode === 'repeat' ? d.repeatMinutes : null});
 }
 
 const preview = (text: string): string => {
@@ -108,18 +81,18 @@ const preview = (text: string): string => {
   return scalars(flat) > 80 ? [...flat].slice(0, 79).join('') + '…' : flat;
 };
 /** One open action per entry: what it is, its schedule or delivery state, and repeat boundaries. */
-function pendingEntry(index: number, action: Action, state: string): string[] {
+function pendingEntry(index: number, action: Action, state: string, t: Catalogue): string[] {
   const delayed = action.targetAt !== action.createdAt, options = action.options as Record<string, unknown>;
-  let status = delayed ? `Заплановано на ${kyivTime(action.targetAt)}` :
-    state === 'pending' ? 'Очікує доставки на ноутбук' : state === 'presented' ? 'Показано на ноутбуці' : 'Ноутбук отримав запит';
-  if (action.options.countdown) status += ' · відлік увімкнено';
-  if (options.dismissible === false) status += ` · без кнопки закриття, ${options.durationSeconds} с`;
+  let status = delayed ? t.scheduledAt(kyivTime(action.targetAt)) :
+    state === 'pending' ? t.PENDING_STATE.pending : state === 'presented' ? t.PENDING_STATE.presented : t.PENDING_STATE.other;
+  if (action.options.countdown) status += t.PENDING_COUNTDOWN;
+  if (options.dismissible === false) status += t.pendingButtonless(options.durationSeconds as number);
   const lines = [`${index}. ${ICON[action.kind]} ${preview(action.options.message)}`, `   ${status}`];
-  if (typeof options.repeatEveryMinutes === 'number') lines.push(`   Повторення через ${options.repeatEveryMinutes} хв після закриття`, '   Діє до опівночі');
+  if (typeof options.repeatEveryMinutes === 'number') lines.push(...t.pendingRepeat(options.repeatEveryMinutes));
   return lines;
 }
 
-const stale = (): Reply => ({text: STALE_NAV, buttons: [], toast: true});
+const stale = (t: Catalogue): Reply => ({text: t.STALE_NAV, buttons: [], toast: true});
 const plain = (text: string): Reply => ({text, buttons: []});
 const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
 
@@ -139,7 +112,7 @@ export class RemindersController {
   /** A bare command opens the creation flow; otherwise options are parsed and the action submitted directly. */
   async command(identity: ParentIdentity, kind: 'notify' | 'overlay', args: string, updateId: number): Promise<Reply> {
     if (!args) return this.start(identity, kind);
-    const draft = parseReminder(kind, args);
+    const draft = parseReminder(kind, args, copy(identity.lang));
     if (typeof draft === 'string') return plain(draft);
     return plain(await this.submit(identity, draft, `tg:${updateId}`));
   }
@@ -159,19 +132,19 @@ export class RemindersController {
   }
 
   private async submit(identity: ParentIdentity, draft: Draft, operationId: string, guard?: CallbackGuard): Promise<string> {
-    const result = await this.actions.createAction(identity, toActionDraft(draft), operationId, guard);
-    if (result.state === 'skipped') return T.free;
-    return draft.delayMinutes ? `${T.queued}\nЗаплановано на ${kyivTime(result.action.targetAt)}.` : T.queued;
+    const result = await this.actions.createAction(identity, toActionDraft(draft), operationId, guard), t = copy(identity.lang);
+    if (result.state === 'skipped') return t.REMIND.free;
+    return draft.delayMinutes ? `${t.REMIND.queued}\n${t.scheduledAt(kyivTime(result.action.targetAt))}.` : t.REMIND.queued;
   }
 
   async callback(identity: ParentIdentity, data: unknown): Promise<Reply> {
     const match = typeof data === 'string' ? /^rm:([A-Za-z0-9_-]{1,43}):(0|[1-9][0-9]{0,15}):([a-z0-9]+)$/.exec(data) : null;
-    if (!match) return stale();
+    if (!match) return stale(copy(identity.lang));
     try {
       const session = await this.sessions.read<RemindState>(identity, {nonce: match[1]!, version: Number(match[2])}, 'remind');
       return await this.step(identity, session, match[3]!);
     } catch (error) {
-      if (unauthorized(error)) return stale();
+      if (unauthorized(error)) return stale(copy(identity.lang));
       throw error;
     }
   }
@@ -181,7 +154,7 @@ export class RemindersController {
     const session = await this.sessions.current<RemindState>(identity, 'remind');
     if (!session || !INPUTS.includes(session.state.step)) return null;
     try {
-      const {step, draft} = session.state, d = draft!;
+      const {step, draft} = session.state, d = draft!, T = copy(identity.lang).REMIND;
       if (step === 'text') {
         const message = text.trim();
         if (!validMessage(message)) return await this.again(identity, session, T.message);
@@ -193,14 +166,14 @@ export class RemindersController {
       if (step === 'repeatInput') return await this.go(identity, session, {step: 'review', draft: {...d, mode: 'repeat', repeatMinutes: n, durationSeconds: null}});
       return await this.go(identity, session, {step: 'review', draft: {...d, mode: 'buttonless', durationSeconds: n, repeatMinutes: null}});
     } catch (error) {
-      if (unauthorized(error)) return stale();
+      if (unauthorized(error)) return stale(copy(identity.lang));
       throw error;
     }
   }
 
   private async again(identity: ParentIdentity, session: MenuSession<RemindState>, error: string): Promise<Reply> {
     const guard = await this.sessions.advance(identity, session, 'remind', session.state);
-    return {text: error, buttons: [[this.button(guard, 'cancel', LABELS.cancel)]]};
+    return {text: error, buttons: [[this.button(guard, 'cancel', copy(identity.lang).LABELS.cancel)]]};
   }
   private async go(identity: ParentIdentity, session: MenuSession<RemindState>, next: RemindState, prefix?: string): Promise<Reply> {
     return this.render(identity, await this.sessions.advance(identity, session, 'remind', next), next, prefix);
@@ -211,8 +184,8 @@ export class RemindersController {
   }
 
   private async step(identity: ParentIdentity, session: MenuSession<RemindState>, action: string): Promise<Reply> {
-    const {step, draft} = session.state, d = draft!;
-    if (action === 'cancel' && step !== 'home' && step !== 'pending' && step !== 'free') return this.go(identity, session, {step: 'home'}, CANCELED);
+    const {step, draft} = session.state, d = draft!, t = copy(identity.lang);
+    if (action === 'cancel' && step !== 'home' && step !== 'pending' && step !== 'free') return this.go(identity, session, {step: 'home'}, t.CANCELED);
     switch (`${step}:${action}`) {
       case 'home:notify': case 'home:overlay': return this.start(identity, action as 'notify' | 'overlay', session);
       case 'home:pending': return this.go(identity, session, {step: 'pending'});
@@ -229,7 +202,7 @@ export class RemindersController {
       case 'review:submit': {
         // The session version names the operation: a duplicate tap replays, a moved session is rejected.
         const text = await this.submit(identity, d, `menu:${session.nonce}:${session.version}`, session);
-        if (text === T.free) return this.go(identity, session, {step: 'free'});
+        if (text === t.REMIND.free) return this.go(identity, session, {step: 'free'});
         await this.sessions.advance(identity, session, 'remind', null);
         return plain(text);
       }
@@ -241,7 +214,7 @@ export class RemindersController {
     const preset = /^d(\d+)$/.exec(action);
     if (step === 'delay' && preset && PRESETS.includes(Number(preset[1]) as typeof PRESETS[number]))
       return this.go(identity, session, {step: 'countdown', draft: {...d, delayMinutes: Number(preset[1])}});
-    return stale();
+    return stale(t);
   }
 
   private button(guard: CallbackGuard, action: string, text: string): Button {
@@ -249,41 +222,43 @@ export class RemindersController {
   }
 
   private async render(identity: ParentIdentity, guard: CallbackGuard, state: RemindState, prefix?: string): Promise<Reply> {
-    const b = (action: string, text: string) => [this.button(guard, action, text)], cancel = b('cancel', LABELS.cancel), d = state.draft;
+    const t = copy(identity.lang), T = t.REMIND, L = t.REMIND_LABELS, back = t.LABELS.back;
+    const b = (action: string, text: string) => [this.button(guard, action, text)], cancel = b('cancel', t.LABELS.cancel), d = state.draft;
     let reply: Reply;
     switch (state.step) {
-      case 'home': reply = {text: T.home, buttons: [b('notify', '🔔 Сповіщення'), b('overlay', '🖥 Повідомлення на екрані'),
-        b('pending', '📋 Активні та заплановані'), b('clear', '🧹 Очистити…'), b('back', LABELS.back)]}; break;
+      case 'home': reply = {text: T.home, buttons: [b('notify', L.notify), b('overlay', L.overlay),
+        b('pending', L.pending), b('clear', L.clear), b('back', back)]}; break;
       case 'text': reply = {text: T.text, buttons: [cancel]}; break;
-      case 'when': reply = {text: T.when, buttons: [b('now', 'Зараз'), b('later', 'Через…'), cancel]}; break;
-      case 'delay': reply = {text: T.delay, buttons: [PRESETS.map(n => this.button(guard, `d${n}`, `${n} хв`)), b('custom', 'Інший час'), cancel]}; break;
+      case 'when': reply = {text: T.when, buttons: [b('now', L.now), b('later', L.later), cancel]}; break;
+      case 'delay': reply = {text: T.delay, buttons: [PRESETS.map(n => this.button(guard, `d${n}`, t.minutesShort(n))), b('custom', L.custom), cancel]}; break;
       case 'delayInput': reply = {text: T.delayInput, buttons: [cancel]}; break;
-      case 'countdown': reply = {text: T.countdown, buttons: [[this.button(guard, 'yes', 'Так'), this.button(guard, 'no', 'Ні')], cancel]}; break;
-      case 'review': reply = {text: review(d!, this.clock()), buttons: [b('submit', d!.delayMinutes ? '✅ Запланувати' : '✅ Надіслати'),
-        ...(d!.kind === 'overlay' ? [b('options', '⚙️ Додаткові параметри')] : []), cancel]}; break;
+      case 'countdown': reply = {text: T.countdown, buttons: [[this.button(guard, 'yes', L.yes), this.button(guard, 'no', L.no)], cancel]}; break;
+      case 'review': reply = {text: review(d!, this.clock(), t), buttons: [b('submit', d!.delayMinutes ? L.schedule : L.send),
+        ...(d!.kind === 'overlay' ? [b('options', L.options)] : []), cancel]}; break;
       case 'options': reply = {text: T.options, buttons: [
-        b('once', 'Показати один раз' + (d!.mode === 'once' ? ' ✓' : '')),
-        b('repeat', 'Повторювати після закриття' + (d!.mode === 'repeat' ? ` ✓ (${d!.repeatMinutes} хв)` : '')),
-        b('buttonless', 'Без кнопки закриття' + (d!.mode === 'buttonless' ? ` ✓ (${d!.durationSeconds} с)` : '')), b('back', LABELS.back)]}; break;
+        b('once', L.once + (d!.mode === 'once' ? ' ✓' : '')),
+        b('repeat', L.repeat + (d!.mode === 'repeat' ? ` ✓ (${t.minutesShort(d!.repeatMinutes!)})` : '')),
+        b('buttonless', L.buttonless + (d!.mode === 'buttonless' ? ` ✓ (${t.secondsShort(d!.durationSeconds!)})` : '')), b('back', back)]}; break;
       case 'repeatInput': reply = {text: T.repeatInput, buttons: [cancel]}; break;
       case 'durationInput': reply = {text: T.durationInput, buttons: [cancel]}; break;
-      case 'free': reply = {text: T.free, buttons: [b('limit', 'Перейти до ліміту часу'), b('back', LABELS.back)]}; break;
+      case 'free': reply = {text: T.free, buttons: [b('limit', L.limit), b('back', back)]}; break;
       case 'pending': {
-        const [first, ...extra] = await this.pendingPages(identity);
-        reply = {text: first!, buttons: [b('refresh', '🔄 Оновити'), b('clear', '🧹 Очистити…'), b('back', LABELS.back)], ...(extra.length ? {extra} : {})};
+        const [first, ...extra] = await this.pendingPages(identity, t);
+        reply = {text: first!, buttons: [b('refresh', L.refresh), b('clear', L.clear), b('back', back)], ...(extra.length ? {extra} : {})};
         break;
       }
     }
     return prefix ? {...reply, text: prefix + '\n\n' + reply.text} : reply;
   }
 
-  private async pendingPages(identity: ParentIdentity): Promise<string[]> {
+  private async pendingPages(identity: ParentIdentity, t: Catalogue): Promise<string[]> {
     const rows = await this.repository.db.runTransaction(async tx => {
       await this.repository.requireParent(tx, identity);
       return [...(await readActionSnapshot(this.repository, tx, identity.deviceId)).rows.values()].map(r => r.row);
     });
     const open = rows.filter(r => r.open).sort((a, b) => a.action.targetAt.localeCompare(b.action.targetAt) || a.action.sequence - b.action.sequence);
+    const T = t.REMIND;
     if (!open.length) return [`${T.pending}\n\n${T.none}`];
-    return paginate(T.pending, [T.pending, '', ...open.flatMap((r, i) => pendingEntry(i + 1, r.action, r.state))]);
+    return paginate(T.pending, [T.pending, '', ...open.flatMap((r, i) => pendingEntry(i + 1, r.action, r.state, t))], t);
   }
 }

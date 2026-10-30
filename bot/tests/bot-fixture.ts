@@ -20,7 +20,8 @@ export async function setup(fail:(call:Call)=>boolean=()=>false){
   const settings=new SettingsService(f.repo,f.clock),actions=new ActionService(f.repo,f.clock);
   const bot=new TelegramBot(f.repo,settings,actions,client,f.clock);
   let update=100;
-  const from=(user:string)=>({id:Number(user),is_bot:false,first_name:'P'});
+  // Ukrainian unless a test says otherwise (LANG-01: no language_code means English).
+  const from=(user:string,language_code='uk')=>({id:Number(user),is_bot:false,first_name:'P',language_code});
   const message=(user:string,text:string,extra:any={})=>({update_id:++update,message:{message_id:update,date:0,chat:{id:Number(user),type:'private'},from:from(user),text,...extra}});
   const press=(user:string,data:string,messageId=7)=>({update_id:++update,callback_query:{id:'cb'+update,from:from(user),chat_instance:'i',data,
     message:{message_id:messageId,date:0,chat:{id:Number(user),type:'private'}}}});

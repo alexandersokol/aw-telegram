@@ -5,8 +5,12 @@ import type { Settings } from './contracts.js';
 import { evaluateAlerts, advanceMilestone, type Measurement, type MilestoneState } from './alerts.js';
 import { planParentEvent, type PlannedWrite, type ParentEvent } from './outbox.js';
 import { kyivDate } from './clock.js';
+import { canonical } from './deviceApi.js';
+import { both, type Localized } from './telegram/i18n/index.js';
 export interface AlertSnapshot {
     ref: DocumentReference;
+    /** The stored document predates `date` (written by /hourly before 11d); the next plan rewrites it. */
+    undated: boolean;
     value: {
         parents: Record<string, MilestoneState>;
         lastWarning: string | null;
@@ -14,14 +18,14 @@ export interface AlertSnapshot {
 }
 export async function readAlerts(repo: FirestoreRepository, tx: Transaction, deviceId: string, now: string): Promise<AlertSnapshot> {
     const ref = repo.db.doc(`devices/${deviceId}/alertStates/${kyivDate(now)}`), data = (await tx.get(ref)).data();
-    return { ref, value: { parents: data?.parents ?? {}, lastWarning: data?.lastWarning ?? null } };
+    return { ref, undated: !!data && data.date === undefined, value: { parents: data?.parents ?? {}, lastWarning: data?.lastWarning ?? null } };
 }
 export function measurement(evidence: any): Measurement | null {
     return evidence?.source?.availableThrough == null ? null : { selectedTotalMs: evidence.projection.selectedTotalMs, partial: evidence.source.partial, availableThrough: evidence.source.availableThrough };
 }
 export async function planAlerts(repo: FirestoreRepository, tx: Transaction, deviceId: string, now: string, settings: Settings, parents: Parent[], snapshot: AlertSnapshot, m: Measurement | null, coordination?: {
     id: string;
-    text: string;
+    text: Localized;
     category: boolean;
     issuerPairingId?: string;
 }): Promise<PlannedWrite[]> {
@@ -34,32 +38,34 @@ export async function planAlerts(repo: FirestoreRepository, tx: Transaction, dev
             state.parents[parent.pairingId] = advanceMilestone(state.parents[parent.pairingId], m?.selectedTotalMs ?? null, 'category');
     }
     const evaluated = evaluateAlerts({ now, date, settings, parents, states: state.parents, measurement: m, lastWarning: state.lastWarning });
-    let coordinationText = coordination?.text ?? '';
-    if (coordination && m)
-        coordinationText += ` Поточний час: ${Math.floor(m.selectedTotalMs / 60000)} хв; ${m.partial ? 'неповні дані' : 'виміряні дані'}, станом на ${m.availableThrough}.`;
+    const folded: (number | null)[] = [];  // warnings the coordination message carries
     for (const alert of evaluated) {
         if (alert.kind === 'hourly') {
             const recipient = alert.recipient!;
             state.parents[recipient.pairingId] = advanceMilestone(state.parents[recipient.pairingId], alert.totalMs, 'reserve');
             events.push({ id: digest(`hourly:${deviceId}:${date}:${recipient.pairingId}:${alert.hour}`), deviceId, at: now, kind: 'hourly', recipients: [recipient],
-                text: `Використано ${Math.floor(alert.totalMs / 60000)} хв; ${alert.partial ? 'неповні дані' : 'виміряні дані'}, станом на ${alert.availableThrough}.`, milestone: { date, hour: alert.hour! } });
+                text: both(t => t.used(Math.floor(alert.totalMs / 60000), alert.partial, alert.availableThrough)), milestone: { date, hour: alert.hour! } });
         }
         else {
             state.lastWarning = alert.severity!;
-            const text = alert.severity === 'expired' ? 'Денний час вичерпано.' : `Залишилося ${alert.severity!.replace('m', '')} хв або менше.`;
+            const left = alert.severity === 'expired' ? null : Number(alert.severity!.replace('m', ''));
             if (coordination)
-                coordinationText += ' ' + text;
+                folded.push(left);
             // The issuer gets no coordination copy, so a warning folded into it still needs its own event.
             const recipients = coordination ? parents.filter(parent => parent.pairingId === coordination.issuerPairingId) : parents;
             if (recipients.length)
-                events.push({ id: digest(`warning:${deviceId}:${date}:${alert.severity}:${settings.revision}`), deviceId, at: now, kind: 'warning', recipients, text: `${text} Використано ${Math.floor(alert.totalMs / 60000)} хв; ${alert.partial ? 'неповні дані' : 'виміряні дані'}, станом на ${alert.availableThrough}.` });
+                events.push({ id: digest(`warning:${deviceId}:${date}:${alert.severity}:${settings.revision}`), deviceId, at: now, kind: 'warning', recipients, text: both(t => `${t.warning(left)} ${t.used(Math.floor(alert.totalMs / 60000), alert.partial, alert.availableThrough)}`) });
         }
     }
     const others = coordination ? parents.filter(parent => parent.pairingId !== coordination.issuerPairingId) : [];
     if (coordination && others.length)
-        events.push({ id: digest(coordination.id), deviceId, at: now, kind: 'coordination', text: coordinationText, recipients: others, ...(coordination.category && m ? { milestone: { date, hour: Math.floor(m.selectedTotalMs / 3600000) } } : {}) });
+        events.push({ id: digest(coordination.id), deviceId, at: now, kind: 'coordination', text: both((t, lang) => coordination.text[lang] +
+            (m ? t.currentTime(Math.floor(m.selectedTotalMs / 60000), m.partial, m.availableThrough) : '') + folded.map(left => ' ' + t.warning(left)).join('')), recipients: others, ...(coordination.category && m ? { milestone: { date, hour: Math.floor(m.selectedTotalMs / 3600000) } } : {}) });
     for (const event of events)
         writes.push(...await planParentEvent(repo, tx, event));
-    writes.push({ ref: snapshot.ref, value: { ...state, date } });
+    // Unchanged state is not rewritten (a missing document reads as the same empty state) unless it lacks the
+    // `date` that retention cleanup selects by.
+    if (snapshot.undated || canonical(state) !== canonical(snapshot.value))
+        writes.push({ ref: snapshot.ref, value: { ...state, date } });
     return writes;
 }

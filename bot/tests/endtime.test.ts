@@ -36,7 +36,7 @@ describe('endtime receipts',()=>{
     const s=await setup(10),ack=receipt();
     expect((await sync(s,ack)).acknowledgedAckIds).toEqual([ack.id]);
     const [event]=endtimeEvents(s);
-    expect(event.recipients).toHaveLength(10);expect(event.text).toContain('13:00');
+    expect(event.recipients).toHaveLength(10);expect(event.text.uk).toContain('13:00');
     const rows=endtimeRows(s);expect(rows).toHaveLength(10);
     for(const row of rows)expect(row.policy).toEqual({kind:'endtime',deviceId,endtimeDate:'2026-10-28',endtimeGeneration:1});
     expect(s.db.data.has(root+'/receipts/'+ack.id)).toBe(true);

@@ -7,6 +7,8 @@ import {decodeSettings,encodeSettings} from '../src/settingsCodec.js';
 import {ActionService,operationRef} from '../src/actions.js';
 import {draft} from './delivery-fixture.js';
 import {applySettingsChange,SettingsService,type SettingsChange} from '../src/settings.js';
+import {loadReport,renderStatus} from '../src/telegram/reports.js';
+import {cleanup} from '../src/cleanup.js';
 
 const NOW='2026-10-28T12:00:00.000Z', START='2026-10-28T10:00:00.000Z';
 const deviceId='00000000-0000-4000-8000-000000000001';
@@ -326,7 +328,7 @@ describe('revisioned settings',()=>{
     await settings.updateSettings(parent(),{kind:'selectCategories',paths:[['Study']],uncategorized:false},'endtime:select');
     await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:60000},'endtime:warn');
     const events=[...db.data].filter(([key])=>key.startsWith('events/')).map(([,value])=>value);
-    const recipients=(kind:string)=>events.filter(e=>e.kind===kind&&e.text.includes('Залишилося 5 хв')).flatMap(e=>e.recipients.map((r:any)=>r.userId));
+    const recipients=(kind:string)=>events.filter(e=>e.kind===kind&&e.text.uk.includes('Залишилося 5 хв')).flatMap(e=>e.recipients.map((r:any)=>r.userId));
     expect(recipients('coordination')).toEqual(['2']);expect(recipients('warning')).toEqual(['1']);
     expect(db.data.get(root+'/alertStates/2026-10-28').lastWarning).toBe('5m');
   });
@@ -366,6 +368,83 @@ it('emulator guard rejects zero/out-of-range ports before constructing a client'
   try {for(const host of ['127.0.0.1:0','localhost:65536','127.0.0.1:999999']) {
     vi.stubEnv('FIRESTORE_EMULATOR_HOST',host);expect(()=>emulatorAddress()).toThrow();
   }} finally {vi.unstubAllEnvs();}
+});
+
+describe('sync cost',()=>{
+  /** Every path the transactions of `body` read; a query appears as its collection path. */
+  async function readPaths(db:MemoryDb,body:()=>Promise<unknown>):Promise<string[]> {
+    const paths:string[]=[],run=db.runTransaction.bind(db);
+    (db as any).runTransaction=(fn:(tx:any)=>Promise<unknown>)=>run((tx:any)=>fn({...tx,
+      get:(ref:any)=>{paths.push(ref.path);return tx.get(ref);},getAll:(...refs:any[])=>{paths.push(...refs.map(r=>r.path));return tx.getAll(...refs);}}));
+    try{await body();}finally{delete (db as any).runTransaction;}
+    return paths;
+  }
+  const at=(minute:number)=>`2026-10-28T11:${String(minute).padStart(2,'0')}:00.000Z`;
+  const health=(minute:number,awState:'ready'|'unavailable'='ready')=>({observedAt:at(minute),awState,lastSuccessAt:at(minute),reportError:null});
+  const live=(minute:number,title='Game')=>({observedAt:at(minute),state:'active' as const,app:'game.exe',title,category:null,rulesRevision:'r',categoryCatalog:[]});
+  it('does not rewrite unchanged live and health but keeps their order and conflicts',async()=>{
+    const {api,db}=await setup();
+    await api.syncDevice(identity,{...request(1),health:health(0),live:live(0)});
+    await api.syncDevice(identity,{...request(2),health:health(1),live:live(1)});
+    expect(db.data.get(root+'/live/current')).toEqual({sequence:1,value:live(0)});
+    expect(db.data.get(root+'/health/current')).toEqual({sequence:1,value:health(0)});
+    expect(db.data.get(root+'/sync/current').observed).toMatchObject({live:{sequence:2,observedAt:at(1)},health:{sequence:2,observedAt:at(1)}});
+    // A late request is ordered by the latest accepted observation, not by the stored copy.
+    await api.syncDevice(identity,{...request(2),health:health(1,'unavailable'),live:live(1,'Late')});
+    expect(db.data.get(root+'/live/current').value).toEqual(live(0));expect(db.data.get(root+'/health/current').value).toEqual(health(0));
+    const before=structuredClone(db.data);
+    await expect(api.syncDevice(identity,{...request(3),health:health(2),live:live(1,'Other')})).rejects.toThrow('Observation conflict');
+    expect(db.data).toEqual(before);
+    // A changed live state, a 5-minute-old health copy and a changed health state are written.
+    await api.syncDevice(identity,{...request(4),health:health(4),live:live(2,'Menu')});
+    expect(db.data.get(root+'/live/current')).toEqual({sequence:4,value:live(2,'Menu')});expect(db.data.get(root+'/health/current').sequence).toBe(1);
+    await api.syncDevice(identity,{...request(5),health:health(5)});
+    expect(db.data.get(root+'/health/current')).toEqual({sequence:5,value:health(5)});
+    await api.syncDevice(identity,{...request(6),health:health(6,'unavailable')});
+    expect(db.data.get(root+'/health/current')).toEqual({sequence:6,value:health(6,'unavailable')});
+    expect(db.data.get(root+'/live/current').sequence).toBe(4);
+  });
+  it('reports an unchanged live state as current from the latest sync',async()=>{
+    const {api,repository}=await setup();
+    await api.syncDevice(identity,{...request(1),health:health(50),live:live(50)});
+    await api.syncDevice(identity,{...request(2),health:health(59),live:live(59)});
+    const data=await loadReport(repository,parent(),NOW);
+    expect(data.live).toEqual(live(59));
+    expect(renderStatus(data)).toContain('Зараз: game.exe — «Game»');
+  });
+  it('reads no days, alert state, action controls or parents in an idle sync and only the sent dates otherwise',async()=>{
+    const {api,db,repository}=await setup();
+    await api.syncDevice(identity,{...request(1),summaries:[sourceDay()]});
+    expect(db.data.has(root+'/alertStates/2026-10-28')).toBe(false);  // unchanged empty state is not written
+    db.data.set(root+'/days/2026-10-01',{});  // outside retention: the daily cleanup removes it
+    expect(await readPaths(db,()=>api.syncDevice(identity,request(2)))).toEqual([root,
+      ...['settings','cancellations','sync','live','health'].map(name=>`${root}/${name}/current`),root+'/actions']);
+    const paths=await readPaths(db,()=>api.syncDevice(identity,{...request(3),summaries:[sourceDay(2,2000)]}));
+    expect(paths).toEqual(expect.arrayContaining([root+'/days/2026-10-28',root+'/alertStates/2026-10-28',root+'/policy/current',root+'/parents/1']));
+    expect(paths).not.toContain(root+'/days');
+    expect(db.data.get(root+'/days/2026-10-28').sequence).toBe(2);expect(db.data.has(root+'/days/2026-10-01')).toBe(true);
+    await cleanup(repository,NOW);
+    expect([db.data.has(root+'/days/2026-10-01'),db.data.has(root+'/days/2026-10-28')]).toEqual([false,true]);
+  });
+  it('fires limit and endtime alerts with no new usage data',async()=>{
+    const {api,db,settings}=await setup();
+    const events=(kind:string)=>[...db.data].filter(([key,value])=>key.startsWith('events/')&&value.kind===kind);
+    await settings.updateSettings(parent(),{kind:'selectCategories',paths:[['Study']],uncategorized:false},'cost:select');
+    await api.syncDevice(identity,{...request(1),summaries:[sourceDay(1,50*60000)]});
+    await api.syncDevice(identity,request(2));
+    expect(events('warning')).toEqual([]);
+    // Time passing without new data changes no measurement; a lower limit is evaluated by its own change.
+    await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:55*60000},'cost:limit');
+    expect(events('warning')).toHaveLength(1);
+    await api.syncDevice(identity,request(3));
+    expect(events('warning')).toHaveLength(1);
+    // The endtime alert arrives as the laptop's presentation receipt, which a sync without summaries applies.
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'11:30'},'cost:endtime');
+    const receipt={id:'00000000-0000-4000-8000-0000000000e1',kind:'endtime' as const,date:'2026-10-28',settingsRevision:3,
+      endtimeGeneration:1,endtimeLocalTime:'11:30',presentedAt:'2026-10-28T11:30:05.000Z'};
+    expect((await api.syncDevice(identity,{...request(4),acks:[receipt]})).acknowledgedAckIds).toEqual([receipt.id]);
+    expect(events('endtime')).toHaveLength(1);
+  });
 });
 
 it('R5 stores category paths in Firestore maps and returns unchanged wire arrays',async()=>{

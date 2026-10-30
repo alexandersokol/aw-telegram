@@ -9,7 +9,8 @@ import {advanceMilestone} from './alerts.js';
 import {applyPlan} from './outbox.js';
 import {planEndtimeSuppression} from './endtime.js';
 import {canonical,checkSettingsCapacity,emptyCancellations} from './deviceApi.js';
-import {duration,selectionLabel} from './format.js';
+import {noticeWrite} from './notices.js';
+import {both,type Catalogue,type Lang} from './telegram/i18n/index.js';
 
 /** addCategory/removeCategory apply to current settings atomically; a null path is the uncategorized opt-in. */
 export type SettingsChange = {kind:'selectCategories';paths:string[][];uncategorized:boolean} |
@@ -73,16 +74,15 @@ function retainedGenerations(history:EndtimePolicyGeneration[],now:Instant):Endt
   return history.filter(entry=>entry===baseline || entry.changedAt>=start);
 }
 /** What other caregivers are told changed; the issuer gets the bot's own confirmation. */
-function changeSummary(change:SettingsChange,settings:Settings):string {
+function changeSummary(change:SettingsChange,settings:Settings,t:Catalogue):string {
   switch(change.kind) {
-    case 'setEndtime': case 'setEndtimeEnabled':
-      return ` Час завершення: ${settings.endtimeEnabled?'увімкнено':'вимкнено'}, ${settings.endtimeLocalTime}.`;
-    case 'setTodayLimit': return ` Ліміт на сьогодні ${duration(change.ms)}.`;
-    case 'setDefaultLimit': return ` Щоденний ліміт ${duration(change.ms)}.`;
+    case 'setEndtime': case 'setEndtimeEnabled': return t.summaryEndtime(settings.endtimeEnabled,settings.endtimeLocalTime);
+    case 'setTodayLimit': return t.summaryToday(t.duration(change.ms));
+    case 'setDefaultLimit': return t.summaryDaily(t.duration(change.ms));
     case 'selectCategories': case 'addCategory': case 'removeCategory':
-      return ` Категорії для обліку: ${selectionLabel(settings.selectedPaths,settings.selectedUncategorized)}.`;
-    case 'setFreeUse': return change.enabled?' Вільний режим увімкнено до опівночі.':' Вільний режим вимкнено.';
-    case 'setSuppression': return change.enabled?' Автоматичні нагадування вимкнено до опівночі.':' Автоматичні нагадування відновлено.';
+      return t.summaryCategories(t.selectionLabel(settings.selectedPaths,settings.selectedUncategorized));
+    case 'setFreeUse': return t.summaryFree(change.enabled);
+    case 'setSuppression': return t.summarySuppression(change.enabled);
   }
 }
 export class SettingsService {
@@ -128,7 +128,7 @@ export class SettingsService {
       checkSettingsCapacity(settings,cancellations,now,started===null?null:new Date(started).toISOString());
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
-      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:'Налаштування змінив(-ла) «'+issuerName(actions.parents,identity)+'».'+changeSummary(change,settings),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
+      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:both(t=>t.settingsChangedBy(issuerName(actions.parents,identity))+changeSummary(change,settings,t)),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
       const suppressionWrites=(change.kind==='setFreeUse'||change.kind==='setSuppression')&&change.enabled?
         await planEndtimeSuppression(this.repository,tx,identity.deviceId,kyivDate(now)):[];
       if(change.kind==='setFreeUse'){
@@ -145,7 +145,7 @@ export class SettingsService {
       if(policy!==actions.policy)tx.set(root.collection('policy').doc('current'),policy);
       tx.set(operation.ref,{digest:operation.hash,result:{...result,settings:encodeSettings(result.settings)},at:now,expired:false});
       tx.set(root.collection('cancellations').doc('current'),cancellations);
-      applyPlan(tx,[...alertWrites,...suppressionWrites]);
+      applyPlan(tx,[...alertWrites,...suppressionWrites,noticeWrite(this.repository,identity,'settings',settings.revision,both(t=>changeSummary(change,settings,t)),now)]);
       tx.set(settingsRef,encodeSettings(settings));
       if(evidence) tx.set(dayRef,{...evidence,projection});
       return result;
@@ -159,7 +159,18 @@ export class SettingsService {
       const root=this.repository.db.doc(`devices/${identity.deviceId}`),day=(await tx.get(root.collection('days').doc(kyivDate(now)))).data();
       const alerts=await readAlerts(this.repository,tx,identity.deviceId,now),m=measurement(day);
       if(enabled&&!parent.hourlyEnabled)alerts.value.parents[identity.pairingId]=advanceMilestone(alerts.value.parents[identity.pairingId],m?.selectedTotalMs??null,'enable');
-      tx.set(alerts.ref,alerts.value);tx.update(root.collection('parents').doc(identity.userId),{hourlyEnabled:enabled});tx.set(op.ref,{digest:op.hash,result:null,at:now,expired:false});
+      tx.set(alerts.ref,{...alerts.value,date:kyivDate(now)});tx.update(root.collection('parents').doc(identity.userId),{hourlyEnabled:enabled});tx.set(op.ref,{digest:op.hash,result:null,at:now,expired:false});
+    });
+  }
+  /** The caregiver's own bot language (LANG-01): stored on the binding, which revocation and re-pairing keep, and
+   * mirrored on the parent, which fan-out already reads. Not a shared setting, so no one else is told. */
+  async setLanguage(identity:ParentIdentity,lang:Lang,callback?:CallbackGuard):Promise<void> {
+    if(lang!=='uk'&&lang!=='en')throw new BoundaryError('Invalid language');
+    await this.repository.db.runTransaction(async tx=>{
+      if(callback)await this.repository.requireCallback(tx,identity,callback.nonce,callback.version);
+      else await this.repository.requireParent(tx,identity);
+      tx.update(this.repository.db.doc(`telegramUsers/${identity.userId}`),{lang});
+      tx.update(this.repository.db.doc(`devices/${identity.deviceId}/parents/${identity.userId}`),{lang});
     });
   }
   async status(identity:ParentIdentity):Promise<SettingsUpdateResult> {

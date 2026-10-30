@@ -1213,6 +1213,52 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - After deploying, one hour of Monitoring counts projects to at most 6,000 writes and 30,000
     reads a day for one online laptop. The numbers go into hosting-cost-estimate.md.
   - The sync contract is unchanged, so the backend and companion deploy independently.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-sync-cost.md.
+  - **Counts:** the `sync` emulator suite counts billable operations. An idle sync costs 7 reads
+    and 1 write (`sync/current`), from 14 and 2. A sync with one new summary still stores it and
+    costs 14 reads and 2 writes (two caregivers), with or without six more stored days.
+  - **Backend:** `sync/current` keeps the latest accepted live and health observation, so
+    unchanged ones aren't rewritten and ordering and same-instant conflicts still hold. Health
+    is rewritten on a change apart from `observedAt` and `lastSuccessAt` (which moves on every
+    successful poll), or after 5 minutes. Reports take the newer live time from `sync/current`.
+    A sync reads only the day documents of the dates it is sent; the daily sweep alone deletes
+    days outside the retained dates, as it already did for an offline laptop. Alert state is
+    read only when today's summary changed and is not rewritten when unchanged. Quiet syncs read
+    action controls and parents only for open actions. `/status` counts 90 s as online.
+  - **Repair kept:** the post-sync `repair(2)` (2 reads) still runs after every sync. It is the
+    frequent retry for intents whose Cloud Tasks enqueue failed, from any source, and the
+    recovery for lost enqueued tasks; otherwise they wait for the next Telegram update or the
+    daily sweep.
+  - **Alerts:** the sync evaluated alerts only on a changed today summary before 11d too. A
+    settings change evaluates them in its own transaction and the endtime alert arrives as a
+    receipt, so no stored revision or time trigger was needed. A unit test covers both with no
+    new usage data.
+  - **Companion:** `SYNC_INTERVAL = 30`; backoff keeps its 15 s base, floor and 300 s cap.
+    There was no prompt receipt path, although a reminder must be confirmed within 60 s. A
+    receipt queued since the last sync began now goes out at the next IO step. «Стан» counts
+    90 s as online. Owner decision (fix round 2): a today summary whose only change is
+    `availableThrough` is sent at most every 60 s (`UNCHANGED_SUMMARY_INTERVAL`). Other changes,
+    a new date, the first summary after start and one after a failed sync are never held.
+  - **Tests (after fix round 3):** bot 331 unit (with e2e), 56 emulator in all seven suites,
+    build and bundle check; companion 438 and the license check. Cadence assertions in `test_sync.py` and
+    `test_e2e_simulated.py` moved to 30 s.
+  - **Projection (one caregiver, hosting-cost-estimate.md):**
+    - 8 hours online: 11,520 reads and 1,536 writes idle, 14,400 and 2,016 in use.
+    - 12 hours online: 17,280 and 2,304 idle, 21,600 and 3,024 in use.
+    - 24 hours online: 34,560 and 4,608 idle, 43,200 and 6,048 in use.
+  - **Owner decision:** the laptop is not online all day, so the bound is judged for a realistic
+    online day, which 8 and 12 hours meet. The 24-hour overage and the missed goal are known
+    and accepted. The repair after every sync and the 60 s hold stay. The 5-minute repair
+    throttle (29,376 reads for an idle 24-hour day) remains an option.
+  - **Alert-state retention (fix round 3):** `/hourly` now writes the alert state with its
+    `date`, and a stored state without `date` is rewritten on the next plan. Cleanup selects
+    alert states by their date ID, so legacy states without `date` are removed too.
+    Covered by the `sync` and `cleanup` emulator suites.
+  - **Owner-pending:**
+    - Deploy the backend, then the companion.
+    - One hour of Monitoring `document/read_count` and `write_count` for one online laptop,
+      recorded in hosting-cost-estimate.md (placeholder there) and here.
+    - Optional: throttle the post-sync repair to 5 minutes.
 
 ### 11e: Bot UX (notes 1 and 3, proposal B)
 
@@ -1251,6 +1297,44 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - user-requirements.md gains UX-02 and UX-03 and updates FREE-05.
   - Backend-only deploy. The command menu is registered with `webhook.ts set` and verified in a
     live chat.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-bot-ux.md.
+  - **Menu button:** `withHome` in `TelegramBot.deliver` adds «🏠 Головне меню» (`nv:home`) to
+    the first page of every reply without buttons that is not a toast or `bare`. The pairing
+    hint for an unpaired tap and the farewell are `bare`; the pairing texts, refused-request
+    failures and the outbox never pass through `deliver`'s button path. `NavigationController`
+    opens the main menu for `nv:home` before any session lookup, so the button never goes stale.
+  - **Save replies:** «Збережено: …» only, for limits, free use, categories, restore, endtime
+    and both clears, plus the offline line when `sync/current.serverReceivedAt` is absent or
+    more than 2 minutes old (one read, `laptopOffline`). Status screens keep «Ноутбук:
+    застосовано / очікує застосування».
+  - **Applied messages:** a revision-bumping settings change writes
+    `appliedNotices/s-{revision}`, a clear `c-{revision}`, with `pairingId`, `userId`,
+    `summary` (the coordination summary as a clause), `createdAt` and the revision field its
+    kind is queried by. The sync reads them only when an acknowledgement advances or
+    `sync/current.noticesDue` says an earlier sync left more than 50; two single-field range
+    queries (`<=` acknowledged revision, `limit(50)`), merged by `createdAt`, one outbox event
+    (`kind: applied`) per author still in `activeParentIds`, notices deleted in the same
+    transaction. Notices are planned last and take only the write budget the rest of the sync
+    leaves (one deletion each, three writes per author); the rest stay, in order, with
+    `noticesDue` set (fix round 1). Cleanup deletes notices older than the retention start
+    (20 per round); purge's recursive delete covers them.
+  - **Cost:** idle and summary syncs unchanged (7 reads/1 write, 14/2). An acknowledging sync
+    is 13 reads and 2 writes; covering one change by one author adds 2 reads and 4 writes.
+    Recorded in hosting-cost-estimate.md.
+  - **Command menu:** `WebhookAdmin.set` also calls `setMyCommands` with the eight commands
+    from `COMMANDS` in `uk.ts`; `info` lists `getMyCommands`; `remove` leaves them.
+  - **Tests (after fix round 1):** bot 378 unit (with e2e; new `notices.test.ts`, UX-02 cases in
+    `webhook.test.ts`, offline-line boundaries in `telegram.test.ts`, command menu in
+    `webhook-admin.test.ts`, e2e author-only applied message), 58 emulator in all seven suites
+    (bounded notice query and pinned counts in `sync`, notices in `cleanup` and `purge`),
+    build and bundle check; companion `test_e2e_simulated.py` against the new build.
+  - **Decision (controller, 2026-10-30):** the home tap follows the spec mechanics. It opens the
+    main menu with a new menu session, as `/start` does. Attaching the stateless button to a
+    reply leaves every other open menu working.
+  - **Owner-pending:**
+    - Deploy the backend (no companion or contract change).
+    - Run `webhook.ts set` once after the deploy, check `info` lists the eight commands, and
+      check the command menu, a home tap and an «✅ Ноутбук застосував: …» message in a live chat.
 
 ### 11f: English in the bot (note 4)
 
@@ -1280,6 +1364,48 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - **E2E:** a caregiver switches to English and receives the next alert in English while
     another stays in Ukrainian.
   - LANG-01 is updated in user-requirements.md. Backend-only deploy.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-bot-english.md.
+  - **Catalogues:** all bot copy (controllers, reports, backend message builders, the old
+    `format.ts`) is in `bot/src/telegram/i18n/uk.ts`; `en.ts` is `satisfies typeof uk`, and
+    `index.ts` adds a compile-time check that every function's parameter list matches
+    (`satisfies` alone accepts fewer parameters). Removing a key or a parameter from `en.ts`
+    was checked to fail `tsc`. The Ukrainian copy is unchanged: all 378 earlier tests pass
+    on it.
+  - **Resolution:** `authorizeParent`/`authorizeCallback` set `ParentIdentity.lang` from
+    `telegramUsers/{id}.lang`, else `language_code` (`uk*`/`ru*` → `uk`, anything else or
+    none → `en`); `privateActor` passes `languageCode`. Unpaired replies, pairing failures
+    and failure toasts use the fallback.
+  - **Choice:** «🌐 Мова: Українська» / "🌐 Language: English" in Settings opens
+    «Українська» / "English" / back, then Settings in the chosen language;
+    `/language uk|en`, bare `/language` shows the choice; `/help` lists it.
+    `SettingsService.setLanguage` writes the binding and its mirror on the parent
+    document, nothing else. Pairing again keeps the binding's `lang` and copies it to the
+    new parent document.
+  - **Shared messages:** `ParentEvent.text` is `{uk, en}`, built with `both()`; each outbox
+    row stores the recipient's version (parent `lang`, default `uk`). Applied notices store
+    `summary: {uk, en}` and the author's `lang` (their language when making the change);
+    notices and rows written by the deployed backend (one string) send as stored.
+  - **Decision:** fan-out reads the language from the parent document, a mirror of the
+    binding's choice, instead of reading `telegramUsers` docs: no extra reads, and the
+    pinned sync counts are unchanged (hosting-cost-estimate.md).
+  - **Command menu:** `webhook.ts set` registers English (no `language_code`) and Ukrainian
+    (`language_code: 'uk'`); `info` lists both. The spec does not add `/language`, so the
+    menu keeps 11e's eight commands.
+  - **Durations:** «2 год 30 хв» / "2 h 30 min"; `parseDuration` accepts both forms in either
+    language (`1 год 30 хв`, `1 h 30 min`, `90 хв`, `90 min`, `2:30`).
+  - **Tests:** bot 425 unit (new `i18n.test.ts`: parity, every value non-empty, fallback,
+    durations; new `language.test.ts`: fallback, stored override, unpaired hint, `/language`
+    and Settings scope, re-pairing, one row per language, author-language applied message,
+    pre-11f notice and row; e2e: one caregiver switches and gets the next limit warning in
+    English while the other stays Ukrainian), 59 emulator in all seven suites (new
+    `pairing` case for the choice surviving revocation and pairing again), build and bundle
+    check.
+  - **Owner-pending:**
+    - Deploy the backend (no companion or contract change).
+    - Run `webhook.ts set`, check `info` lists both menus, and check the menu in a Telegram app
+      set to English and one set to Ukrainian.
+    - In a live chat, switch one caregiver to English and confirm the next alert arrives in
+      English while another stays in Ukrainian.
 
 ### 11g: English in the laptop app (note 4, owner extension)
 

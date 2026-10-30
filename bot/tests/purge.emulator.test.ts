@@ -10,6 +10,7 @@ async function seed(db:any,device:string){
   await root.set({status:'revoked',credentialDigest:null,activeParentIds:['1']});
   await root.collection('settings').doc('current').set({revision:1});
   await root.collection('days').doc('2026-10-28').set({source:{}});
+  await root.collection('appliedNotices').doc('s-1').set({pairingId:'p',userId:'1',summary:'x',createdAt:'2026-10-28T12:00:00.000Z',settingsRevision:1});
   await root.collection('actions').doc('act').set({open:true});
   await root.collection('actions').doc('act').collection('evidence').doc('1').set({digest:'x'});
   await db.doc(`pairKeys/key-${device}`).set({deviceId:device,accessId:'k'});
@@ -40,6 +41,7 @@ it('deletes one device completely and leaves another untouched',async()=>{
     const left=await paths(db);
     expect(left.filter(p=>p.includes(A)||p.endsWith('-'+A)||p.includes(`${A}:`))).toEqual([]);
     expect(left).toContain(`devices/${B}/actions/act/evidence/1`);
+    expect(left).toContain(`devices/${B}/appliedNotices/s-1`);
     expect(left).toContain(`telegramUsers/user-${B}`);
     expect(left).toContain(`taskIntents/outbox-${B}`);
     expect(report.indexDocuments).toBe(8);

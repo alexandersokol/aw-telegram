@@ -11,7 +11,7 @@ from .models import Settings
 from .policy import effective_limit_ms
 from .texts import t
 
-ONLINE = timedelta(seconds=60)  # sync runs every 15 s
+ONLINE = timedelta(seconds=90)  # three 30 s syncs, so one slow sync doesn't read as offline
 AW_STATES = ("ready", "partial", "stale", "unavailable", "unsupported", "unknown")
 
 
