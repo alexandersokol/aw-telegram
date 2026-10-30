@@ -12,7 +12,7 @@ function http(reply:(url:string,init:any)=>{status:number;body:any}){
 it('sets the webhook with the secret token, the two update types and one connection',async()=>{
   const net=http(()=>({status:200,body:{ok:true,result:true}}));
   const admin=new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:SECRET,net.transport);
-  expect(await admin.set('https://api-abc-lm.a.run.app/telegram/webhook')).toBe('Webhook set');
+  expect(await admin.set('https://api-abc-lm.a.run.app/telegram/webhook')).toBe('Webhook and command menu set');
   const [call]=net.calls;
   expect(call.url).toBe(`https://api.telegram.org/bot${TOKEN}/setWebhook`);
   expect(JSON.parse(call.init.body)).toEqual({url:'https://api-abc-lm.a.run.app/telegram/webhook',secret_token:SECRET,
@@ -26,12 +26,12 @@ it('accepts only an HTTPS URL ending in /telegram/webhook',async()=>{
 });
 
 it('summarizes webhook info and Telegram errors without the token',async()=>{
-  const info=http(()=>({status:200,body:{ok:true,result:{url:'https://x.example/telegram/webhook',pending_update_count:3,
+  const info=http(url=>({status:200,body:{ok:true,result:url.endsWith('getMyCommands')?[]:{url:'https://x.example/telegram/webhook',pending_update_count:3,
     max_connections:1,allowed_updates:['message','callback_query'],last_error_date:1793000000,last_error_message:'Wrong response'}}}));
   const summary=await new WebhookAdmin(async()=>TOKEN,info.transport).info();
   expect(summary).toContain('https://x.example/telegram/webhook');
   expect(summary).toContain('pending updates: 3');
-  expect(summary).toContain('Wrong response');
+  expect(summary).toContain('Wrong response');expect(summary).toContain('commands: (none)');
   const failing=new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:SECRET,http(()=>({status:401,body:{ok:false,description:'Unauthorized'}})).transport);
   const error=await failing.set('https://x.example/telegram/webhook').catch(e=>e.message);
   expect(error).toBe('Telegram refused: Unauthorized');
@@ -54,4 +54,28 @@ it('refuses a webhook secret the runtime would reject, before calling Telegram',
   const admin=new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:'short',net.transport);
   await expect(admin.set('https://x.example/telegram/webhook')).rejects.toThrow('invalid format');
   expect(net.calls).toEqual([]);
+});
+
+const COMMANDS=[
+  {command:'start',description:'головне меню'},{command:'status',description:'стан ноутбука'},
+  {command:'usage',description:'використання'},{command:'limit',description:'ліміт часу'},
+  {command:'pending',description:'активні нагадування'},{command:'clear',description:'очистити нагадування'},
+  {command:'settings',description:'налаштування'},{command:'help',description:'усі команди'},
+];
+
+it('registers exactly the eight core commands with the webhook, in the default scope and language',async()=>{
+  const net=http(()=>({status:200,body:{ok:true,result:true}}));
+  await new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:SECRET,net.transport).set('https://x.example/telegram/webhook');
+  expect(net.calls.map(c=>c.url.split('/').at(-1))).toEqual(['setWebhook','setMyCommands']);
+  expect(JSON.parse(net.calls[1].init.body)).toEqual({commands:COMMANDS});
+});
+
+it('shows the registered commands in info and leaves them in place on remove',async()=>{
+  const net=http(url=>({status:200,body:{ok:true,result:url.endsWith('getMyCommands')?COMMANDS:url.endsWith('getWebhookInfo')?{url:''}:true}}));
+  const admin=new WebhookAdmin(async()=>TOKEN,net.transport);
+  const summary=await admin.info();
+  expect(summary).toContain('commands: /start — головне меню, /status — стан ноутбука, /usage — використання, /limit — ліміт часу, '+
+    '/pending — активні нагадування, /clear — очистити нагадування, /settings — налаштування, /help — усі команди');
+  net.calls.length=0;await admin.remove();
+  expect(net.calls.map(c=>c.url.split('/').at(-1))).toEqual(['deleteWebhook']);
 });

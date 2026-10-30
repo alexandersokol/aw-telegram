@@ -81,6 +81,13 @@ export const HELP = [
   '/unpair — відключитися від ноутбука',
   '/help — ця довідка',
 ].join('\n');
+/** Telegram's command menu, registered by scripts/webhook.ts set (setMyCommands, default scope and language). */
+export const COMMANDS = [
+  {command: 'start', description: 'головне меню'}, {command: 'status', description: 'стан ноутбука'},
+  {command: 'usage', description: 'використання'}, {command: 'limit', description: 'ліміт часу'},
+  {command: 'pending', description: 'активні нагадування'}, {command: 'clear', description: 'очистити нагадування'},
+  {command: 'settings', description: 'налаштування'}, {command: 'help', description: 'усі команди'},
+] as const;
 export const NAV_LABELS = {
   usage: '📊 Використання', status: '💻 Стан ноутбука', reminders: '💬 Нагадування', limit: '⏱ Ліміт часу',
   settings: '⚙️ Налаштування', help: 'Допомога', back: LABELS.back,
