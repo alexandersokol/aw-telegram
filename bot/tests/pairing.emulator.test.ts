@@ -134,3 +134,16 @@ test('pending revoke serializes with pairing; success always ends unauthorized o
   expect(stored.consumedAt!==null || stored.revokedAt!==null).toBe(true);
   expect(stored.consumedAt===null || stored.revokedAt===null).toBe(true);
 });
+test('a caregiver leaves exactly as the laptop removes them, and can pair again with a new key',async()=>{
+  const p=await pair('101'); await pair('102');
+  const self={userId:'101',chatId:'101',deviceId:device.deviceId,pairingId:p.pairingId};
+  await db.doc(`devices/${device.deviceId}/sessions/101`).set({menu:'nav'});
+  await repo.leaveDevice(self);
+  expect((await db.doc(`devices/${device.deviceId}/parents/101`).get()).data()!.revokedAt).toBe(now);
+  expect((await db.doc('telegramUsers/101').get()).data()!.revokedAt).toBe(now);
+  expect((await db.doc(`devices/${device.deviceId}`).get()).data()!.activeParentIds).toEqual(['102']);
+  expect((await db.doc(`devices/${device.deviceId}/sessions/101`).get()).exists).toBe(false);
+  await expect(repo.leaveDevice(self)).rejects.toThrow('Unauthorized');
+  await expect(repo.authorizeParent(actor('101'))).rejects.toThrow('Unauthorized');
+  expect((await pair('101')).pairingId).not.toBe(p.pairingId);
+});

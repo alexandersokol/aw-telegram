@@ -159,22 +159,33 @@ export class FirestoreRepository {
   async revokeAccess(identity: DeviceIdentity, accessId: string): Promise<void> {
     const parts=accessId.split(':');
     await this.db.runTransaction(async tx=>{
-      const device=await this.requireDevice(tx,identity), now=this.clock();
+      await this.requireDevice(tx,identity);
       if(parts.length===2 && parts[0]==='key' && UUID.test(parts[1]!)) {
         const keys=await tx.get(this.db.collection('pairKeys').where('deviceId','==',identity.deviceId).where('accessId','==',parts[1]).limit(2));
         if(keys.size!==1) return;
         const key=keys.docs[0]!, data=key.data();
-        if(data.deviceId===identity.deviceId && data.accessId===parts[1] && data.consumedAt===null && data.revokedAt===null) tx.update(key.ref,{revokedAt:now});
+        if(data.deviceId===identity.deviceId && data.accessId===parts[1] && data.consumedAt===null && data.revokedAt===null) tx.update(key.ref,{revokedAt:this.clock()});
       } else if(parts.length===3 && parts[0]==='parent' && /^[1-9][0-9]{0,15}$/.test(parts[1]!) && UUID.test(parts[2]!)) {
-        const userId=numericId(parts[1]), parentRef=this.db.doc(`devices/${identity.deviceId}/parents/${userId}`), bindingRef=this.db.doc(`telegramUsers/${userId}`);
-        const [p,b]=await tx.getAll(parentRef,bindingRef), parent=p!.data(), binding=b!.data();
-        if(!parent || parent.pairingId!==parts[2] || parent.revokedAt!==null) return;
-        tx.update(parentRef,{revokedAt:now});
-        if(binding?.deviceId===identity.deviceId && binding.pairingId===parts[2]) tx.update(bindingRef,{revokedAt:now});
-        tx.update(this.db.doc(`devices/${identity.deviceId}`),{activeParentIds:device.activeParentIds.filter((id:string)=>id!==userId)});
-        tx.delete(this.db.doc(`devices/${identity.deviceId}/sessions/${userId}`));
+        await this.revokeParentTx(tx,identity.deviceId,numericId(parts[1]),parts[2]!);
       }
     });
+  }
+  /** ACCESS-09: a caregiver removes their own access, exactly as «Доступ батьків» would. */
+  async leaveDevice(identity: ParentIdentity): Promise<void> {
+    await this.db.runTransaction(async tx=>{
+      await this.requireParent(tx,identity);
+      await this.revokeParentTx(tx,identity.deviceId,identity.userId,identity.pairingId);
+    });
+  }
+  /** The one caregiver removal, shared by the laptop and Telegram. Reads first, then writes; a stale pairing changes nothing. */
+  private async revokeParentTx(tx: Transaction, deviceId: string, userId: string, pairingId: string): Promise<void> {
+    const deviceRef=this.db.doc(`devices/${deviceId}`), parentRef=this.db.doc(`devices/${deviceId}/parents/${userId}`), bindingRef=this.db.doc(`telegramUsers/${userId}`);
+    const [d,p,b]=await tx.getAll(deviceRef,parentRef,bindingRef), device=d!.data()!, parent=p!.data(), binding=b!.data(), now=this.clock();
+    if(!parent || parent.pairingId!==pairingId || parent.revokedAt!==null) return;
+    tx.update(parentRef,{revokedAt:now});
+    if(binding?.deviceId===deviceId && binding.pairingId===pairingId) tx.update(bindingRef,{revokedAt:now});
+    tx.update(deviceRef,{activeParentIds:device.activeParentIds.filter((id:string)=>id!==userId)});
+    tx.delete(this.db.doc(`devices/${deviceId}/sessions/${userId}`));
   }
   /** Owner-only recovery. A revoked device can no longer use pending keys or parents. */
   async revokeDevice(deviceId: string): Promise<void> {
