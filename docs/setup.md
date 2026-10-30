@@ -161,8 +161,10 @@ publishes tag `v1.0.x` and release `1.0.x` with `aw-telegram-1.0.x-windows.zip`,
 `changes-1.0.x.patch` and notes listing the commits and files since the previous tag. `x` is one
 more than the highest `v1.0.*` tag; edit `VERSION` to `1.1` and the next release is `1.1.0`.
 Docs-only and bot-only commits release nothing, and a failed run leaves no tag or release.
-To try the workflow without publishing, run it from the Actions tab with `dry_run` ticked (the
-default): it uploads the zip as a workflow artifact. To use a release, download the zip, unzip
+The first push of the workflow to `main` runs the first real release (1.0.0): a manual run is
+offered only once the workflow is on `main`. A failure is safe (no tag, the draft is removed).
+From then on, to try the workflow without publishing, run it from the Actions tab with `dry_run`
+ticked (the default): it uploads the zip as a workflow artifact. To use a release, download the zip, unzip
 the folder and follow the steps below. The build is not code-signed, so SmartScreen warns on
 first run. «Налаштування» shows «Версія 1.0.x» at the bottom, and File Explorer → Properties →
 Details shows the same number as the file and product version (`1.0.x.0`).

@@ -1060,14 +1060,14 @@ session that followed. Each subtask is one reviewed change with its own plan und
 the owner reorders. 11i is owner-run and can happen at any time.
 
 - [x] **11a: CI checks**
-- [ ] **11b: Releases and the app version**
-- [ ] **11c: Notification border**
-- [ ] **11d: Sync cost**
-- [ ] **11e: Bot UX**
-- [ ] **11f: English in the bot**
-- [ ] **11g: English in the laptop app**
-- [ ] **11h: README and license**
-- [ ] **11i: Cloud hardening**
+- [x] **11b: Releases and the app version**
+- [x] **11c: Notification border**
+- [x] **11d: Sync cost**
+- [x] **11e: Bot UX**
+- [x] **11f: English in the bot**
+- [x] **11g: English in the laptop app**
+- [x] **11h: README and license**
+- [ ] **11i: Cloud hardening** (skipped for now: the owner deferred it on 2026-10-30; still owner-run, any time)
 
 ### 11a: CI checks (note 5)
 
@@ -1124,8 +1124,8 @@ the owner reorders. 11i is owner-run and can happen at any time.
 - **Acceptance criteria:**
   - The patch is one more than the highest `v{VERSION}.*` tag, or 0 if there is none. Changing
     `VERSION` to `1.1` produces `1.1.0`. A `concurrency` group runs one release at a time.
-  - A `workflow_dispatch` dry run builds, verifies and uploads the zip as a workflow artifact,
-    and creates no tag or release.
+  - A `workflow_dispatch` dry run (available once the workflow is on `main`) builds, verifies and
+    uploads the zip as a workflow artifact, and creates no tag or release.
   - A real run creates tag `v1.0.x` and release `1.0.x` with:
     - `aw-telegram-1.0.x-windows.zip`;
     - `changes-1.0.x.patch`;
@@ -1156,9 +1156,12 @@ the owner reorders. 11i is owner-run and can happen at any time.
     SHA-256 is pinned in the workflow and matches the MD5 python.org lists. The notes' base is the
     highest release tag of any line, so the first `1.1.0` lists changes since `v1.0.x`.
   - **Owner-pending:**
-    - Push, then one `workflow_dispatch` dry run on GitHub (`dry_run` ticked) to confirm the
-      installer download, the build and the self-check on the runner.
-    - The first real release: tag `v1.0.0`, release `1.0.0`, assets and notes.
+    - No dry run is possible first: `workflow_dispatch` is offered only once `release.yml` is on
+      `main`, so the first push to `main` runs the first real release and is also the first
+      execution on a GitHub runner (installer download, build, self-check, `gh release`).
+      Check the run, tag `v1.0.0`, release `1.0.0`, its assets and notes. A failure is safe: no
+      tag is created and the draft is removed; fix forward or re-run. From then on a `dry_run`
+      dispatch can rehearse a release.
     - A docs-only or bot-only commit to `main` creating no release.
     - File Explorer → Properties and «Налаштування» on the owner's desktop for the released build.
     - Check that `actions/upload-artifact@v7` and the `gh release` flags behave as written; the
@@ -1287,7 +1290,8 @@ the owner reorders. 11i is owner-run and can happen at any time.
     - a removed author gets nothing;
     - more than 50 notices spread over several syncs.
   - The offline line appears only when `sync/current.serverReceivedAt` is older than 2 minutes,
-    or absent.
+    or absent. `/status` shows offline after 90 s (11d), so between 90 and 120 s it says offline
+    while a save reply adds no offline line; both thresholds are per spec.
   - Notices are removed by cleanup and purge, and an emulator test covers the bounded notice
     query inside the sync transaction.
   - `webhook.ts set` sends exactly the 8 commands with the spec's descriptions, and `info` shows
@@ -1428,7 +1432,7 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - Qt's `qtbase_uk` translator is installed only when the effective language is Ukrainian.
   - It ships as a release from 11b and is checked on the owner's desktop in both languages.
 - **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-english-companion.md.
-  - **Catalogue:** `texts.py` holds `UK` and `EN` (about 190 keys, same keys and placeholders, all
+  - **Catalogue:** `texts.py` holds `UK` and `EN` (139 keys, same keys and placeholders, all
     non-empty) and `t(key, **params)`. Every window, panel, the tray, the status lines, the
     scheduler's limit and endtime texts, the uninstall prompts and report, start-up errors and the
     presentation harness read from it. Ukrainian wording is unchanged. An AST scan test fails on any
@@ -1474,7 +1478,8 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - It contains no task-progress text, which remains in implementation-plan.md.
   - `LICENSE` is present, and `tools/licenses.py check` and CI still pass.
 - **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-readme-license.md.
-  - **LICENSE:** MIT, `Copyright (c) 2026 alexandersokol`, at the repository root.
+  - **LICENSE:** MIT, `Copyright (c) 2026 alexandersokol`, at the repository root. The release
+    zip carries it next to `THIRD-PARTY-NOTICES.txt` (`aw-telegram.spec`; found by the final review).
   - **README.md:** rewritten in English in the spec's order: title and badges (CI workflow badge,
     latest release and license shields for `alexandersokol/aw-telegram`), what it does (reports,
     limits and categories, endtime, reminders and overlays, free use and clearing, ten caregivers,

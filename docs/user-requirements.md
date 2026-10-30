@@ -304,9 +304,13 @@ These decisions supersede conflicting statements elsewhere in this draft.
     without one, a Telegram `language_code` starting with `uk` or `ru` gives Ukrainian and
     anything else, or none, English. Unpaired users get the pairing hint in that default.
     The choice is the caregiver's own: nobody else is told, and it survives leaving and
-    pairing again. Shared messages (alerts, coordination, action statuses, "applied"
-    messages) reach each caregiver in their language; one who has never chosen gets
-    Ukrainian, as before. Telegram's command menu is English by default and Ukrainian
+    pairing again. Shared messages (alerts, coordination, action statuses) reach each
+    caregiver in their stored choice; one who has never chosen gets Ukrainian, as before.
+    The "applied" message to the author is the exception: it uses the language the author
+    was getting replies in when they made the change (the stored choice, otherwise the
+    Telegram-language default above). On the deploy day nobody has a stored choice, so an
+    existing caregiver whose Telegram language is not uk or ru gets English replies but
+    Ukrainian shared alerts until they choose with `/language` or in Settings. Telegram's command menu is English by default and Ukrainian
     for Telegram apps set to Ukrainian, which may differ from the in-bot choice.
   - Laptop: «Налаштування» → «Мова / Language» offers System, Українська and English
     (Task 11g). Covered texts include replies, reports, menus, button labels, default

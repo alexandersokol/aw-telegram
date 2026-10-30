@@ -237,7 +237,8 @@ The commands, the license texts the build requires and the self-check are in
   `companion/**`, `contracts/**` or `VERSION`. It re-checks the code, builds the companion,
   requires its self-check to report the new version, and publishes tag `v1.0.x`, release `1.0.x`,
   the zip and a patch of the changes. `x` is one more than the highest `v1.0.*` tag. Docs-only
-  and bot-only commits release nothing. Run it from the Actions tab with `dry_run` ticked (the
+  and bot-only commits release nothing. The first push to `main` that contains the workflow runs the
+  first real release; afterwards, run it from the Actions tab with `dry_run` ticked (the
   default) to build and verify without publishing.
 - **Bumping the version:** edit `VERSION`, for example from `1.0` to `1.1`; the next release is
   `1.1.0`. The release stamps `_version.py` and `pyproject.toml` itself; do not edit them.

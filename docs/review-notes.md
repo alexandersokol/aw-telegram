@@ -107,9 +107,10 @@ laptop message statuses arrive today.
 
 ## 4. English language in the bot, chosen per Telegram user
 
-- **Status:** designed — docs/superpowers/specs/2026-10-30-english-design.md (extended to the
-  laptop app: a language setting there, default from the Windows display language, otherwise
-  English)
+- **Status:** fixed (13ff509, 749f5b0, Task 11f bot, Task 11g laptop app) —
+  docs/superpowers/specs/2026-10-30-english-design.md (extended to the laptop app: a language
+  setting there, default from the Windows display language, otherwise English); deploy, release
+  and live check pending
 - **Found:** 2026-10-30, owner request during live acceptance.
 - **Area:** Telegram bot, all user-facing text.
 
@@ -140,7 +141,7 @@ user and applies only to them.
 
 ## 5. CI/CD: build and release the companion on every commit to main
 
-- **Status:** in progress — 11a (CI checks) done 2026-10-30; 11b (releases, app version) implemented 2026-10-30, first GitHub run pending. Spec: docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
+- **Status:** fixed (Task 11a CI checks, Task 11b releases and app version, 2026-10-30); the first GitHub run (the first push to main publishes release 1.0.0) is pending. Spec: docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
 - **Found:** 2026-10-30, owner request.
 - **Area:** new `.github/workflows/`, `companion/`.
 
@@ -190,7 +191,8 @@ The major and minor numbers are set by hand, and changing them restarts `x` at 0
 
 ## 6. A proper README for GitHub
 
-- **Status:** designed — docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
+- **Status:** fixed (11a4f25, Task 11h) — docs/superpowers/specs/2026-10-30-ci-release-readme-design.md;
+  view on GitHub pending
 - **Found:** 2026-10-30, owner request.
 - **Area:** `README.md` (repository root).
 
@@ -232,7 +234,8 @@ explain the project to a new reader. `companion/README.md` has the same problem.
 
 ## 7. Each laptop exceeds the Firestore free allowance
 
-- **Status:** designed — docs/superpowers/specs/2026-10-30-sync-cost-design.md
+- **Status:** fixed (0a2487d, f0c4f2d, 5459e9b, 282567e, Task 11d) — docs/superpowers/specs/2026-10-30-sync-cost-design.md;
+  deploy and live measurement pending
 - **Found:** 2026-10-30, measured during live acceptance (proposal A of the review session).
 - **Area:** companion sync, `bot/src/deviceApi.ts`.
 
