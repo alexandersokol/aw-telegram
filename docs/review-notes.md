@@ -3,13 +3,13 @@
 Findings from using the deployed system, collected to fix later. Add each new finding
 at the end with the next number. When one is fixed, set its status and name the commit.
 
-Status values: **open**, **in progress**, **fixed (commit)**, **won't fix (reason)**.
+Status values: **open**, **designed (spec)**, **in progress**, **fixed (commit)**, **won't fix (reason)**.
 
 ---
 
 ## 1. No way back to the main menu after a command reply
 
-- **Status:** open
+- **Status:** designed — docs/superpowers/specs/2026-10-30-bot-ux-design.md
 - **Found:** 2026-10-30, live acceptance (checkpoint 10d), one caregiver account.
 - **Area:** Telegram bot, `bot/src/telegram/`.
 
@@ -71,7 +71,7 @@ subtracts `frameWidth()`, so the sizing follows automatically, because the width
 
 ## 3. Settings changes never report that the laptop applied them
 
-- **Status:** open
+- **Status:** designed — docs/superpowers/specs/2026-10-30-bot-ux-design.md
 - **Found:** 2026-10-30, live acceptance (checkpoint 10d).
 - **Area:** Telegram bot and backend sync, `bot/src/telegram/`, `bot/src/deviceApi.ts`.
 
