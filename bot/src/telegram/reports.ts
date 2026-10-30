@@ -62,8 +62,9 @@ function at(instant: string, now: string): string {
   return kyivDate(instant) === kyivDate(now) ? kyivTime(instant) : `${kyivTime(instant)}, ${shortDate(kyivDate(instant))}`;
 }
 
-function coverage(day: DaySummary, today: boolean, t: Catalogue): string {
-  const from = day.availableFrom, through = day.availableThrough;
+/** A laptop clock ahead of the server's (deviceApi.ts) may report coverage past `now`; it is shown up to `now`. */
+function coverage(day: DaySummary, today: boolean, now: Instant, t: Catalogue): string {
+  const from = day.availableFrom, through = day.availableThrough !== null && day.availableThrough > now ? now : day.availableThrough;
   if (through === null) return t.NO_DAY_DATA;
   const lateStart = from !== null && from > dayBounds(day.date).start;
   if (lateStart) return t.coverageFrom(kyivTime(from), kyivTime(through));
@@ -103,7 +104,7 @@ function dayReport(period: 'today' | 'yesterday', data: ReportData, t: Catalogue
   const day = data.days.get(date);
   if (!day) return [[header, t.NO_DAY_DATA, ...(period === 'today' ? optional(liveLine(data.live, data.now, t)) : [])].join('\n')];
   const projection = projectDay(day, data.settings), partial = day.partial || day.availableThrough === null;
-  const lines = [header, t.counted(t.duration(projection.selectedTotalMs)) + (partial ? t.PARTIAL : ''), coverage(day, period === 'today', t)];
+  const lines = [header, t.counted(t.duration(projection.selectedTotalMs)) + (partial ? t.PARTIAL : ''), coverage(day, period === 'today', data.now, t)];
   if (period === 'today') lines.push(limitLine(data, date, projection.selectedTotalMs, t));
   lines.push('');
   if (noSelection(data.settings)) lines.push(t.NO_SELECTION);

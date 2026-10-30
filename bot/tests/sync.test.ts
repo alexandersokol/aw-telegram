@@ -7,7 +7,9 @@ import {decodeSettings,encodeSettings} from '../src/settingsCodec.js';
 import {ActionService,operationRef} from '../src/actions.js';
 import {draft} from './delivery-fixture.js';
 import {applySettingsChange,SettingsService,type SettingsChange} from '../src/settings.js';
-import {loadReport,renderStatus} from '../src/telegram/reports.js';
+import {loadReport,renderStatus,renderUsage} from '../src/telegram/reports.js';
+import {DeviceApi} from '../src/deviceApi.js';
+import {measurement} from '../src/alertPlans.js';
 import {cleanup} from '../src/cleanup.js';
 
 const NOW='2026-10-28T12:00:00.000Z', START='2026-10-28T10:00:00.000Z';
@@ -444,6 +446,58 @@ describe('sync cost',()=>{
       endtimeGeneration:1,endtimeLocalTime:'11:30',presentedAt:'2026-10-28T11:30:05.000Z'};
     expect((await api.syncDevice(identity,{...request(4),acks:[receipt]})).acknowledgedAckIds).toEqual([receipt.id]);
     expect(events('endtime')).toHaveLength(1);
+  });
+});
+describe('laptop clock skew',()=>{
+  const off=(ms:number,at=NOW)=>new Date(Date.parse(at)+ms).toISOString(),later=off(30000);
+  const health=(at:string)=>({observedAt:at,awState:'ready' as const,lastSuccessAt:at,reportError:null});
+  const live=(at:string)=>({observedAt:at,state:'active' as const,app:'game.exe',title:'Game',category:null,rulesRevision:'r',categoryCatalog:[]});
+  it('syncs a laptop 1 s ahead before pairing (the 2026-10-30 incident)',async()=>{
+    const {api,db}=await setup();db.data.get(root).collectionStartedAt=null;
+    expect((await api.syncDevice(identity,{...request(),health:minimalHealth(off(1000))})).collectionStartedAt).toBeNull();
+    expect(db.data.get(root+'/health/current').value.observedAt).toBe(NOW);
+  });
+  it('accepts a laptop 1 s or 4 min ahead and stores and reports server-clamped times',async()=>{
+    const {db,repository}=await setup();let now=NOW;const api=new DeviceApi(repository,()=>now);
+    await api.syncDevice(identity,{...request(1),health:health(off(1000)),live:live(off(1000)),summaries:[{...sourceDay(1),availableThrough:off(1000)}]});
+    expect(db.data.get(root+'/health/current').value).toEqual(health(NOW));
+    expect(db.data.get(root+'/live/current').value).toEqual(live(NOW));
+    now=later;const ahead=off(4*60000,later);
+    const ack={id:'00000000-0000-4000-8000-000000000098',kind:'settings' as const,revision:0,appliedAt:ahead};
+    await api.syncDevice(identity,{...request(2),acks:[ack],health:health(ahead),live:live(ahead),summaries:[{...sourceDay(2),availableThrough:ahead}]});
+    expect(db.data.get(root+'/sync/current')).toMatchObject({settingsAckRevision:0,serverReceivedAt:later,
+      observed:{live:{sequence:2,observedAt:later},health:{sequence:2,observedAt:later}}});
+    // The source stays as sent (its digest is its identity); reports and alerts show coverage only up to server time.
+    const stored=db.data.get(root+'/days/2026-10-28');
+    expect(stored.source.availableThrough).toBe(ahead);expect(measurement(stored,later)?.availableThrough).toBe(later);
+    const data=await loadReport(repository,parent(),later);
+    expect(data.live?.observedAt).toBe(later);
+    expect(renderUsage('today',data).join('\n')).toContain('Дані з 12:00 до 14:00');
+  });
+  it('refuses a laptop 6 min ahead with a fixed reason and the skew',async()=>{
+    const {api,db}=await setup();const before=structuredClone(db.data),six=off(6*60000);
+    for(const [body,reason] of [[{health:health(six)},'health observation is in the future'],
+      [{live:live(six)},'live observation outside collection/current time'],
+      [{summaries:[{...sourceDay(),availableThrough:six}]},'coverage outside collection/current time']] as const)
+      await expect(api.syncDevice(identity,{...request(),...body})).rejects.toMatchObject({message:'Invalid activity context',status:400,detail:{reason,skewMs:6*60000}});
+    await expect(api.syncDevice(identity,{...request(),acks:[{id:'00000000-0000-4000-8000-000000000098',kind:'settings',revision:0,appliedAt:six}]}))
+      .rejects.toThrow('Invalid receipt');
+    expect(db.data).toEqual(before);
+  });
+  it('accepts a laptop 4 min behind just after pairing and clamps live to collection start',async()=>{
+    const {db,repository}=await setup();const behind=off(-3*60000,START),api=new DeviceApi(repository,()=>off(60000,START));
+    await api.syncDevice(identity,{...request(),health:health(behind),live:live(behind),summaries:[{...sourceDay(),availableFrom:off(-4*60000,START),availableThrough:behind}]});
+    expect(db.data.get(root+'/live/current').value.observedAt).toBe(START);
+    expect(db.data.get(root+'/health/current').value).toEqual(health(behind));  // already past: kept as observed
+    await expect(api.syncDevice(identity,{...request(2),health:health(behind),live:live(off(-6*60000,START))}))
+      .rejects.toMatchObject({detail:{reason:'live observation outside collection/current time',skewMs:-6*60000}});
+  });
+  it('stores tomorrow\'s summary from a laptop 2 min ahead at Kyiv midnight',async()=>{
+    const {db,repository}=await setup();const now='2026-10-28T21:59:00.000Z',api=new DeviceApi(repository,()=>now);
+    const tomorrow={...sourceDay(),date:'2026-10-29',availableFrom:'2026-10-28T22:00:00.000Z',availableThrough:off(2*60000,now)};
+    expect((await api.syncDevice(identity,{...request(),health:health(off(2*60000,now)),summaries:[tomorrow]})).summaryReceipts)
+      .toEqual([{date:'2026-10-29',sequence:1}]);
+    expect(db.data.get(root+'/days/2026-10-29').source).toEqual(tomorrow);
   });
 });
 

@@ -1,7 +1,7 @@
 /** Authenticated aggregate synchronization. No action producer, network or UI side effects. */
 import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,MAX_ACTIVE_CAREGIVERS,digest,type DeviceIdentity} from './repository.js';
-import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,
+import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,CLOCK_SKEW_MS,ActivityContextError,
   type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant,type EndtimeAck} from './contracts.js';
 import {applyPlan,type PlannedWrite} from './outbox.js';
 import {readActionSnapshot,planActionSync} from './actions.js';
@@ -69,8 +69,17 @@ export class DeviceApi {
       const migrateSettings=needsSettingsMigration(settingsDoc!.data());
       const cancellations=validateContract('cancellations',cancelDoc!.data()??emptyCancellations());
       const startedAt=device.collectionStartedAt===null?null:new Date(device.collectionStartedAt).toISOString();
-      // Laptop input outside its pairing/clock context is a refused request (400), not a server failure.
-      try {validateActivityContext(request,startedAt,now);} catch {throw new BoundaryError('Invalid activity context');}
+      // Laptop input outside its pairing/clock context is a refused request (400), not a server failure. A laptop clock
+      // off by up to CLOCK_SKEW_MS is accepted; live and health times are clamped into [collection start, now], so order,
+      // storage and reports behave as with a correct clock. Summary sources stay as sent (their digest is their identity);
+      // reports and alerts clamp coverage where they show it.
+      try {validateActivityContext(request,startedAt,now,CLOCK_SKEW_MS);}
+      catch(error) {throw new BoundaryError('Invalid activity context',400,undefined,
+        error instanceof ActivityContextError?{reason:error.message,skewMs:error.skewMs}:undefined);}
+      const upTo=(at:Instant):Instant=>at>now?now:at;
+      request.health={...request.health,observedAt:upTo(request.health.observedAt),
+        lastSuccessAt:request.health.lastSuccessAt&&upTo(request.health.lastSuccessAt)};
+      if(request.live)request.live={...request.live,observedAt:request.live.observedAt<startedAt!?startedAt!:upTo(request.live.observedAt)};
       // Days, alert state, action controls and parents are read only by syncs that use them. Only the summarized
       // dates are read; the daily sweep deletes days outside the retained dates (cleanup.ts).
       const quiet=!request.acks.length&&!request.summaries?.length;
@@ -91,7 +100,8 @@ export class DeviceApi {
           if(!previous)endtimeAcks.push(ack);
           continue;
         }
-        if(ack.appliedAt>now) throw new BoundaryError('Invalid receipt');
+        // appliedAt is laptop time and only part of the receipt's identity.
+        if(Date.parse(ack.appliedAt)-Date.parse(now)>CLOCK_SKEW_MS) throw new BoundaryError('Invalid receipt');
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='settings') {
           if(ack.revision>settings.revision) throw new BoundaryError('Unknown settings revision');
@@ -139,7 +149,7 @@ export class DeviceApi {
       const changedToday=dayWrites.find(w=>w.value.source.date===retained[0])?.value;
       // The sync evaluates alerts only on new evidence for today; settings changes evaluate them in their own transaction.
       const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,
-        await readAlerts(this.repository,tx,identity.deviceId,now),measurement(changedToday)):[];
+        await readAlerts(this.repository,tx,identity.deviceId,now),measurement(changedToday,now)):[];
       // Event identity covers device/date/generation; identical rows planned twice in one request collapse.
       // Receipts past the budget stay unacknowledged; the companion retains and resends them.
       const endtimeWrites=new Map<string,PlannedWrite>(),deferred=new Set<string>();

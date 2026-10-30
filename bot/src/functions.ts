@@ -1,6 +1,6 @@
 /** Firebase Functions v2 entry points (Task 10b): `api` serves every HTTP route, `sweep` runs the daily cleanup.
  * Importing this module connects to nothing and reads no secret; each instance builds its backend on first use.
- * Logs carry a fixed route label and an error type only, never a request, message text or provider detail. */
+ * Logs carry a fixed route label and an error type or refusal reason only, never a request, message text or provider detail. */
 import { onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret, defineString } from 'firebase-functions/params';
@@ -8,7 +8,7 @@ import { logger } from 'firebase-functions';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { Api } from 'grammy';
-import { createBackend, routeLabel, type HttpRequest } from './index.js';
+import { createBackend, routeLabel, type HttpRequest, type Refusal } from './index.js';
 import { BoundaryError, FirestoreRepository } from './repository.js';
 import { TelegramHttpAdapter, fetchTransport } from './outbox.js';
 import { GoogleOidcVerifier, productionTasksAdapter, type TaskConfiguration } from './tasks.js';
@@ -58,6 +58,10 @@ export function toHttpRequest(req: FunctionsRequest): HttpRequest {
 const report = (route: string, error: unknown): void => {
     logger.error('request failed', { route, type: error instanceof Error ? error.constructor.name : typeof error });
 };
+/** One line per refused sync (troubleshooting a laptop that never syncs, operations.md): reason and clock skew. */
+const refused = (route: string, refusal: Refusal): void => {
+    logger.warn('sync refused', { route, ...refusal });
+};
 
 let built: ReturnType<typeof createBackend> | undefined;
 function backend(): ReturnType<typeof createBackend> {
@@ -77,6 +81,7 @@ function backend(): ReturnType<typeof createBackend> {
         oidc: config ? new GoogleOidcVerifier(config) : { verify: async () => { throw new BoundaryError('Unauthorized task', 401); } },
         webhook: { secret, client: grammyClient(new Api(token)) },
         report,
+        refused,
     });
     return built;
 }

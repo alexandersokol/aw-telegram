@@ -22,8 +22,10 @@ export function canonicalSecret(value: unknown, bytes: 16 | 32): value is string
   return typeof value==='string' && /^[A-Za-z0-9_-]+$/.test(value) &&
     Buffer.from(value,'base64url').length===bytes && Buffer.from(value,'base64url').toString('base64url')===value;
 }
+/** detail: why a sync was refused, for its log line only: a fixed reason and the laptop's clock skew if known. */
 export class BoundaryError extends Error {
-  constructor(message: string, public readonly status = 400, public readonly retryAfter?: number) {super(message);}
+  constructor(message: string, public readonly status = 400, public readonly retryAfter?: number,
+    public readonly detail?: {reason: string; skewMs: number | null}) {super(message);}
 }
 export const unauthorized = (): never => {throw new BoundaryError('Unauthorized',401);};
 export interface DeviceIdentity {deviceId: string; credentialDigest: string}

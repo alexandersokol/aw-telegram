@@ -20,8 +20,10 @@ export async function readAlerts(repo: FirestoreRepository, tx: Transaction, dev
     const ref = repo.db.doc(`devices/${deviceId}/alertStates/${kyivDate(now)}`), data = (await tx.get(ref)).data();
     return { ref, undated: !!data && data.date === undefined, value: { parents: data?.parents ?? {}, lastWarning: data?.lastWarning ?? null } };
 }
-export function measurement(evidence: any): Measurement | null {
-    return evidence?.source?.availableThrough == null ? null : { selectedTotalMs: evidence.projection.selectedTotalMs, partial: evidence.source.partial, availableThrough: evidence.source.availableThrough };
+/** A laptop clock ahead of the server's (deviceApi.ts) may report coverage past `now`; alerts show at most `now`. */
+export function measurement(evidence: any, now: string): Measurement | null {
+    const through = evidence?.source?.availableThrough;
+    return through == null ? null : { selectedTotalMs: evidence.projection.selectedTotalMs, partial: evidence.source.partial, availableThrough: through > now ? now : through };
 }
 export async function planAlerts(repo: FirestoreRepository, tx: Transaction, deviceId: string, now: string, settings: Settings, parents: Parent[], snapshot: AlertSnapshot, m: Measurement | null, coordination?: {
     id: string;

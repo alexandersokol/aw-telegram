@@ -26,9 +26,12 @@ export function routeLabel(method:string,path:string):string {
   const known=['/v1/enroll','/v2/sync','/v1/pair-keys','/v1/access','/internal/tasks','/telegram/webhook'];
   return `${method} ${known.includes(pathname)?pathname:pathname.startsWith('/v1/access/')?'/v1/access/:id':'other'}`;
 }
-/** report: unexpected (non-boundary) failures only; it receives the route label and the error, never the request. */
+/** A refused device sync: its status, a fixed reason and the laptop's clock skew (ms) when known. */
+export interface Refusal {status:number;reason:string;skewMs:number|null}
+/** report: unexpected (non-boundary) failures only; it receives the route label and the error, never the request.
+ * refused: boundary errors of an authenticated sync, so a laptop that never syncs is diagnosable. */
 export function createRouter(repository: FirestoreRepository,options?:{api?:DeviceApi;taskHandler?:ReturnType<typeof createTaskHandler>;telegram?:TelegramWebhook;
-  report?:(route:string,error:unknown)=>void}) {
+  report?:(route:string,error:unknown)=>void;refused?:(route:string,refusal:Refusal)=>void}) {
   const api=options?.api??new DeviceApi(repository);
   return async (request: HttpRequest): Promise<HttpResponse> => {
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json','X-Content-Type-Options':'nosniff'};
@@ -51,9 +54,14 @@ export function createRouter(repository: FirestoreRepository,options?:{api?:Devi
       }
       const url=new URL(request.path,'https://local.invalid');
       const identity=await authorizeDevice({authorization:request.headers.authorization},repository);
-      if(request.method==='POST' && request.path==='/v2/sync') {
+      if(request.method==='POST' && request.path==='/v2/sync') try {
         let input;try {input=validateContract('sync-request',parseJson(request.body));} catch {throw new BoundaryError('Invalid sync request');}
         return {status:200,headers,body:await api.syncDevice(identity,input)};
+      } catch(error) {
+        // Never the body or an identifier: BoundaryError messages and reasons are fixed strings.
+        if(error instanceof BoundaryError) try {options?.refused?.('POST /v2/sync',{status:error.status,
+          reason:error.detail?.reason??error.message,skewMs:error.detail?.skewMs??null});} catch {/* logging never changes the answer */}
+        throw error;
       }
       if(request.method==='POST' && request.path==='/v1/pair-keys') return {status:201,headers,body:await repository.createPairKey(identity,envelope(request.body,'name'))};
       if(request.method==='GET' && url.pathname==='/v1/access') {
@@ -94,7 +102,7 @@ export function createHttpHandler(repository: FirestoreRepository,options?:Param
 
 /** Task 10 supplies deployed adapters/configuration. Construction itself does no external work. */
 export function createBackend(repository:FirestoreRepository,options:{telegram:TelegramSender;taskAdapter:TaskAdapter;oidc:{verify(token:string):Promise<void>};clock?:()=>string;
-  webhook?:{secret:string;client:TelegramClient};report?:(route:string,error:unknown)=>void}){
+  webhook?:{secret:string;client:TelegramClient};report?:(route:string,error:unknown)=>void;refused?:(route:string,refusal:Refusal)=>void}){
   const clock=options.clock??(()=>new Date().toISOString());
   const outbox=new OutboxService(repository,options.telegram,clock);
   const tasks=new TaskService(repository,options.taskAdapter,outbox,clock);
@@ -105,6 +113,6 @@ export function createBackend(repository:FirestoreRepository,options:{telegram:T
   const taskHandler=createTaskHandler(options.oidc,{execute:async payload=>{await tasks.execute(payload);if(payload.kind!=='sweep')await dispatch();}});
   const bot=options.webhook&&new TelegramBot(repository,new SettingsService(repository,clock),new ActionService(repository,clock),options.webhook.client,clock);
   const telegram=bot&&{secret:options.webhook!.secret,handle:async(update:unknown)=>{await bot.handleUpdate(update);await dispatch();}};
-  const routes={api,taskHandler,...(telegram?{telegram}:{}),...(options.report?{report:options.report}:{})};
+  const routes={api,taskHandler,...(telegram?{telegram}:{}),...(options.report?{report:options.report}:{}),...(options.refused?{refused:options.refused}:{})};
   return {api,outbox,tasks,router:createRouter(repository,routes),httpHandler:createHttpHandler(repository,routes)};
 }

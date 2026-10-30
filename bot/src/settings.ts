@@ -128,7 +128,7 @@ export class SettingsService {
       checkSettingsCapacity(settings,cancellations,now,started===null?null:new Date(started).toISOString());
       const evidence=day!.data();
       const projection=evidence?projectDay(evidence.source,settings):null;
-      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null),{id:'settings:'+identity.pairingId+':'+operationId,text:both(t=>t.settingsChangedBy(issuerName(actions.parents,identity))+changeSummary(change,settings,t)),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
+      const alertWrites=await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alerts,measurement(evidence?{...evidence,projection}:null,now),{id:'settings:'+identity.pairingId+':'+operationId,text:both(t=>t.settingsChangedBy(issuerName(actions.parents,identity))+changeSummary(change,settings,t)),category:['selectCategories','addCategory','removeCategory'].includes(change.kind),issuerPairingId:identity.pairingId});
       const suppressionWrites=(change.kind==='setFreeUse'||change.kind==='setSuppression')&&change.enabled?
         await planEndtimeSuppression(this.repository,tx,identity.deviceId,kyivDate(now)):[];
       if(change.kind==='setFreeUse'){
@@ -157,7 +157,7 @@ export class SettingsService {
       const parent=callback?await this.repository.requireCallback(tx,identity,callback.nonce,callback.version):await this.repository.requireParent(tx,identity);
       const op=await readOperation(this.repository,tx,identity,operationId,{kind:'hourly',enabled});if(op.previous)return;
       const root=this.repository.db.doc(`devices/${identity.deviceId}`),day=(await tx.get(root.collection('days').doc(kyivDate(now)))).data();
-      const alerts=await readAlerts(this.repository,tx,identity.deviceId,now),m=measurement(day);
+      const alerts=await readAlerts(this.repository,tx,identity.deviceId,now),m=measurement(day,now);
       if(enabled&&!parent.hourlyEnabled)alerts.value.parents[identity.pairingId]=advanceMilestone(alerts.value.parents[identity.pairingId],m?.selectedTotalMs??null,'enable');
       tx.set(alerts.ref,{...alerts.value,date:kyivDate(now)});tx.update(root.collection('parents').doc(identity.userId),{hourlyEnabled:enabled});tx.set(op.ref,{digest:op.hash,result:null,at:now,expired:false});
     });

@@ -328,24 +328,41 @@ export function collectionStart(cached: Instant | null, received: Instant | null
   return received;
 }
 
-export function validateActivityContext(input: unknown, startedAt: Instant | null, now: Instant): void {
+/** How far a laptop clock may run from the server's. Sync accepts laptop instants up to this far past server time
+ * or before collection start, and clamps them into that window; beyond it a request is refused as before. */
+export const CLOCK_SKEW_MS = 5 * 60000;
+/** A refused activity context: a fixed reason and, for a laptop instant outside its window, how far outside (ms;
+ * positive past server time, negative before collection start). It carries no request content. */
+export class ActivityContextError extends Error {
+  constructor(message: string, readonly skewMs: number | null = null) {super(message);}
+}
+
+/** `toleranceMs` 0 (the shared fixtures, the companion) compares strictly; sync passes CLOCK_SKEW_MS. */
+export function validateActivityContext(input: unknown, startedAt: Instant | null, now: Instant, toleranceMs = 0): void {
   const request = validateContract('sync-request', input); parseInstant(now);
-  if(request.health.observedAt>now) throw new Error('health observation is in the future');
-  if(startedAt===null && (request.health.awState!=='unknown' || request.health.lastSuccessAt!==null)) throw new Error('activity health prohibited before pairing');
+  const late = (at: Instant, reason: string): void => {
+    const ms = Date.parse(at) - Date.parse(now); if (ms > toleranceMs) throw new ActivityContextError(reason, ms);};
+  late(request.health.observedAt, 'health observation is in the future');
+  if(startedAt===null && (request.health.awState!=='unknown' || request.health.lastSuccessAt!==null)) throw new ActivityContextError('activity health prohibited before pairing');
   if (startedAt === null) {
-    if (request.summaries?.length || request.live !== undefined) throw new Error('activity prohibited before first pairing');
+    if (request.summaries?.length || request.live !== undefined) throw new ActivityContextError('activity prohibited before first pairing');
     return;
   }
   parseInstant(startedAt);
-  if (startedAt > now) throw new Error('collection start is in the future');
-  const dates = retainedDates(now);
+  if (startedAt > now) throw new ActivityContextError('collection start is in the future');
+  const early = (at: Instant, reason: string): void => {
+    const ms = Date.parse(at) - Date.parse(startedAt); if (-ms > toleranceMs) throw new ActivityContextError(reason, ms);};
+  // A laptop ahead of the server reaches the next Kyiv date first.
+  const dates = [...new Set([kyivDate(new Date(Date.parse(now) + toleranceMs).toISOString()), ...retainedDates(now)])];
   for (const summary of request.summaries ?? []) {
-    if (!dates.includes(summary.date) || dayBounds(summary.date).end <= startedAt) throw new Error('summary outside retained collection dates');
-    if (summary.availableFrom !== null && (summary.availableFrom < startedAt || summary.availableThrough! > now))
-      throw new Error('coverage outside collection/current time');
+    if (!dates.includes(summary.date) || dayBounds(summary.date).end <= startedAt) throw new ActivityContextError('summary outside retained collection dates');
+    if (summary.availableFrom !== null) {
+      early(summary.availableFrom, 'coverage outside collection/current time'); late(summary.availableThrough!, 'coverage outside collection/current time');
+    }
   }
-  if (request.live !== undefined && (request.live.observedAt < startedAt || request.live.observedAt > now))
-    throw new Error('live observation outside collection/current time');
+  if (request.live !== undefined) {
+    early(request.live.observedAt, 'live observation outside collection/current time'); late(request.live.observedAt, 'live observation outside collection/current time');
+  }
 }
 
 export function actionCanceled(input: unknown, cancellationInput: unknown): boolean {

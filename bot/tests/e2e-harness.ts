@@ -9,7 +9,7 @@ import type {ScheduleRow} from '../src/tasks.js';
 export const WEBHOOK_SECRET='w'.repeat(48);
 
 /** The memory store plus Firestore's non-transactional reads and writes, each run as its own transaction. */
-class E2eDb extends MemoryDb {
+export class E2eDb extends MemoryDb {
   override collection(path:string):any {return this.wrap(super.collection(path));}
   private wrap(query:any):any {
     const self=this;

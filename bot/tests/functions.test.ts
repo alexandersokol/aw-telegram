@@ -3,6 +3,10 @@ import {it,expect} from 'vitest';
 import {api,sweep,clientAddress,taskConfiguration,toHttpRequest,REGION} from '../src/functions.js';
 import {createRouter,routeLabel} from '../src/index.js';
 import {fixture} from './delivery-fixture.js';
+import {E2eDb} from './e2e-harness.js';
+import {FirestoreRepository,newSecret} from '../src/repository.js';
+import {DeviceApi} from '../src/deviceApi.js';
+import {minimalHealth} from '../src/contracts.js';
 
 it('runs the api in europe-central2 as aw-backend with both secrets, scaling 0 to 2',()=>{
   const endpoint=(api as any).__endpoint;
@@ -50,4 +54,20 @@ it('reports unexpected failures by route and error type only',async()=>{
   expect(routeLabel('DELETE','/v1/access/parent:1:00000000-0000-4000-8000-000000000001')).toBe('DELETE /v1/access/:id');
   expect(routeLabel('GET','/v1/access?page=00000000-0000-4000-8000-000000000001')).toBe('GET /v1/access');
   expect(routeLabel('POST','/anything')).toBe('POST other');
+});
+
+it('logs a refused sync once with its fixed reason and the laptop clock skew, never the request',async()=>{
+  const NOW='2026-10-28T12:00:00.000Z',repo=new FirestoreRepository(new E2eDb() as any,()=>Date.parse(NOW)),refused:any[]=[],reported:any[]=[];
+  const code=newSecret(32);await repo.issueEnrollment(code);const {deviceSecret}=await repo.consumeEnrollment(code,'127.0.0.1');
+  const router=createRouter(repo,{api:new DeviceApi(repo,()=>NOW),refused:(route,refusal)=>refused.push([route,refusal]),report:(route)=>reported.push(route)});
+  const sync=(sequence:number,observedAt:string)=>router({method:'POST',path:'/v2/sync',headers:{authorization:'Bearer '+deviceSecret},
+    body:JSON.stringify({schemaVersion:2,sequence,acks:[],health:minimalHealth(observedAt)}),remoteAddress:''});
+  expect((await sync(1,'2026-10-28T12:00:01.000Z')).status).toBe(200);  // 1 s ahead: the 2026-10-30 incident
+  const refusal=await sync(2,'2026-10-28T12:06:00.000Z');
+  expect(refusal).toMatchObject({status:400,body:{error:'Invalid activity context'}});
+  expect((await sync(3,'not an instant')).status).toBe(400);
+  expect((await router({method:'POST',path:'/v2/sync',headers:{},body:'{}',remoteAddress:''})).status).toBe(401);  // unauthenticated: not logged
+  expect(refused).toEqual([['POST /v2/sync',{status:400,reason:'health observation is in the future',skewMs:360000}],
+    ['POST /v2/sync',{status:400,reason:'Invalid sync request',skewMs:null}]]);
+  expect(reported).toEqual([]);
 });
