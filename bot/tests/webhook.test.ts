@@ -53,7 +53,7 @@ describe('private-chat boundary and update delivery',()=>{
     const update=s.message('1','/endtime set 21:30');
     await expect(s.handle(update)).rejects.toThrow('Telegram unavailable');
     await s.handle(update);
-    expect(s.calls.filter(c=>c.kind==='send').map(c=>c.text)).toEqual(['Збережено: час завершення увімкнено, 21:30.\nНоутбук: очікує застосування.']);
+    expect(s.calls.filter(c=>c.kind==='send').map(c=>c.text)).toEqual(['Збережено: час завершення увімкнено, 21:30.\nНоутбук зараз не на зв’язку — застосується, коли він увімкнеться.']);
     expect(s.db.data.get(root+'/settings/current').revision).toBe(1);expect(events(s,'coordination')).toHaveLength(1);
   });
 });
@@ -218,7 +218,7 @@ describe('main menu button (UX-02)',()=>{
   });
   it('adds it to a save reply that closes a menu',async()=>{
     const s=await setup();await s.say('/clear');await s.tap('Лише ручні');
-    expect(s.last().text).toContain('ручні нагадування');expect(s.last().buttons).toEqual(HOME);
+    expect(s.last().text.startsWith('Збережено: ручні нагадування буде скасовано.')).toBe(true);expect(s.last().buttons).toEqual(HOME);
   });
   it('leaves replies that have their own buttons unchanged',async()=>{
     const s=await setup();

@@ -30,10 +30,10 @@ export function endtimeStatus(settings: Settings, acknowledged: Counter | null, 
   return lines.join('\n');
 }
 
-/** Saved cloud state is confirmed separately from the companion's acknowledgement. */
-export function endtimeSaved(settings: Settings, acknowledged: Counter | null, changed: boolean): string {
+/** Saved cloud state only; the companion's acknowledgement arrives as its own message (UX-03). */
+export function endtimeSaved(settings: Settings, changed: boolean, offline: boolean): string {
   if (!changed) return `Без змін: час завершення вже ${state(settings)}.`;
-  return `Збережено: час завершення ${state(settings)}.\nНоутбук: ${applied(settings, acknowledged)}.`;
+  return savedText(`час завершення ${state(settings)}.`, offline);
 }
 
 export const endtimeReview = (localTime: string): string =>
@@ -90,10 +90,10 @@ export const NOTHING_TO_REMOVE = 'Для обліку нічого не вибр
 export const hourlyLabel = (enabled: boolean): string => `Щогодинні звіти: ${enabled ? 'увімкнено' : 'вимкнено'}`;
 export const endtimeLabel = (settings: Settings): string => `Час завершення: ${settings.endtimeEnabled ? settings.endtimeLocalTime : 'вимкнено'}`;
 
-export const appliedLine = (settings: Settings, acknowledged: Counter | null): string => `Ноутбук: ${applied(settings, acknowledged)}.`;
-/** A saved shared change, optionally with a note, then the companion acknowledgement state. */
-export const savedText = (description: string, settings: Settings, acknowledged: Counter | null, note?: string): string =>
-  `Збережено: ${description}${note ? '\n' + note : ''}\n${appliedLine(settings, acknowledged)}`;
+export const OFFLINE_LINE = 'Ноутбук зараз не на зв’язку — застосується, коли він увімкнеться.';
+/** A saved shared change, optionally with a note. The laptop applying it is told separately (UX-03). */
+export const savedText = (description: string, offline: boolean, note?: string): string =>
+  `Збережено: ${description}${note ? '\n' + note : ''}${offline ? '\n' + OFFLINE_LINE : ''}`;
 export const REVIEW = 'Перевірте зміну';
 export const STALE_LIMIT = 'Це меню застаріло. Відкрийте /limit знову.';
 export const STALE_CLEAR = 'Це меню застаріло. Відкрийте /clear знову.';
@@ -112,8 +112,9 @@ export const NOTHING_TO_ADD = 'Усі категорії з ноутбука в�
 export const FREE_STILL_ON = 'Вільний режим усе ще увімкнено, тому нагадування призупинені, доки його не вимкнуть.';
 export const CLEAR_CHOOSE = 'Що очистити?';
 export const CLEAR_ALL_CONFIRM = 'Скасувати всі активні та заплановані\nнагадування й вимкнути попередження\nпро денний ліміт до опівночі?\n\nОблік часу та щогодинні звіти продовжаться.';
-export const CLEARED_MANUAL = 'Запит збережено: ручні нагадування буде скасовано.\n⏳ Очікуємо підтвердження від ноутбука.';
-export const CLEARED_ALL = 'Запит збережено: усі нагадування буде скасовано, попередження про ліміт вимкнено до опівночі.\n⏳ Очікуємо підтвердження від ноутбука.';
+/** savedText descriptions of the two clears. */
+export const CLEARED_MANUAL = 'ручні нагадування буде скасовано.';
+export const CLEARED_ALL = 'усі нагадування буде скасовано, попередження про ліміт вимкнено до опівночі.';
 export const LIMIT_LABELS = {
   today: 'Змінити на сьогодні', daily: 'Змінити щоденний ліміт', categories: 'Категорії', freeOn: 'Увімкнути вільний режим',
   freeOff: 'Вимкнути вільний режим', restore: 'Відновити нагадування', add: 'Додати', remove: 'Видалити', prev: '‹', next: '›',

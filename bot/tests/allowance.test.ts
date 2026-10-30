@@ -2,7 +2,8 @@ import {describe,it,expect} from 'vitest';
 import {setup,events,type Bot} from './bot-fixture.js';
 import {root,NOW} from './delivery-fixture.js';
 
-const SAVED_PENDING='\nНоутбук: очікує застосування.';
+/** The fixture laptop has never synced. */
+const OFFLINE='\nНоутбук зараз не на зв’язку — застосується, коли він увімкнеться.';
 const stored=(s:Bot)=>s.db.data.get(root+'/settings/current');
 const catalog=[{id:'["Games"]',path:['Games']},{id:'["Games","Minecraft"]',path:['Games','Minecraft']},{id:'["Media"]',path:['Media']},{id:'uncategorized',path:null}];
 async function withCatalog(entries=catalog){
@@ -29,7 +30,7 @@ describe('/limit',()=>{
     ['/limit 0 today','Збережено: ліміт на сьогодні 0 хв.',{todayOverride:{date:'2026-10-28',limitMs:0}}],
   ])('%s saves directly and coordinates',async(command,text,expected)=>{
     const s=await setup();await s.say(command);
-    expect(s.last().text).toBe(text+SAVED_PENDING);expect(stored(s)).toMatchObject(expected);
+    expect(s.last().text).toBe(text+OFFLINE);expect(stored(s)).toMatchObject(expected);
     expect(coordination(s)).toHaveLength(1);expect(coordination(s)[0]).toContain(text.replace('Збережено: ','').replace(/^./,c=>c.toUpperCase()));
   });
   it.each(['/limit 2:30','/limit today','/limit 2:30 weekly'])('explains usage for %j',async command=>{
@@ -48,7 +49,7 @@ describe('/limit',()=>{
     expect(s.last().text).toBe('Перевірте зміну\n\nНовий щоденний ліміт: 3 год 00 хв\nДіє з сьогодні й надалі та замінює зміну лише на сьогодні. Інших батьків буде повідомлено.');
     expect(s.labels()).toEqual([['Підтвердити'],['Скасувати']]);expect(stored(s).revision).toBe(0);
     await s.tap('Підтвердити');
-    expect(s.last().text.startsWith('Збережено: щоденний ліміт 3 год 00 хв.'+SAVED_PENDING+'\n\n⏱ Ліміт часу\n\nСьогодні: 3 год 00 хв (щоденний ліміт)')).toBe(true);
+    expect(s.last().text.startsWith('Збережено: щоденний ліміт 3 год 00 хв.'+OFFLINE+'\n\n⏱ Ліміт часу\n\nСьогодні: 3 год 00 хв (щоденний ліміт)')).toBe(true);
   });
   it('cancels a menu change without mutation and returns to the main menu on back',async()=>{
     const s=await setup();await s.say('/start');await s.tap('Ліміт часу');
@@ -72,10 +73,10 @@ describe('/limit',()=>{
 describe('free use and restore',()=>{
   it('toggles free use by command with saved-versus-applied state',async()=>{
     const s=await setup();
-    await s.say('/free on');expect(s.last().text).toBe('Збережено: вільний режим увімкнено до опівночі.'+SAVED_PENDING);
+    await s.say('/free on');expect(s.last().text).toBe('Збережено: вільний режим увімкнено до опівночі.'+OFFLINE);
     expect(stored(s).freeUseDate).toBe('2026-10-28');
     await s.say('/free on');expect(s.last().text).toBe('Без змін: вільний режим уже увімкнено.');
-    await s.say('/free off');expect(s.last().text).toBe('Збережено: вільний режим вимкнено.'+SAVED_PENDING);
+    await s.say('/free off');expect(s.last().text).toBe('Збережено: вільний режим вимкнено.'+OFFLINE);
     await s.say('/free maybe');expect(s.last().text).toBe('Використання: /free on або /free off.');
   });
   it('reviews free use in the menu and swaps its button',async()=>{
@@ -93,7 +94,7 @@ describe('free use and restore',()=>{
     await s.tap('Відновити нагадування');
     expect(s.last().text).toBe('Перевірте зміну\n\nВідновити автоматичні нагадування на сьогодні?\nСкасовані ручні нагадування не повернуться. Інших батьків буде повідомлено.');
     await s.tap('Підтвердити');
-    expect(s.last().text.startsWith('Збережено: автоматичні нагадування відновлено.\nВільний режим усе ще увімкнено, тому нагадування призупинені, доки його не вимкнуть.'+SAVED_PENDING)).toBe(true);
+    expect(s.last().text.startsWith('Збережено: автоматичні нагадування відновлено.\nВільний режим усе ще увімкнено, тому нагадування призупинені, доки його не вимкнуть.'+OFFLINE)).toBe(true);
     expect(stored(s)).toMatchObject({suppressedDate:null,freeUseDate:'2026-10-28'});
   });
 });
@@ -110,7 +111,7 @@ describe('categories',()=>{
     expect(s.last().text).toBe('Перевірте зміну\n\nДодати до обліку: Games\nСьогоднішній облік буде перераховано з усіх даних за день. Інших батьків буде повідомлено.');
     expect(nested(s.db.data.get(root+'/sessions/1'))).toBe(false);
     await s.tap('Підтвердити');
-    expect(s.last().text).toBe('Збережено: категорії для обліку — Games.'+SAVED_PENDING+'\n\nКатегорії для обліку\n\nВибрано:\n• Games');
+    expect(s.last().text).toBe('Збережено: категорії для обліку — Games.'+OFFLINE+'\n\nКатегорії для обліку\n\nВибрано:\n• Games');
     expect(stored(s).selectedPaths).toEqual([{segments:['Games']}]);
     // A descendant of a selected category is already counted and is not offered.
     await s.tap('Додати');expect(s.labels()).toEqual([['Media'],['Без категорії'],['← Назад']]);
@@ -134,7 +135,7 @@ describe('categories',()=>{
   });
   it('adds and removes by command using the displayed name',async()=>{
     const s=await withCatalog();
-    await s.say('/add_category games > minecraft');expect(s.last().text).toBe('Збережено: категорії для обліку — Games › Minecraft.'+SAVED_PENDING);
+    await s.say('/add_category games > minecraft');expect(s.last().text).toBe('Збережено: категорії для обліку — Games › Minecraft.'+OFFLINE);
     await s.say('/add_category Games › Minecraft');expect(s.last().text).toBe('Без змін: «Games › Minecraft» уже враховується.');
     await s.say('/add_category Ігри');expect(s.last().text).toBe('Категорію «Ігри» не знайдено. Перелік: /categories');
     await s.say('/remove_category Media');expect(s.last().text).toBe('Без змін: «Media» не враховується.');
@@ -149,13 +150,15 @@ describe('/clear',()=>{
   const confirmAll='Скасувати всі активні та заплановані\nнагадування й вимкнути попередження\nпро денний ліміт до опівночі?\n\nОблік часу та щогодинні звіти продовжаться.';
   it('clears manual reminders directly and confirms Clear all first',async()=>{
     const s=await setup();
-    await s.say('/clear manual');expect(s.last().text).toBe('Запит збережено: ручні нагадування буде скасовано.\n⏳ Очікуємо підтвердження від ноутбука.');
+    await s.say('/clear manual');expect(s.last().text).toBe('Збережено: ручні нагадування буде скасовано.'+OFFLINE);
     expect(stored(s).suppressedDate).toBeNull();
     await s.say('/clear all');expect(s.last().text).toBe(confirmAll);expect(s.labels()).toEqual([['✅ Очистити всі'],['Скасувати']]);
     expect(stored(s).suppressedDate).toBeNull();
     await s.tap('Очистити всі');
-    expect(s.last().text).toBe('Запит збережено: усі нагадування буде скасовано, попередження про ліміт вимкнено до опівночі.\n⏳ Очікуємо підтвердження від ноутбука.');
+    expect(s.last().text).toBe('Збережено: усі нагадування буде скасовано, попередження про ліміт вимкнено до опівночі.'+OFFLINE);
     expect(stored(s).suppressedDate).toBe('2026-10-28');
+    s.db.data.set(root+'/sync/current',{serverReceivedAt:NOW});
+    await s.say('/clear manual');expect(s.last().text).toBe('Збережено: ручні нагадування буде скасовано.');
   });
   it('offers the scope menu, cancels without effect and explains usage',async()=>{
     const s=await setup();await s.say('/clear');

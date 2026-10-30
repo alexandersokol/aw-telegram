@@ -41,6 +41,15 @@ export async function loadReport(repository: FirestoreRepository, identity: Pare
   });
 }
 
+/** A save reply warns that the change waits for the laptop when its last sync is absent or older than this. */
+const OFFLINE_AFTER_MS = 2 * 60000;
+/** One read of sync/current, after the save that just authorized the caregiver. */
+export async function laptopOffline(repository: FirestoreRepository, identity: ParentIdentity, now: Instant): Promise<boolean> {
+  const sync = await repository.db.runTransaction(tx => tx.get(repository.db.doc(`devices/${identity.deviceId}/sync/current`)));
+  const at = sync.data()?.serverReceivedAt;
+  return typeof at !== 'string' || Date.parse(now) - Date.parse(at) > OFFLINE_AFTER_MS;
+}
+
 export {duration};
 const shortDate = (date: string): string => `${date.slice(8, 10)}.${date.slice(5, 7)}`;
 const weekday = (date: string): string => WEEKDAYS[new Date(`${date}T00:00:00.000Z`).getUTCDay()]!;

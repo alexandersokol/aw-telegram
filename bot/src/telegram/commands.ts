@@ -2,9 +2,10 @@
 import {BoundaryError,FirestoreRepository,type ParentIdentity} from '../repository.js';
 import type {Instant} from '../contracts.js';
 import {isEndtimeLocalTime,kyivDate} from '../clock.js';
-import type {CallbackGuard,SettingsChange,SettingsService} from '../settings.js';
+import type {CallbackGuard,SettingsChange,SettingsService,SettingsUpdateResult} from '../settings.js';
 import {transitionEndtimeMenu,encodeCallback,decodeCallback,inputFor,type EndtimeMenuState,type MenuInput,type CallbackAction} from './menus.js';
 import {MenuSessions,type MenuSession} from './sessions.js';
+import {laptopOffline} from './reports.js';
 import {LABELS,STALE_MENU,TIME_FORMAT,ENDTIME_USAGE,ENTER_TIME,CANCELED,endtimeStatus,endtimeSaved,endtimeReview,type Button,type Reply} from './uk.js';
 
 export type EndtimeCommand = {kind: 'status' | 'on' | 'off'} | {kind: 'set'; localTime: string} | {kind: 'invalid'; reason: 'time' | 'usage'};
@@ -27,7 +28,7 @@ const unauthorized = (error: unknown): boolean => error instanceof BoundaryError
 
 export class EndtimeController {
   private readonly sessions: MenuSessions;
-  constructor(repository: FirestoreRepository, private readonly settings: SettingsService, private readonly clock: () => Instant = () => new Date().toISOString()) {
+  constructor(private readonly repository: FirestoreRepository, private readonly settings: SettingsService, private readonly clock: () => Instant = () => new Date().toISOString()) {
     this.sessions = new MenuSessions(repository, clock);
   }
 
@@ -38,8 +39,7 @@ export class EndtimeController {
     if (command.kind === 'status') return this.openMenu(identity);
     const change: SettingsChange = command.kind === 'set' ? {kind: 'setEndtime', localTime: command.localTime} :
       {kind: 'setEndtimeEnabled', enabled: command.kind === 'on'};
-    const result = await this.settings.updateSettings(identity, change, `tg:${updateId}`);
-    return {text: endtimeSaved(result.settings, result.acknowledgedRevision, result.changed !== false), buttons: []};
+    return {text: await this.saved(identity, await this.settings.updateSettings(identity, change, `tg:${updateId}`)), buttons: []};
   }
 
   /** Status view; opening it again invalidates earlier Endtime buttons. */
@@ -77,12 +77,17 @@ export class EndtimeController {
     if (result.change) {
       // The session version names the operation: duplicate taps replay it, and a moved session is rejected.
       const saved = await this.settings.updateSettings(identity, result.change, `menu:${session.nonce}:${session.version}`, session);
-      prefix = endtimeSaved(saved.settings, saved.acknowledgedRevision, saved.changed !== false);
+      prefix = await this.saved(identity, saved);
     } else if (result.notice === 'canceled') prefix = CANCELED;
     const guard = await this.sessions.advance(identity, session, 'endtime', result.state);
     if (!result.state) return {text: '', buttons: [], navigate: 'settings'};
     if (result.error === 'time') return {text: TIME_FORMAT, buttons: [[this.button(guard, 'cancel')]]};
     return this.render(identity, guard, result.state, prefix);
+  }
+
+  private async saved(identity: ParentIdentity, result: SettingsUpdateResult): Promise<string> {
+    const changed = result.changed !== false;
+    return endtimeSaved(result.settings, changed, changed && await laptopOffline(this.repository, identity, this.clock()));
   }
 
   private button(guard: CallbackGuard, action: CallbackAction): Button {

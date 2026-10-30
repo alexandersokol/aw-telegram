@@ -4,7 +4,8 @@ import type {Instant} from '../contracts.js';
 import type {ActionService} from '../actions.js';
 import type {CallbackGuard} from '../settings.js';
 import {MenuSessions,type MenuSession} from './sessions.js';
-import {LABELS,LIMIT_LABELS,STALE_CLEAR,CLEAR_USAGE,CLEAR_CHOOSE,CLEAR_ALL_CONFIRM,CLEARED_MANUAL,CLEARED_ALL,CANCELED,type Reply} from './uk.js';
+import {laptopOffline} from './reports.js';
+import {LABELS,LIMIT_LABELS,STALE_CLEAR,CLEAR_USAGE,CLEAR_CHOOSE,CLEAR_ALL_CONFIRM,CLEARED_MANUAL,CLEARED_ALL,CANCELED,savedText,type Reply} from './uk.js';
 
 /** from records where Back returns. */
 type ClearState = {step: 'choose' | 'confirmAll'; from?: 'reminders'};
@@ -15,14 +16,14 @@ const plain = (text: string): Reply => ({text, buttons: []});
 
 export class ClearController {
   private readonly sessions: MenuSessions;
-  constructor(repository: FirestoreRepository, private readonly actions: ActionService, clock: () => Instant) {
+  constructor(private readonly repository: FirestoreRepository, private readonly actions: ActionService, private readonly clock: () => Instant) {
     this.sessions = new MenuSessions(repository, clock);
   }
 
   async command(identity: ParentIdentity, args: string, updateId: number): Promise<Reply> {
     if (args === 'manual') {
       await this.actions.clearActions(identity, 'manual', `tg:${updateId}`);
-      return plain(CLEARED_MANUAL);
+      return this.saved(identity, CLEARED_MANUAL);
     }
     if (args === 'all' || !args) return this.open(identity, {step: args ? 'confirmAll' : 'choose'});
     return plain(CLEAR_USAGE);
@@ -52,7 +53,7 @@ export class ClearController {
       case 'choose:manual':
         await this.actions.clearActions(identity, 'manual', operation, session);
         await this.sessions.advance(identity, session, 'clear', null);
-        return plain(CLEARED_MANUAL);
+        return this.saved(identity, CLEARED_MANUAL);
       case 'choose:all': {
         const next: ClearState = {...session.state, step: 'confirmAll'};
         return this.render(await this.sessions.advance(identity, session, 'clear', next), next);
@@ -63,12 +64,16 @@ export class ClearController {
       case 'confirmAll:confirm':
         await this.actions.clearActions(identity, 'all', operation, session);
         await this.sessions.advance(identity, session, 'clear', null);
-        return plain(CLEARED_ALL);
+        return this.saved(identity, CLEARED_ALL);
       case 'confirmAll:cancel':
         await this.sessions.advance(identity, session, 'clear', null);
         return plain(CANCELED);
     }
     return stale();
+  }
+
+  private async saved(identity: ParentIdentity, description: string): Promise<Reply> {
+    return plain(savedText(description, await laptopOffline(this.repository, identity, this.clock())));
   }
 
   private render(guard: CallbackGuard, state: ClearState): Reply {

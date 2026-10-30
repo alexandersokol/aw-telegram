@@ -11,7 +11,7 @@ import {effectiveLimitMs} from '../alerts.js';
 import {categoryLabel,duration,selectionLabel} from '../format.js';
 import type {CallbackGuard,SettingsChange,SettingsService,SettingsUpdateResult} from '../settings.js';
 import {MenuSessions,type MenuSession} from './sessions.js';
-import {loadReport,type ReportData} from './reports.js';
+import {loadReport,laptopOffline,type ReportData} from './reports.js';
 import {LABELS,LIMIT_LABELS,REVIEW,STALE_LIMIT,LIMIT_USAGE,DURATION_FORMAT,FREE_USAGE,ADD_CATEGORY_USAGE,REMOVE_CATEGORY_USAGE,
   ENTER_TODAY_LIMIT,ENTER_DAILY_LIMIT,NO_CATALOG,PICK_ADD,PICK_REMOVE,NOTHING_TO_ADD,NOTHING_TO_REMOVE,FREE_STILL_ON,CANCELED,savedText,
   type Button,type Reply} from './uk.js';
@@ -79,23 +79,23 @@ function review(intent: Intent): string {
   }
 }
 
-/** The issuer's confirmation: saved state, or an explicit no-op, with companion acknowledgement. */
-function outcome(intent: Intent, result: SettingsUpdateResult, today: string): string {
+/** The issuer's confirmation: saved state, or an explicit no-op. */
+function outcome(intent: Intent, result: SettingsUpdateResult, today: string, offline: boolean): string {
   const s = result.settings, changed = result.changed !== false;
   switch (intent.kind) {
     case 'setTodayLimit':
-      return changed ? savedText(`ліміт на сьогодні ${duration(intent.ms)}.`, s, result.acknowledgedRevision) : `Без змін: ліміт на сьогодні вже ${duration(intent.ms)}.`;
+      return changed ? savedText(`ліміт на сьогодні ${duration(intent.ms)}.`, offline) : `Без змін: ліміт на сьогодні вже ${duration(intent.ms)}.`;
     case 'setDefaultLimit':
-      return changed ? savedText(`щоденний ліміт ${duration(intent.ms)}.`, s, result.acknowledgedRevision) : `Без змін: щоденний ліміт уже ${duration(intent.ms)}.`;
+      return changed ? savedText(`щоденний ліміт ${duration(intent.ms)}.`, offline) : `Без змін: щоденний ліміт уже ${duration(intent.ms)}.`;
     case 'setFreeUse':
       if (!changed) return `Без змін: вільний режим уже ${intent.enabled ? 'увімкнено' : 'вимкнено'}.`;
-      return savedText(intent.enabled ? 'вільний режим увімкнено до опівночі.' : 'вільний режим вимкнено.', s, result.acknowledgedRevision);
+      return savedText(intent.enabled ? 'вільний режим увімкнено до опівночі.' : 'вільний режим вимкнено.', offline);
     case 'setSuppression':
       if (!changed) return 'Без змін: автоматичні нагадування не вимкнено.';
-      return savedText('автоматичні нагадування відновлено.', s, result.acknowledgedRevision, s.freeUseDate === today ? FREE_STILL_ON : undefined);
+      return savedText('автоматичні нагадування відновлено.', offline, s.freeUseDate === today ? FREE_STILL_ON : undefined);
     default:
       if (!changed) return `Без змін: «${categoryLabel(pathOf(intent.pick))}» ${intent.kind === 'addCategory' ? 'уже враховується' : 'не враховується'}.`;
-      return savedText(`категорії для обліку — ${selectionLabel(s.selectedPaths, s.selectedUncategorized)}.`, s, result.acknowledgedRevision);
+      return savedText(`категорії для обліку — ${selectionLabel(s.selectedPaths, s.selectedUncategorized)}.`, offline);
   }
 }
 
@@ -153,8 +153,8 @@ export class AllowanceController {
   }
 
   private async apply(identity: ParentIdentity, intent: Intent, operationId: string, guard?: CallbackGuard): Promise<string> {
-    const result = await this.settings.updateSettings(identity, changeOf(intent), operationId, guard);
-    return outcome(intent, result, kyivDate(this.clock()));
+    const result = await this.settings.updateSettings(identity, changeOf(intent), operationId, guard), now = this.clock();
+    return outcome(intent, result, kyivDate(now), result.changed !== false && await laptopOffline(this.repository, identity, now));
   }
 
   async callback(identity: ParentIdentity, data: unknown): Promise<Reply> {

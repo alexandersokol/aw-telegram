@@ -18,6 +18,7 @@ const labels=(reply:Reply)=>reply.buttons.map(row=>row.map(b=>b.text));
 const events=(s:S,kind?:string)=>[...s.db.data].filter(([k,v])=>k.startsWith('events/')&&(!kind||v.kind===kind)).map(([,v])=>v);
 const stored=(s:S)=>s.db.data.get(root+'/settings/current');
 const STALE='Це меню застаріло. Відкрийте /endtime знову.';
+const OFFLINE='Ноутбук зараз не на зв’язку — застосується, коли він увімкнеться.';
 const TIME_ERROR='Вкажіть час у форматі ГГ:ХХ від 00:15 до 23:59, наприклад 21:00.';
 
 describe('/endtime commands',()=>{
@@ -31,10 +32,10 @@ describe('/endtime commands',()=>{
   });
   it('set enables, off and on keep the saved time, and duplicate updates are harmless',async()=>{
     const s=await setup();
-    expect((await s.bot.command(parent(),'/endtime set 21:30',10)).text).toBe('Збережено: час завершення увімкнено, 21:30.\nНоутбук: очікує застосування.');
+    expect((await s.bot.command(parent(),'/endtime set 21:30',10)).text).toBe('Збережено: час завершення увімкнено, 21:30.\n'+OFFLINE);
     expect((await s.bot.command(parent(),'/endtime set 21:30',10)).text).toContain('Збережено');
     expect(stored(s)).toMatchObject({revision:1,endtimeEnabled:true,endtimeLocalTime:'21:30'});
-    expect((await s.bot.command(parent(),'/endtime off',11)).text).toBe('Збережено: час завершення вимкнено (збережений час 21:30).\nНоутбук: очікує застосування.');
+    expect((await s.bot.command(parent(),'/endtime off',11)).text).toBe('Збережено: час завершення вимкнено (збережений час 21:30).\n'+OFFLINE);
     expect(stored(s)).toMatchObject({endtimeEnabled:false,endtimeLocalTime:'21:30'});
     await s.bot.command(parent(),'/endtime on',12);expect(stored(s)).toMatchObject({revision:3,endtimeEnabled:true,endtimeLocalTime:'21:30'});
     expect((await s.bot.command(parent(),'/endtime on',13)).text).toBe('Без змін: час завершення вже увімкнено, 21:30.');
@@ -53,6 +54,15 @@ describe('/endtime commands',()=>{
   it('explains usage for unknown arguments',async()=>{
     const s=await setup();
     expect((await s.bot.command(parent(),'/endtime later',31)).text).toBe('Використання: /endtime, /endtime status, /endtime set ГГ:ХХ, /endtime on, /endtime off.');
+  });
+  it('says only what was saved, adding the offline line when the last sync is absent or over 2 minutes old',async()=>{
+    const s=await setup(),saved='Збережено: час завершення увімкнено, 21:00.';
+    await s.api.syncDevice(identity,request());
+    expect((await s.bot.command(parent(),'/endtime set 21:00',50)).text).toBe(saved);
+    s.advance(120000);await s.bot.command(parent(),'/endtime off',51);
+    expect((await s.bot.command(parent(),'/endtime set 21:00',52)).text).toBe(saved);
+    s.advance(1);await s.bot.command(parent(),'/endtime off',53);
+    expect((await s.bot.command(parent(),'/endtime set 21:00',54)).text).toBe(saved+'\n'+OFFLINE);
   });
   it('shows suppression and companion acknowledgement in status',async()=>{
     const s=await setup();await s.bot.command(parent(),'/endtime set 21:00',40);
@@ -75,7 +85,7 @@ describe('Endtime menu',()=>{
     expect(labels(review)).toEqual([['Підтвердити'],['Скасувати'],['← Назад']]);
     expect(stored(s).revision).toBe(0);
     const done=await press(s,review,'Підтвердити');
-    expect(done.text.startsWith('Збережено: час завершення увімкнено, 21:45.\nНоутбук: очікує застосування.\n\n🌙 Час завершення')).toBe(true);
+    expect(done.text.startsWith('Збережено: час завершення увімкнено, 21:45.\n'+OFFLINE+'\n\n🌙 Час завершення')).toBe(true);
     expect(labels(done)[0]).toEqual(['Вимкнути']);
     expect(stored(s)).toMatchObject({revision:1,endtimeEnabled:true,endtimeLocalTime:'21:45'});
   });
