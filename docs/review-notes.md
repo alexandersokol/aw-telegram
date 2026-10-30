@@ -241,3 +241,41 @@ the alert state.
 
 **Wanted.** Sync every 30 s, skip unchanged writes and unneeded reads, and measure the result.
 The target is about 4,000 writes and 20,000 reads a day per laptop.
+
+## 8. Cloud hardening found at the first deploy
+
+- **Status:** designed (here). The steps are owner-run gcloud commands, then a redeploy.
+- **Found:** 2026-10-30, first deployment (proposal C of the review session).
+- **Area:** the Google Cloud project `aw-telegram`, setup.md and operations.md.
+
+**What happens.**
+- Cloud Build builds the functions as the default compute account,
+  `1094377867688-compute@developer.gserviceaccount.com`. That account holds project
+  `roles/editor` by Google default. Nothing else uses it, because both functions run as
+  `aw-backend`.
+- The Firebase CLI enabled the Firebase Extensions API during the first deploy, and nothing
+  uses it.
+
+**Wanted.** Function builds run with only the roles they need, and the unused API is off.
+
+**Steps.**
+1. Check whether Firebase CLI 15.34.1 can deploy with a dedicated build service account (Cloud
+   Functions gen2 `buildServiceAccount`).
+   - **If it can:** create `aw-build@aw-telegram.iam.gserviceaccount.com` with
+     `roles/cloudbuild.builds.builder` and `roles/artifactregistry.writer`, plus
+     `roles/logging.logWriter`. Add read access to the source bucket if the builder role doesn't
+     include it. Point the deploy at it.
+   - **If it can't:** keep the default compute account as the builder, but replace its project
+     `roles/editor` with exactly those roles.
+2. Remove `roles/editor` from the default compute account. Do this only after confirming no
+   other resource runs as it: list Cloud Run services, functions and scheduler jobs with their
+   identities.
+3. Redeploy the functions once, unchanged, to prove builds still work. Then make one `/status`
+   request and check the request logs.
+4. Disable the API: `gcloud services disable firebaseextensions.googleapis.com
+   --project=aw-telegram`. Do this only if no extension is installed:
+   `firebase ext:list --project aw-telegram` must show none.
+5. Record the result in setup.md (service accounts table) and operations.md (deploying).
+
+**Rollback.** Grant `roles/editor` back to the default compute account and re-enable the API.
+Neither affects the running functions.
