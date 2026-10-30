@@ -1,7 +1,7 @@
 /** Owner webhook administration (scripts/webhook.ts). The bot token and webhook secret come from Secret Manager
  * with the owner's credentials; neither appears in arguments, environment, output or errors. */
 import type { HttpTransport } from './outbox.js';
-import { COMMANDS } from './telegram/uk.js';
+import { text } from './telegram/i18n/index.js';
 
 const UPDATES = ['message', 'callback_query'];
 
@@ -25,7 +25,8 @@ export class WebhookAdmin {
     }
 
     /** One connection serializes redeliveries of an update; only message and callback updates are sent. The command
-     * menu is registered alongside; the runtime never changes it. */
+     * menu is registered alongside, English by default and Ukrainian for Telegram apps set to Ukrainian (Telegram picks
+     * by the app language, which may differ from the language chosen in the bot); the runtime never changes it. */
     async set(url: string): Promise<string> {
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:' || parsed.pathname !== '/telegram/webhook' || parsed.search || parsed.hash || parsed.username || parsed.password)
@@ -35,7 +36,8 @@ export class WebhookAdmin {
             throw new Error('Secret TELEGRAM_WEBHOOK_SECRET has an invalid format');  // the runtime refuses it too
         await this.call('setWebhook', { url: parsed.toString(), secret_token: secret,
             allowed_updates: UPDATES, max_connections: 1, drop_pending_updates: false });
-        await this.call('setMyCommands', { commands: COMMANDS });
+        await this.call('setMyCommands', { commands: text('en').COMMANDS });
+        await this.call('setMyCommands', { commands: text('uk').COMMANDS, language_code: 'uk' });
         return 'Webhook and command menu set';
     }
 
@@ -43,8 +45,10 @@ export class WebhookAdmin {
         const r = await this.call('getWebhookInfo', {});
         const lines = [`url: ${r.url || '(none)'}`, `pending updates: ${r.pending_update_count ?? 0}`,
             `max connections: ${r.max_connections ?? '-'}`, `allowed updates: ${(r.allowed_updates ?? []).join(', ') || '(all)'}`];
-        const commands: { command: string; description: string }[] = await this.call('getMyCommands', {});
-        lines.push(`commands: ${commands.map(c => `/${c.command} — ${c.description}`).join(', ') || '(none)'}`);
+        for (const [label, payload] of [['commands', {}], ['commands (uk)', { language_code: 'uk' }]] as const) {
+            const commands: { command: string; description: string }[] = await this.call('getMyCommands', payload);
+            lines.push(`${label}: ${commands.map(c => `/${c.command} — ${c.description}`).join(', ') || '(none)'}`);
+        }
         if (r.last_error_date)
             lines.push(`last error: ${new Date(r.last_error_date * 1000).toISOString()} ${String(r.last_error_message ?? '').slice(0, 200)}`);
         return lines.join('\n');

@@ -56,25 +56,35 @@ it('refuses a webhook secret the runtime would reject, before calling Telegram',
   expect(net.calls).toEqual([]);
 });
 
-const COMMANDS=[
+const EN=[
+  {command:'start',description:'main menu'},{command:'status',description:'laptop status'},
+  {command:'usage',description:'usage'},{command:'limit',description:'time limit'},
+  {command:'pending',description:'active reminders'},{command:'clear',description:'clear reminders'},
+  {command:'settings',description:'settings'},{command:'help',description:'all commands'},
+];
+const UK=[
   {command:'start',description:'головне меню'},{command:'status',description:'стан ноутбука'},
   {command:'usage',description:'використання'},{command:'limit',description:'ліміт часу'},
   {command:'pending',description:'активні нагадування'},{command:'clear',description:'очистити нагадування'},
   {command:'settings',description:'налаштування'},{command:'help',description:'усі команди'},
 ];
 
-it('registers exactly the eight core commands with the webhook, in the default scope and language',async()=>{
+it('registers the eight core commands in English by default and in Ukrainian for language_code uk',async()=>{
   const net=http(()=>({status:200,body:{ok:true,result:true}}));
   await new WebhookAdmin(async name=>name==='TELEGRAM_BOT_TOKEN'?TOKEN:SECRET,net.transport).set('https://x.example/telegram/webhook');
-  expect(net.calls.map(c=>c.url.split('/').at(-1))).toEqual(['setWebhook','setMyCommands']);
-  expect(JSON.parse(net.calls[1].init.body)).toEqual({commands:COMMANDS});
+  expect(net.calls.map(c=>c.url.split('/').at(-1))).toEqual(['setWebhook','setMyCommands','setMyCommands']);
+  expect(JSON.parse(net.calls[1].init.body)).toEqual({commands:EN});
+  expect(JSON.parse(net.calls[2].init.body)).toEqual({commands:UK,language_code:'uk'});
 });
 
-it('shows the registered commands in info and leaves them in place on remove',async()=>{
-  const net=http(url=>({status:200,body:{ok:true,result:url.endsWith('getMyCommands')?COMMANDS:url.endsWith('getWebhookInfo')?{url:''}:true}}));
+it('shows both registered menus in info and leaves them in place on remove',async()=>{
+  const net=http((url,init)=>({status:200,body:{ok:true,result:url.endsWith('getMyCommands')?(JSON.parse(init.body).language_code==='uk'?UK:EN):
+    url.endsWith('getWebhookInfo')?{url:''}:true}}));
   const admin=new WebhookAdmin(async()=>TOKEN,net.transport);
   const summary=await admin.info();
-  expect(summary).toContain('commands: /start — головне меню, /status — стан ноутбука, /usage — використання, /limit — ліміт часу, '+
+  expect(summary).toContain('commands: /start — main menu, /status — laptop status, /usage — usage, /limit — time limit, '+
+    '/pending — active reminders, /clear — clear reminders, /settings — settings, /help — all commands');
+  expect(summary).toContain('commands (uk): /start — головне меню, /status — стан ноутбука, /usage — використання, /limit — ліміт часу, '+
     '/pending — активні нагадування, /clear — очистити нагадування, /settings — налаштування, /help — усі команди');
   net.calls.length=0;await admin.remove();
   expect(net.calls.map(c=>c.url.split('/').at(-1))).toEqual(['deleteWebhook']);
