@@ -48,6 +48,26 @@ it('enrolls, pairs two caregivers, reports usage and carries a limit change to t
   expect(mama!.last()).toMatch(/немає зв’язку/);  // the laptop went quiet: the report says so
 });
 
+it('tells only the author, once, that the laptop applied a limit change (UX-02, UX-03)',async()=>{
+  const w=world();
+  const {laptop,people:[mama,tato]}=await paired(w);
+  await mama!.say('/limit 2h today');
+  const saved=mama!.inbox().at(-1)!;
+  expect(saved.text).toBe('Збережено: ліміт на сьогодні 2 год 00 хв.');  // the laptop synced moments ago: no offline line
+  expect(saved.buttons).toEqual([[{text:'🏠 Головне меню',data:'nv:home'}]]);
+  const response=await laptop.sync();
+  expect(response.settings.todayOverride).toMatchObject({limitMs:2*HOUR});
+  await laptop.sync({acks:[{id:'00000000-0000-4000-9000-0000000000aa',kind:'settings',revision:response.settings.revision,appliedAt:w.clock()}]});
+  await laptop.sync();  // nothing more to tell
+  await w.runTasks();
+  const applied=(person:typeof mama)=>person!.inbox().filter(m=>m.text.startsWith('✅ Ноутбук застосував'));
+  expect(applied(mama).map(m=>[m.text,m.via,m.buttons])).toEqual([['✅ Ноутбук застосував: ліміт на сьогодні 2 год 00 хв.','outbox',undefined]]);
+  expect(applied(tato)).toEqual([]);
+  expect(tato!.inbox().filter(m=>m.via==='outbox').map(m=>m.text)).toEqual(['Налаштування змінив(-ла) «Батько 1». Ліміт на сьогодні 2 год 00 хв.']);
+  await mama!.tap('Головне меню');
+  expect(mama!.last()).toBe('Головне меню');
+});
+
 const uuid=(n:number)=>`00000000-0000-4000-9000-${String(n).padStart(12,'0')}`;
 const receipt=(n:number,action:any,status:string,at:string,acceptedAt:string,extra:any={})=>({id:uuid(n),kind:'action',actionId:action.id,
   eventSequence:1,occurrence:0,status,at,acceptedAt,presentedAt:null,reason:null,...extra});
