@@ -55,6 +55,9 @@ export class DeviceApi {
     try {request=validateContract('sync-request',input);if(wireBytes(request).length>MAX_BODY_BYTES) throw new Error();}
     catch {throw new BoundaryError('Invalid sync request');}
     const now=this.clock();parseInstant(now);
+    // The laptop's clock offset as this request shows it (health is observed shortly before a sync): kept on
+    // sync/current and logged with any refusal (operations.md, troubleshooting).
+    const clockSkewMs=Date.parse(request.health.observedAt)-Date.parse(now);
     const committed=await this.repository.db.runTransaction(async tx=>{
       // Authorization resolved by the router is rechecked against the same mutation snapshot.
       const device=await this.repository.requireDevice(tx,identity);
@@ -140,7 +143,7 @@ export class DeviceApi {
       const health=seenHealth&&(unstamped(request.health)!==unstamped(storedHealth?.value)||
         Date.parse(request.health.observedAt)-Date.parse(storedHealth!.value.observedAt)>=HEALTH_REFRESH_MS)?{sequence:request.sequence,value:request.health}:null;
       if(request.sequence>next.maxRequestSequence) {
-        next.maxRequestSequence=request.sequence;next.serverReceivedAt=now;
+        next.maxRequestSequence=request.sequence;next.serverReceivedAt=now;next.clockSkewMs=clockSkewMs;
       }
       const response=boundedResponse({schemaVersion:2,requestSequence:request.sequence,serverNow:now,
         collectionStartedAt:startedAt,activeCaregivers:device.activeParentIds.length,settings,cancellations,deliveryOffers:[],summaryReceipts,
@@ -197,6 +200,9 @@ export class DeviceApi {
       if(health) tx.set(healthRef,health);
       tx.set(syncRef,next);
       return response;
+    }).catch(error=>{
+      throw error instanceof BoundaryError&&!error.detail?new BoundaryError(error.message,error.status,error.retryAfter,
+        {reason:error.message,skewMs:clockSkewMs}):error;
     });
     // Domain changes have committed; queue failures remain repairable on the next sync or sweep.
     if(this.repair)try{await this.repair();}catch{/* Deliberately omit provider details. */}

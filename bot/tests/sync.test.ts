@@ -465,7 +465,7 @@ describe('laptop clock skew',()=>{
     now=later;const ahead=off(4*60000,later);
     const ack={id:'00000000-0000-4000-8000-000000000098',kind:'settings' as const,revision:0,appliedAt:ahead};
     await api.syncDevice(identity,{...request(2),acks:[ack],health:health(ahead),live:live(ahead),summaries:[{...sourceDay(2),availableThrough:ahead}]});
-    expect(db.data.get(root+'/sync/current')).toMatchObject({settingsAckRevision:0,serverReceivedAt:later,
+    expect(db.data.get(root+'/sync/current')).toMatchObject({settingsAckRevision:0,serverReceivedAt:later,clockSkewMs:4*60000,
       observed:{live:{sequence:2,observedAt:later},health:{sequence:2,observedAt:later}}});
     // The source stays as sent (its digest is its identity); reports and alerts show coverage only up to server time.
     const stored=db.data.get(root+'/days/2026-10-28');
@@ -480,8 +480,9 @@ describe('laptop clock skew',()=>{
       [{live:live(six)},'live observation outside collection/current time'],
       [{summaries:[{...sourceDay(),availableThrough:six}]},'coverage outside collection/current time']] as const)
       await expect(api.syncDevice(identity,{...request(),...body})).rejects.toMatchObject({message:'Invalid activity context',status:400,detail:{reason,skewMs:6*60000}});
-    await expect(api.syncDevice(identity,{...request(),acks:[{id:'00000000-0000-4000-8000-000000000098',kind:'settings',revision:0,appliedAt:six}]}))
-      .rejects.toThrow('Invalid receipt');
+    // A receipt refusal logs the clock offset of the same request's health.
+    await expect(api.syncDevice(identity,{...request(),health:minimalHealth(off(2*60000)),acks:[{id:'00000000-0000-4000-8000-000000000098',kind:'settings',revision:0,appliedAt:six}]}))
+      .rejects.toMatchObject({message:'Invalid receipt',detail:{reason:'Invalid receipt',skewMs:2*60000}});
     expect(db.data).toEqual(before);
   });
   it('accepts a laptop 4 min behind just after pairing and clamps live to collection start',async()=>{
@@ -509,7 +510,8 @@ describe('laptop clock skew',()=>{
     const endtime=(id:string,presentedAt:string)=>({id,kind:'endtime' as const,date:'2026-10-28',settingsRevision:1,endtimeGeneration:1,
       endtimeLocalTime:'14:01',presentedAt});
     const before=structuredClone(db.data);
-    await expect(api.syncDevice(identity,{...request(2),acks:[accepted('00000000-0000-4000-8000-0000000000a1',off(6*60000))]})).rejects.toThrow('Invalid receipt time');
+    await expect(api.syncDevice(identity,{...request(2),acks:[accepted('00000000-0000-4000-8000-0000000000a1',off(6*60000))]}))
+      .rejects.toMatchObject({message:'Invalid receipt time',detail:{reason:'Invalid receipt time',skewMs:0}});
     await expect(api.syncDevice(identity,{...request(2),acks:[endtime('00000000-0000-4000-8000-0000000000e1',off(6*60000))]})).rejects.toThrow('Invalid endtime receipt');
     expect(db.data).toEqual(before);
     const acks=[accepted('00000000-0000-4000-8000-0000000000a2',off(2*60000)),endtime('00000000-0000-4000-8000-0000000000e2',off(90000))];

@@ -267,7 +267,7 @@ describe('sync Firestore transactions',()=>{
     expect(ops).toEqual({reads:14,writes:4});  // the summary sync's 14 reads; day, live, health and sync/current written
     expect((await db.doc(path('health/current')).get()).data()).toEqual({sequence:1,value:{...health,observedAt:NOW,lastSuccessAt:NOW}});
     expect((await db.doc(path('live/current')).get()).data()).toEqual({sequence:1,value:{...live,observedAt:NOW}});
-    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({serverReceivedAt:NOW,
+    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({serverReceivedAt:NOW,clockSkewMs:2*60000,
       observed:{health:{sequence:1,observedAt:NOW},live:{sequence:1,observedAt:NOW}}});
     expect((await db.doc(path('days/2026-10-28')).get()).data()?.source.availableThrough).toBe(ahead);
   });
