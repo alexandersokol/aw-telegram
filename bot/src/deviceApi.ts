@@ -69,9 +69,11 @@ export class DeviceApi {
       const startedAt=device.collectionStartedAt===null?null:new Date(device.collectionStartedAt).toISOString();
       // Laptop input outside its pairing/clock context is a refused request (400), not a server failure.
       try {validateActivityContext(request,startedAt,now);} catch {throw new BoundaryError('Invalid activity context');}
-      // Days, alert state, action controls and parents are read only by syncs that use them.
+      // Days, alert state, action controls and parents are read only by syncs that use them. Only the summarized
+      // dates are read; the daily sweep deletes days outside the retained dates (cleanup.ts).
       const quiet=!request.acks.length&&!request.summaries?.length;
-      const dayDocs=request.summaries?.length?(await tx.get(root.collection('days'))).docs:[];
+      const dayRefs=[...new Set((request.summaries??[]).map(s=>s.date))].map(date=>root.collection('days').doc(date));
+      const dayDocs=dayRefs.length?(await tx.getAll(...dayRefs)).filter(doc=>doc.exists):[];
       const receiptRefs=request.acks.map(a=>root.collection('receipts').doc(a.id));
       const receiptDocs=receiptRefs.length?await tx.getAll(...receiptRefs):[];
       const current=syncDoc!.data()??{settingsAckRevision:null,cancellationAckRevision:0,cancellationAckFence:0,maxRequestSequence:0};
@@ -164,13 +166,10 @@ export class DeviceApi {
         }
       }
       boundedResponse(response);
-      // Physical cleanup is optional; it cannot displace controls, accepted receipts or source writes.
-      const cleanup=dayDocs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
       // All reads, validation and response capacity checks precede any protected write.
       if(migrateSettings)tx.set(settingsRef,encodeSettings(settings));
       applyPlan(tx,[...actionWrites,...alertWrites,...endtimeWrites.values()]);
       for(const write of dayWrites) tx.set(write.ref,write.value);
-      for(const doc of cleanup) tx.delete(doc.ref);
       const acknowledgedIds=new Set(response.acknowledgedAckIds);
       for(let i=0;i<request.acks.length;i++) if(!receiptDocs[i]!.exists&&acknowledgedIds.has(request.acks[i]!.id))
         tx.set(receiptRefs[i]!,{digest:digest(canonical(request.acks[i])),receivedAt:now});

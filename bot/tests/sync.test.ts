@@ -8,6 +8,7 @@ import {ActionService,operationRef} from '../src/actions.js';
 import {draft} from './delivery-fixture.js';
 import {applySettingsChange,SettingsService,type SettingsChange} from '../src/settings.js';
 import {loadReport,renderStatus} from '../src/telegram/reports.js';
+import {cleanup} from '../src/cleanup.js';
 
 const NOW='2026-10-28T12:00:00.000Z', START='2026-10-28T10:00:00.000Z';
 const deviceId='00000000-0000-4000-8000-000000000001';
@@ -411,16 +412,19 @@ describe('sync cost',()=>{
     expect(data.live).toEqual(live(59));
     expect(renderStatus(data)).toContain('Зараз: game.exe — «Game»');
   });
-  it('reads no days, alert state, action controls or parents in an idle sync',async()=>{
-    const {api,db}=await setup();
+  it('reads no days, alert state, action controls or parents in an idle sync and only the sent dates otherwise',async()=>{
+    const {api,db,repository}=await setup();
     await api.syncDevice(identity,{...request(1),summaries:[sourceDay()]});
-    db.data.set(root+'/days/2026-10-01',{});  // outside retention: a summary sync or the cleanup job removes it
+    expect(db.data.has(root+'/alertStates/2026-10-28')).toBe(false);  // unchanged empty state is not written
+    db.data.set(root+'/days/2026-10-01',{});  // outside retention: the daily cleanup removes it
     expect(await readPaths(db,()=>api.syncDevice(identity,request(2)))).toEqual([root,
       ...['settings','cancellations','sync','live','health'].map(name=>`${root}/${name}/current`),root+'/actions']);
-    expect(db.data.has(root+'/days/2026-10-01')).toBe(true);
-    expect(await readPaths(db,()=>api.syncDevice(identity,{...request(3),summaries:[sourceDay(2,2000)]})))
-      .toEqual(expect.arrayContaining([root+'/days',root+'/alertStates/2026-10-28',root+'/policy/current',root+'/parents/1']));
-    expect(db.data.has(root+'/days/2026-10-01')).toBe(false);
+    const paths=await readPaths(db,()=>api.syncDevice(identity,{...request(3),summaries:[sourceDay(2,2000)]}));
+    expect(paths).toEqual(expect.arrayContaining([root+'/days/2026-10-28',root+'/alertStates/2026-10-28',root+'/policy/current',root+'/parents/1']));
+    expect(paths).not.toContain(root+'/days');
+    expect(db.data.get(root+'/days/2026-10-28').sequence).toBe(2);expect(db.data.has(root+'/days/2026-10-01')).toBe(true);
+    await cleanup(repository,NOW);
+    expect([db.data.has(root+'/days/2026-10-01'),db.data.has(root+'/days/2026-10-28')]).toEqual([false,true]);
   });
   it('fires limit and endtime alerts with no new usage data',async()=>{
     const {api,db,settings}=await setup();

@@ -5,6 +5,7 @@ import type { Settings } from './contracts.js';
 import { evaluateAlerts, advanceMilestone, type Measurement, type MilestoneState } from './alerts.js';
 import { planParentEvent, type PlannedWrite, type ParentEvent } from './outbox.js';
 import { kyivDate } from './clock.js';
+import { canonical } from './deviceApi.js';
 export interface AlertSnapshot {
     ref: DocumentReference;
     value: {
@@ -60,6 +61,8 @@ export async function planAlerts(repo: FirestoreRepository, tx: Transaction, dev
         events.push({ id: digest(coordination.id), deviceId, at: now, kind: 'coordination', text: coordinationText, recipients: others, ...(coordination.category && m ? { milestone: { date, hour: Math.floor(m.selectedTotalMs / 3600000) } } : {}) });
     for (const event of events)
         writes.push(...await planParentEvent(repo, tx, event));
-    writes.push({ ref: snapshot.ref, value: { ...state, date } });
+    // Unchanged state is not rewritten: a missing document reads as the same empty state.
+    if (canonical(state) !== canonical(snapshot.value))
+        writes.push({ ref: snapshot.ref, value: { ...state, date } });
     return writes;
 }

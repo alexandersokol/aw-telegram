@@ -200,14 +200,18 @@ describe('sync Firestore transactions',()=>{
   test('an idle sync costs at most 7 reads and 2 writes and a summary is still stored',async()=>{
     await api.syncDevice(identity,request(1));
     const idle=await counted(()=>api.syncDevice(identity,request(2)));
-    const summary=await counted(()=>api.syncDevice(identity,{...request(3),summaries:[day()]}));
+    const first=await counted(()=>api.syncDevice(identity,{...request(3),summaries:[day()]}));
+    // Six more stored days cost nothing: only the summarized date is read.
+    for(const date of ['2026-10-22','2026-10-23','2026-10-24','2026-10-25','2026-10-26','2026-10-27'])
+      await db.doc(path('days/'+date)).set({source:{date},sequence:1});
+    const summary=await counted(()=>api.syncDevice(identity,{...request(4),summaries:[day(2,2000)]}));
     // Idle: device, settings, cancellations, sync, live, health and the open-action query; only sync/current is written.
     expect(idle.reads).toBeLessThanOrEqual(7);expect(idle.writes).toBeLessThanOrEqual(2);expect(idle).toEqual({reads:7,writes:1});
-    // A summary adds the days query (one read per stored day, at least one), action controls, the device again, two parents and today's alert
-    // state, and writes the day, the alert state and sync/current. hosting-cost-estimate.md projects from these.
-    expect(summary).toEqual({reads:14,writes:3});
-    expect((await db.doc(path('days/2026-10-28')).get()).data()).toMatchObject({sequence:1,source:{totalActiveMs:1000}});
-    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({maxRequestSequence:3,serverReceivedAt:NOW});
+    // A summary adds its day, action controls, the device again, two parents and today's alert state, and writes the
+    // day and sync/current; the alert state is unchanged. hosting-cost-estimate.md projects from these.
+    expect(first).toEqual({reads:14,writes:2});expect(summary).toEqual({reads:14,writes:2});
+    expect((await db.doc(path('days/2026-10-28')).get()).data()).toMatchObject({sequence:2,source:{totalActiveMs:2000}});
+    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({maxRequestSequence:4,serverReceivedAt:NOW});
   });
   test('v2 HTTP route sanitizes raw requests and preserves Task4 envelope version',async()=>{
     const router=createRouter(repo),headers={authorization:`Bearer ${deviceSecret}`};

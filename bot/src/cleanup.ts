@@ -102,7 +102,7 @@ async function deviceRound(repo: FirestoreRepository, root: DocumentReference, n
         // Kyiv dates, not the UTC date of the retention start (one day earlier east of UTC).
         const alertStates = await tx.get(root.collection('alertStates').where('date', '<', retained[6]!).limit(10));
         const actions = await tx.get(root.collection('actions').where('action.createdAt', '<', cutoff).limit(2));
-        // Sync prunes days, but an inactive laptop never syncs: cleanup keeps the same seven Kyiv dates.
+        // Sync reads only the dates it is sent, so cleanup alone keeps every device to the seven Kyiv dates.
         const days = (await tx.get(root.collection('days').limit(20))).docs.filter(d => !retained.includes(d.id));
         const sessions = await tx.get(root.collection('sessions').where('expiresAt', '<', nowMs).limit(50));
         const live = await tx.get(root.collection('live').doc('current'));
