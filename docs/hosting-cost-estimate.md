@@ -47,6 +47,15 @@ Per sync after 11d, counted in the `sync` emulator suite (transaction only):
   outside the retained dates, and an unchanged alert state is not rewritten. With one
   caregiver it is 13 reads.
 
+Applied notices (Task 11e, UX-03) cost nothing on these syncs: they are read only when the
+laptop's settings or cancellation acknowledgement advances, or when an earlier sync left more
+than 50 due. An acknowledging sync costs 13 reads and 2 writes (its receipt and
+`sync/current`); when it covers a change, it adds one notice query (1 read, plus 1 per notice
+past the first), one event check per author (1 read), and per author the event, its outbox
+row and task intent (3 writes) plus one deletion per notice: 2 reads and 4 writes for one
+change by one author. Each settings change or clear writes its notice in its own transaction
+(1 write). Acknowledgements follow parent changes, so this is a few operations a day.
+
 Every sync is followed by the task-intent repair, two queries (2 reads). It stays: it is the
 frequent retry for intents whose Cloud Tasks enqueue failed and the recovery for lost
 enqueued tasks, which otherwise wait for the next Telegram update or the daily sweep. Health

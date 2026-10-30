@@ -1260,6 +1260,42 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - user-requirements.md gains UX-02 and UX-03 and updates FREE-05.
   - Backend-only deploy. The command menu is registered with `webhook.ts set` and verified in a
     live chat.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-bot-ux.md.
+  - **Menu button:** `withHome` in `TelegramBot.deliver` adds «🏠 Головне меню» (`nv:home`) to
+    the first page of every reply without buttons that is not a toast or `bare`. The pairing
+    hint for an unpaired tap and the farewell are `bare`; the pairing texts, refused-request
+    failures and the outbox never pass through `deliver`'s button path. `NavigationController`
+    opens the main menu for `nv:home` before any session lookup, so the button never goes stale.
+  - **Save replies:** «Збережено: …» only, for limits, free use, categories, restore, endtime
+    and both clears, plus the offline line when `sync/current.serverReceivedAt` is absent or
+    more than 2 minutes old (one read, `laptopOffline`). Status screens keep «Ноутбук:
+    застосовано / очікує застосування».
+  - **Applied messages:** a revision-bumping settings change writes
+    `appliedNotices/s-{revision}`, a clear `c-{revision}`, with `pairingId`, `userId`,
+    `summary` (the coordination summary as a clause), `createdAt` and the revision field its
+    kind is queried by. The sync reads them only when an acknowledgement advances or
+    `sync/current.noticesDue` says an earlier sync left more than 50; two single-field range
+    queries (`<=` acknowledged revision, `limit(50)`), merged by `createdAt`, one outbox event
+    (`kind: applied`) per author still in `activeParentIds`, notices deleted in the same
+    transaction and counted in its write budget. Cleanup deletes notices older than the
+    retention start (20 per round); purge's recursive delete covers them.
+  - **Cost:** idle and summary syncs unchanged (7 reads/1 write, 14/2). An acknowledging sync
+    is 13 reads and 2 writes; covering one change by one author adds 2 reads and 4 writes.
+    Recorded in hosting-cost-estimate.md.
+  - **Command menu:** `WebhookAdmin.set` also calls `setMyCommands` with the eight commands
+    from `COMMANDS` in `uk.ts`; `info` lists `getMyCommands`; `remove` leaves them.
+  - **Tests:** bot 376 unit (with e2e; new `notices.test.ts`, UX-02 cases in
+    `webhook.test.ts`, offline-line boundaries in `telegram.test.ts`, command menu in
+    `webhook-admin.test.ts`, e2e author-only applied message), 58 emulator in all seven suites
+    (bounded notice query and pinned counts in `sync`, notices in `cleanup` and `purge`),
+    build and bundle check; companion `test_e2e_simulated.py` against the new build.
+  - **Concern:** a home tap opens the main menu with a new menu session, as `/start` does, so a
+    different menu left open in another message goes stale (one session per caregiver). Sending
+    a reply with the button does not.
+  - **Owner-pending:**
+    - Deploy the backend (no companion or contract change).
+    - Run `webhook.ts set` once after the deploy, check `info` lists the eight commands, and
+      check the command menu, a home tap and an «✅ Ноутбук застосував: …» message in a live chat.
 
 ### 11f: English in the bot (note 4)
 

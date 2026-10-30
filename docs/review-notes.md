@@ -9,7 +9,8 @@ Status values: **open**, **designed (spec)**, **in progress**, **fixed (commit)*
 
 ## 1. No way back to the main menu after a command reply
 
-- **Status:** designed — docs/superpowers/specs/2026-10-30-bot-ux-design.md
+- **Status:** fixed (81fc865, Task 11e) — docs/superpowers/specs/2026-10-30-bot-ux-design.md;
+  deploy and live check pending
 - **Found:** 2026-10-30, live acceptance (checkpoint 10d), one caregiver account.
 - **Area:** Telegram bot, `bot/src/telegram/`.
 
@@ -71,7 +72,8 @@ subtracts `frameWidth()`, so the sizing follows automatically, because the width
 
 ## 3. Settings changes never report that the laptop applied them
 
-- **Status:** designed — docs/superpowers/specs/2026-10-30-bot-ux-design.md
+- **Status:** fixed (11ad3f0, b40be0e, Task 11e) — docs/superpowers/specs/2026-10-30-bot-ux-design.md;
+  deploy and live check pending
 - **Found:** 2026-10-30, live acceptance (checkpoint 10d).
 - **Area:** Telegram bot and backend sync, `bot/src/telegram/`, `bot/src/deviceApi.ts`.
 

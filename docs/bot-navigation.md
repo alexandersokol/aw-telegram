@@ -9,6 +9,13 @@ privacy, pairing, and delivery rules.
 
 - Private chats only; unpaired users receive pairing instructions.
 - `/start` shows the main menu after pairing.
+- A reply without buttons carries «🏠 Головне меню» (UX-02), which opens the main menu in
+  place of that message. Pop-up notices, pairing texts, the farewell after `/unpair` and
+  notifications stay without it.
+- A save reply says only what was saved («Збережено: …»), plus «Ноутбук зараз не на
+  зв’язку — застосується, коли він увімкнеться.» when the laptop has not synced for
+  2 minutes. The author learns that the laptop applied it from «✅ Ноутбук застосував: …»
+  (UX-03).
 - Each submenu provides «← Назад»; unfinished input flows provide «Скасувати».
 - Canceling an unfinished flow does not submit a laptop command.
 - Report requests stay private. Shared-laptop actions and settings changes notify

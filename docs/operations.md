@@ -55,7 +55,11 @@ rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
    --project aw-telegram --url <BACKEND_URL>/telegram/webhook`. Check it with `info`.
    It reads both secrets from Secret Manager with your ADC. It sets `secret_token`,
    `allowed_updates: message, callback_query` and `max_connections: 1`, which serializes
-   redeliveries of an update.
+   redeliveries of an update. `set` also registers Telegram's command menu
+   (`setMyCommands`, default scope, no language) with the eight core commands:
+   `/start`, `/status`, `/usage`, `/limit`, `/pending`, `/clear`, `/settings`, `/help`.
+   `info` lists the registered commands; `remove` leaves them in place. The runtime never
+   changes the menu, so run `set` again after changing the list in `bot/src/telegram/uk.ts`.
 6. Set an image cleanup policy so old function builds do not accumulate in Artifact
    Registry: `firebase functions:artifacts:setpolicy --project aw-telegram --location
    europe-central2 --days 1 --force`. Without `--location` it targets us-central1.
