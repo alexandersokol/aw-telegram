@@ -1,7 +1,7 @@
 # Cloud environment setup
 
-Recorded 2026-10-29. Owner-run setup of the hosted environment; nothing is
-deployed yet. Deploying, the webhook, rotation, deletion and rollback are in
+Recorded 2026-10-29. Owner-run setup of the hosted environment; the functions were
+first deployed on 2026-10-30. Deploying, the webhook, rotation, deletion and rollback are in
 [operations.md](operations.md). Commands run on the owner's workstation with the owner's own
 `gcloud auth login` and Application Default Credentials. No service account key
 is created or downloaded at any step.
@@ -69,8 +69,9 @@ gcloud iam service-accounts add-iam-policy-binding aw-tasks-invoker@aw-telegram.
 
 The project also has the Google-created `firebase-adminsdk-fbsvc` and default
 compute service accounts. Functions must not run as either of them. The default
-compute account holds project `roles/editor` by Google default; review reducing
-it after the first deploy confirms which identity Cloud Build uses.
+compute account holds project `roles/editor` by Google default. The first deploy
+(2026-10-30) confirmed that Cloud Build runs function builds as this default compute
+account, so reducing its role needs a dedicated build account first.
 
 ## Cloud Tasks queue
 

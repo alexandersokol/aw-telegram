@@ -1075,3 +1075,27 @@ superpowers/specs/2026-10-30-caregiver-unpair-design.md; plan:
 superpowers/plans/2026-10-30-caregiver-unpair.md. `/unpair` and a Settings button
 open a confirmation; removal shares `revokeParentTx` with «Доступ батьків».
 Bot unit 320, emulator 53.
+
+Checkpoint 10d, first deployment (2026-10-30, owner-authorized), from main 2c66e04:
+- **Pre-deploy checks:** bot unit 327, build, check:bundle, emulator 53 (7 selectors),
+  companion 435.
+- **Deployed:** Firestore indexes (10, all READY; the `telegramUpdates.expireAt` TTL
+  kept), then `api` and `sweep` in europe-central2, first with an empty `BACKEND_URL`,
+  then with `https://api-ypt64ceg6a-lm.a.run.app`. Image cleanup policy: one day. The
+  `access-ids` exclusion is on the `_Default` log sink.
+- **Verified live:**
+  - both services run as `aw-backend`;
+  - `sweep` is invokable only by `aw-backend`, and a manual Scheduler run returned 200
+    with "sweep finished";
+  - `api` limits are 2 instances, concurrency 20, 512 MiB and 60 s, with both secrets
+    bound at version 1;
+  - unauthenticated `/v2/sync`, `/telegram/webhook` and `/internal/tasks` return 401 and
+    `/v1/enroll` with an empty body returns 400;
+  - no application errors were logged.
+- **Found:** Cloud Build runs as the default compute account (project Editor). The CLI
+  also enabled the Firebase Extensions API on its own; nothing uses it.
+- **Not done yet:**
+  - the Telegram webhook;
+  - the client-IP check for enrollment throttling;
+  - cold-start latency after idle;
+  - live acceptance with two caregiver chats and the laptop.

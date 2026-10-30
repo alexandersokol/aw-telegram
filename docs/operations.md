@@ -1,8 +1,9 @@
 # Operations
 
-Owner runbook for the hosted backend. Status 2026-10-29: everything below is prepared
-and verified locally; nothing has been deployed and no Telegram message has been sent.
-Each deploy, webhook change or data deletion is an explicit owner action.
+Owner runbook for the hosted backend. Status 2026-10-30: `api` and `sweep` are deployed
+from main 2c66e04 (`BACKEND_URL=https://api-ypt64ceg6a-lm.a.run.app`). The webhook is
+not registered yet and no Telegram message has been sent. Each deploy, webhook change
+or data deletion is an explicit owner action.
 
 ## What runs
 
@@ -35,11 +36,18 @@ rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
 2. Deploy the Firestore indexes first. Task 10 added three, for message-text clearing and
    stranded-message repair, and queries fail until they are built:
    `node bot/node_modules/firebase-tools/lib/bin/firebase.js deploy --only firestore:indexes --project aw-telegram`.
+   The CLI then reports one field override missing from the file: that is the
+   `telegramUpdates.expireAt` TTL policy. Never pass `--force` here; it would delete it.
 3. First deploy, which discovers the `api` URL:
    `node bot/node_modules/firebase-tools/lib/bin/firebase.js deploy --only functions --project aw-telegram`.
-   The CLI asks for `BACKEND_URL`; leave it empty the first time. Until it is set, Cloud
-   Tasks are not created, and their intents stay pending for the next repair.
-4. Put the printed `api` origin (for example `https://api-xxxx-lm.a.run.app`) in
+   An interactive CLI asks for `BACKEND_URL`; leave it empty the first time. With
+   `--non-interactive` it refuses to prompt, so create `bot/.env.aw-telegram` holding
+   `BACKEND_URL=` first. Until it is set, Cloud Tasks are not created, and their intents
+   stay pending for the next repair. The CLI exits 1 after a successful deploy while no
+   image cleanup policy exists (step 6); check for "Successful create operation".
+4. Put the `api` Cloud Run origin (`gcloud run services describe api
+   --region=europe-central2 --format="value(status.url)"`, for example
+   `https://api-xxxx-lm.a.run.app`; the CLI prints a `cloudfunctions.net` alias) in
    `bot/.env.aw-telegram` as `BACKEND_URL=...`, using `bot/.env.example` as the model.
    The file is git-ignored. Then deploy again.
 5. Register the webhook: `node --experimental-strip-types bot/scripts/webhook.ts set
@@ -48,9 +56,11 @@ rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
    `allowed_updates: message, callback_query` and `max_connections: 1`, which serializes
    redeliveries of an update.
 6. Set an image cleanup policy so old function builds do not accumulate in Artifact
-   Registry: `firebase functions:artifacts:setpolicy --project aw-telegram`, which keeps
-   recent images only.
-7. Verify after the first deploy (these cannot be checked locally):
+   Registry: `firebase functions:artifacts:setpolicy --project aw-telegram --location
+   europe-central2 --days 1 --force`. Without `--location` it targets us-central1.
+   Rollback redeploys from source, so old images are not needed.
+7. Verify after the first deploy (these cannot be checked locally). Results of
+   2026-10-30 are in implementation-plan.md under 10d:
    - The Scheduler job for `sweep` can invoke it as `aw-backend`. The CLI normally
      grants that; check the `sweep` service's `roles/run.invoker`.
    - The client IP that enrollment throttling sees: the adapter takes the last
