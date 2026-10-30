@@ -147,3 +147,18 @@ test('a caregiver leaves exactly as the laptop removes them, and can pair again 
   await expect(repo.authorizeParent(actor('101'))).rejects.toThrow('Unauthorized');
   expect((await pair('101')).pairingId).not.toBe(p.pairingId);
 });
+test('a caregiver\'s language comes from language_code until chosen, and the choice survives revocation and pairing again (LANG-01)',async()=>{
+  const {SettingsService}=await import('../src/settings.js'),settings=new SettingsService(repo,()=>new Date(now).toISOString());
+  const first=await pair('101');
+  expect((await repo.authorizeParent({...actor('101'),languageCode:'en'})).lang).toBe('en');
+  expect((await repo.authorizeParent({...actor('101'),languageCode:'uk-UA'})).lang).toBe('uk');
+  await settings.setLanguage(await repo.authorizeParent(actor('101')),'en');
+  expect((await repo.authorizeParent({...actor('101'),languageCode:'uk'})).lang).toBe('en');
+  await repo.revokeAccess(device,`parent:101:${first.pairingId}`);
+  expect((await db.doc('telegramUsers/101').get()).data()).toMatchObject({revokedAt:now,lang:'en'});
+  const again=await pair('101');
+  expect(again.lang).toBe('en');
+  expect((await db.doc(`devices/${device.deviceId}/parents/101`).get()).data()).toMatchObject({pairingId:again.pairingId,lang:'en'});
+  expect((await repo.authorizeParent({...actor('101'),languageCode:'uk'})).lang).toBe('en');
+  expect(privateActor({message:{from:{id:101,is_bot:false,language_code:'en'},chat:{id:101,type:'private'}}})).toEqual({userId:'101',chatId:'101',languageCode:'en'});
+});

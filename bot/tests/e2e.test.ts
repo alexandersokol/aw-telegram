@@ -193,3 +193,22 @@ it('lets caregivers remove themselves; the other keeps working and the laptop pa
   await tato!.tap('Так, відключитися');
   expect((await laptop.sync()).activeCaregivers).toBe(0);
 });
+
+it('sends the next alert in English to a caregiver who switched, and in Ukrainian to the other (LANG-01)',async()=>{
+  const w=world();
+  const {laptop,people:[mama,tato]}=await paired(w);
+  w.advance(5*HOUR);
+  await laptop.sync({usageMs:0,live:true});
+  await mama!.say('/add_category Games');
+  await mama!.say('/language en');
+  expect(mama!.last()).toMatch(/^Bot language changed: English\.\n\n⚙️ Settings/);
+  await w.runTasks();
+  const before=tato!.inbox().length;
+  await laptop.sync({usageMs:3*HOUR+46*MIN,live:true});  // 14 minutes left of four hours
+  await w.runTasks();
+  expect(mama!.last()).toMatch(/^15 min or less left\. Used 226 min; measured data, as of /);
+  expect(tato!.last()).toMatch(/^Залишилося 15 хв або менше\. Використано 226 хв; виміряні дані, станом на /);
+  expect(tato!.inbox().length).toBe(before+1);  // the switch itself told nobody
+  await mama!.say('/status');
+  expect(mama!.last()).toMatch(/^💻 Laptop status\nConnection: online/);
+});
