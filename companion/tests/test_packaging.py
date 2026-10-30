@@ -1,4 +1,5 @@
 """Task 9d: bundled notices, the frozen-build self-check and uninstall."""
+import json
 import sys
 from pathlib import Path
 
@@ -48,8 +49,33 @@ def test_notices_name_python_the_bootloader_and_each_package():
 def test_self_check_reports_each_bundle_requirement(qtbot):
     from aw_telegram.main import self_check
     report = self_check()
-    assert set(report) == {"schemas", "timezone", "vault", "qt", "translations"}
+    assert set(report) == {"schemas", "timezone", "vault", "qt", "translations", "version"}
     assert report["schemas"] == report["timezone"] == report["qt"] == report["translations"] == "ok"
+
+
+def test_self_check_reports_the_version(qtbot, monkeypatch):
+    from aw_telegram import _version, main
+    monkeypatch.setattr(_version, "VERSION", "1.2.3")
+    assert main.self_check()["version"] == "1.2.3"
+
+
+def test_the_version_is_a_label_not_a_failing_check(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from aw_telegram import main
+    monkeypatch.setattr(main, "QApplication", lambda argv: SimpleNamespace(
+        setApplicationName=lambda name: None, setQuitOnLastWindowClosed=lambda on: None))
+    monkeypatch.setattr(main, "install_translations", lambda app: True)
+    monkeypatch.setattr(main, "self_check", lambda: {"schemas": "ok", "version": "1.2.3"})
+    path = tmp_path / "report.json"
+    assert main.main(["aw-telegram", "--self-check", str(path)]) == 0  # a version is not an "ok" entry
+    assert json.loads(path.read_text(encoding="utf-8")) == {"schemas": "ok", "version": "1.2.3"}
+    monkeypatch.setattr(main, "self_check", lambda: {"schemas": "FileNotFoundError", "version": "1.2.3"})
+    assert main.main(["aw-telegram", "--self-check", str(path)]) == 1
+
+
+def test_local_builds_are_the_dev_version():
+    from aw_telegram import _version
+    assert _version.VERSION == "0.0.0-dev"
 
 
 # Uninstall

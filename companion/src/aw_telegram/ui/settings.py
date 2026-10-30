@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMessageBox,
                                QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
+from .. import _version
 from ..credentials import CredentialError as VaultUnavailable
 from ..transport import EnrollmentBundle, EnrollmentError, SyncError, _secret, canonical_backend
 from ..windows.startup import set_startup, startup_enabled
@@ -174,6 +175,9 @@ class SettingsPanel(QWidget):
         box.addWidget(self.autostart_note)
         layout.addWidget(startup)
         layout.addStretch()
+        self.version_label = QLabel(f"Версія {_version.VERSION}")  # which build this laptop runs
+        self.version_label.setStyleSheet("color: gray; font-size: 11px;")
+        layout.addWidget(self.version_label)
 
     def set_state(self, binding: dict | None, config: dict) -> None:
         enrolled = binding is not None

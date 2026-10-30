@@ -10,6 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from . import _version
 from .aw_reader import AWReader, LocalAWClient
 from .runtime import CompanionRuntime, build_coordinator
 from .single_instance import SingleInstance
@@ -187,7 +188,7 @@ class CompanionApp(QObject):
 
 
 def self_check() -> dict:
-    """What a frozen build must carry: contract schemas, the Kyiv timezone, the Windows vault and Qt."""
+    """What a frozen build must carry: contract schemas, the Kyiv timezone, the Windows vault and Qt. Also names the build."""
     from .clock import endtime_at
     from .credentials import WindowsVault
     from .models import Settings
@@ -204,6 +205,7 @@ def self_check() -> dict:
             report[name] = "ok"
         except Exception as error:
             report[name] = type(error).__name__
+    report["version"] = _version.VERSION  # a label, not a check: the release job compares it with the stamped version
     return report
 
 
@@ -251,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         report = self_check()
         Path(argv[argv.index("--self-check") + 1]).write_text(json.dumps(report), encoding="utf-8")
-        return 0 if set(report.values()) == {"ok"} else 1
+        return 0 if {v for k, v in report.items() if k != "version"} == {"ok"} else 1
     if "--uninstall" in argv:
         return _uninstall(app)
     guard = SingleInstance(instance_name())

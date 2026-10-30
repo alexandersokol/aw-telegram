@@ -293,3 +293,10 @@ def test_vault_failure_during_sync_is_transient_not_a_rejection():
     with pytest.raises(SyncError) as raised:
         Transport(Vault(), identity=DeviceIdentity(DEVICE, "https://backend.example"), request=lambda *a: 1 / 0).sync(request)
     assert raised.value.retryable and raised.value.reason == "vault" and type(raised.value) is SyncError
+
+
+def test_settings_shows_the_app_version(qtbot, monkeypatch):
+    from aw_telegram import _version
+    assert panel(qtbot)[0].version_label.text() == "Версія 0.0.0-dev"
+    monkeypatch.setattr(_version, "VERSION", "1.0.7")
+    assert panel(qtbot)[0].version_label.text() == "Версія 1.0.7"
