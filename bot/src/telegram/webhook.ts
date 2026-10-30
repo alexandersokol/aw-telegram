@@ -11,11 +11,11 @@ import type {ActionService} from '../actions.js';
 import type {SettingsService} from '../settings.js';
 import {privateActor} from '../pairing.js';
 import {EndtimeController} from './commands.js';
-import {NavigationController} from './navigation.js';
+import {NavigationController,HOME} from './navigation.js';
 import {AllowanceController} from './allowance.js';
 import {ClearController} from './clear.js';
 import {RemindersController} from './reminders.js';
-import {PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
+import {HOME_LABEL,PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
   hourlySaved,ACTION_CAPACITY,DATA_CAPACITY,OPERATION_CONFLICT,TOO_MANY,REQUEST_FAILED,type Reply} from './uk.js';
 
 export interface TelegramClient {
@@ -57,6 +57,9 @@ function failureText(error: BoundaryError): string {
 }
 const command = (text: string) => /^\/([a-z_]+)(?:@[A-Za-z0-9_]{1,64})?(?:\s+([\s\S]*))?$/.exec(text.trim());
 const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
+/** UX-02: a reply without buttons offers the way back unless it is a toast or bare. Outbox messages never pass here. */
+const withHome = (reply: Reply): Reply =>
+  reply.buttons.length || reply.toast || reply.bare ? reply : {...reply, buttons: [[{text: HOME_LABEL, data: HOME}]]};
 
 export class TelegramBot {
   private readonly endtime: EndtimeController;
@@ -118,7 +121,7 @@ export class TelegramBot {
   private async onCallback(actor: PrivateActor, identity: ParentIdentity | null, callback: any): Promise<void> {
     const data = callback.data;
     let reply: Reply;
-    if (!identity) reply = {text: PAIRING, buttons: []};
+    if (!identity) reply = {text: PAIRING, buttons: [], bare: true};
     else if (typeof data === 'string' && data.startsWith('et:')) {
       reply = await this.endtime.callback(identity, data);
       if (reply.navigate === 'settings') reply = await this.navigation.openSettings(identity);
@@ -150,7 +153,8 @@ export class TelegramBot {
   }
 
   /** Edit the menu message in place when possible, then send any further report pages. */
-  private async deliver(chatId: string, reply: Reply, messageId?: unknown): Promise<void> {
+  private async deliver(chatId: string, first: Reply, messageId?: unknown): Promise<void> {
+    const reply = withHome(first);
     let edited = false;
     if (Number.isSafeInteger(messageId)) {
       try {await this.client.edit(chatId, messageId as number, reply); edited = true;} catch {/* fall back to a new message */}

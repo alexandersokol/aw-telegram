@@ -48,6 +48,8 @@ export function transitionNav(state: NavState, action: NavAction): NavResult {
   return {state, error: 'stale'};
 }
 
+/** The main-menu button on plain replies (UX-02): no session, since opening the main menu changes nothing. */
+export const HOME = 'nv:home';
 const CALLBACK = /^nv:([A-Za-z0-9_-]{1,43}):(0|[1-9][0-9]{0,15}):([a-z]+)$/;
 export const encodeNav = (guard: CallbackGuard, action: NavAction): string => `nv:${guard.nonce}:${guard.version}:${action}`;
 export function decodeNav(data: unknown): (CallbackGuard & {action: NavAction}) | null {
@@ -82,6 +84,7 @@ export class NavigationController {
   }
 
   async callback(identity: ParentIdentity, data: unknown): Promise<Reply> {
+    if (data === HOME) return this.openMain(identity);
     const parsed = decodeNav(data);
     if (!parsed) return stale();
     try {
@@ -94,7 +97,7 @@ export class NavigationController {
       // The removal deletes the menu session, so nothing is advanced afterwards.
       if (result.effect === 'leave') {
         await this.repository.leaveDevice(identity);
-        return {text: LEFT + '\n\n' + PAIRING, buttons: []};
+        return {text: LEFT + '\n\n' + PAIRING, buttons: [], bare: true};
       }
       let prefix: string | undefined;
       if (result.effect === 'hourlyOn' || result.effect === 'hourlyOff') {

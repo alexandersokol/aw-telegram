@@ -6,7 +6,9 @@ export interface Button {text: string; data: string}
 /** navigate hands over to another menu, which the webhook opens in place of this empty reply. */
 export interface Reply {text: string; buttons: Button[][]; navigate?: 'settings' | 'main' | 'limit' | 'clear' | 'reminders'; extra?: string[];
   /** On a button tap, show only as a callback toast and leave the tapped message unchanged. */
-  toast?: boolean}
+  toast?: boolean;
+  /** Never gets the main-menu button (UX-02). */
+  bare?: true}
 
 export const STALE_MENU = 'Це меню застаріло. Відкрийте /endtime знову.';
 export const TIME_FORMAT = 'Вкажіть час у форматі ГГ:ХХ від 00:15 до 23:59, наприклад 21:00.';
@@ -52,6 +54,7 @@ export const OPERATION_CONFLICT = 'Цей запит уже оброблено �
 export const TOO_MANY = 'Забагато запитів. Спробуйте пізніше.';
 export const REQUEST_FAILED = 'Не вдалося виконати запит. Перевірте введені дані й спробуйте ще раз.';
 export const MAIN_MENU = 'Головне меню';
+export const HOME_LABEL = '🏠 Головне меню';
 export const SETTINGS_MENU = '⚙️ Налаштування';
 export const HINT = 'Оберіть дію в меню: /start';
 export const UNKNOWN_COMMAND = 'Невідома команда. Список команд: /help';
