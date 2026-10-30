@@ -56,6 +56,11 @@ row and task intent (3 writes) plus one deletion per notice: 2 reads and 4 write
 change by one author. Each settings change or clear writes its notice in its own transaction
 (1 write). Acknowledgements follow parent changes, so this is a few operations a day.
 
+Per-recipient language (Task 11f) costs no Firestore operation: a chosen language is
+mirrored on the parent document that every fan-out already reads, and a notice carries its
+author's language. Choosing a language is one transaction (3 reads, 2 writes). Events grow
+by the second language's text, well inside the document size limit.
+
 Every sync is followed by the task-intent repair, two queries (2 reads). It stays: it is the
 frequent retry for intents whose Cloud Tasks enqueue failed and the recovery for lost
 enqueued tasks, which otherwise wait for the next Telegram update or the daily sweep. Health

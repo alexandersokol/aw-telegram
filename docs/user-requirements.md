@@ -297,10 +297,20 @@ These decisions supersede conflicting statements elsewhere in this draft.
 - MILESTONE-05: Hourly milestones measure combined usage of the categories
   selected for the shared daily allowance, not all laptop usage. For example,
   Games + Media share the same cumulative milestone counter as the daily limit.
-- LANG-01: All built-in bot and companion text is Ukrainian only, including
-  replies, reports, menus, button labels, default notifications, overlays,
-  countdown labels, errors, and confirmations. Remove English localization and
-  language selection from this version.
+- LANG-01: Bot text is in Ukrainian or English per Telegram user (default from the
+  Telegram app language). Laptop text is in Ukrainian or English, set on the laptop
+  (default from the Windows display language, otherwise English).
+  - Bot: a caregiver's stored choice (`/language uk|en` or «🌐 Мова» in Settings) wins;
+    without one, a Telegram `language_code` starting with `uk` or `ru` gives Ukrainian and
+    anything else, or none, English. Unpaired users get the pairing hint in that default.
+    The choice is the caregiver's own: nobody else is told, and it survives leaving and
+    pairing again. Shared messages (alerts, coordination, action statuses, "applied"
+    messages) reach each caregiver in their language; one who has never chosen gets
+    Ukrainian, as before. Telegram's command menu is English by default and Ukrainian
+    for Telegram apps set to Ukrainian, which may differ from the in-bot choice.
+  - Laptop: «Налаштування» → «Мова / Language» offers System, Українська and English
+    (Task 11g). Covered texts include replies, reports, menus, button labels, default
+    notifications, overlays, countdown labels, errors, and confirmations.
 - LANG-02: Command names remain unchanged and are not localized. Parent-authored
   messages, application names, category names, and window titles remain as entered
   or reported; no automatic translation is required.

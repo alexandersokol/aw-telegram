@@ -42,10 +42,10 @@ implementation-plan.md, 11f.
 **Files:** create `bot/src/telegram/i18n/{index,uk,en}.ts`; delete `bot/src/telegram/uk.ts` and
 `bot/src/format.ts`; test `bot/tests/i18n.test.ts`.
 
-- [ ] Test: every English and Ukrainian value (strings, nested strings, functions called with
+- [x] Test: every English and Ukrainian value (strings, nested strings, functions called with
   sample arguments) is non-empty; `languageOf` maps `uk`, `uk-UA`, `ru` to `uk`, `en`, `de`,
   missing to `en`; durations render in both languages.
-- [ ] Move every literal from controllers, reports and backend message builders into `uk`,
+- [x] Move every literal from controllers, reports and backend message builders into `uk`,
   translate into `en`; a compile-time check rejects differing parameter lists.
 
 ### Task 2: Resolving and choosing the language
@@ -53,11 +53,11 @@ implementation-plan.md, 11f.
 **Files:** `repository.ts`, `pairing.ts`, `settings.ts`, `telegram/webhook.ts`,
 `telegram/navigation.ts`; tests in `tests/language.test.ts`.
 
-- [ ] Tests: fallback from `language_code`; stored choice overrides it; unpaired users get the
+- [x] Tests: fallback from `language_code`; stored choice overrides it; unpaired users get the
   pairing hint in the fallback; `/language en|uk` and the Settings choice change only that
   caregiver, create no event, and survive `/unpair` plus re-pairing; `/language` alone shows
   the choice; `/help` lists it.
-- [ ] `privateActor` passes `languageCode`; `authorizeParent`/`authorizeCallback` resolve `lang`;
+- [x] `privateActor` passes `languageCode`; `authorizeParent`/`authorizeCallback` resolve `lang`;
   `pairParent` keeps the binding's `lang` and copies it to the parent; `setLanguage` writes both.
 
 ### Task 3: Shared messages per recipient
@@ -65,20 +65,20 @@ implementation-plan.md, 11f.
 **Files:** `outbox.ts`, `actions.ts`, `alertPlans.ts`, `settings.ts`, `endtime.ts`,
 `notices.ts`; tests in `tests/language.test.ts`, `tests/notices.test.ts`.
 
-- [ ] Tests: an alert to a Ukrainian and an English caregiver gives one row in each language;
+- [x] Tests: an alert to a Ukrainian and an English caregiver gives one row in each language;
   an applied message reaches its author in the author's language; an old row with a single
   string still delivers unchanged; an old string notice summary still sends.
-- [ ] `ParentEvent.text` becomes `{uk, en}`, built with `both()`; rows pick the recipient's.
+- [x] `ParentEvent.text` becomes `{uk, en}`, built with `both()`; rows pick the recipient's.
 
 ### Task 4: Durations, command menu, E2E
 
-- [ ] `parseDuration` accepts `1 h 30 min`, `90 min`, `1 год 30 хв`, `90 хв`, `2:30`.
-- [ ] `WebhookAdmin.set` calls `setMyCommands` twice; `info` lists both menus.
-- [ ] E2E: a caregiver switches to English and receives the next alert in English while
+- [x] `parseDuration` accepts `1 h 30 min`, `90 min`, `1 год 30 хв`, `90 хв`, `2:30`.
+- [x] `WebhookAdmin.set` calls `setMyCommands` twice; `info` lists both menus.
+- [x] E2E: a caregiver switches to English and receives the next alert in English while
   another stays in Ukrainian.
 
 ### Task 5: Docs
 
-- [ ] LANG-01 (user-requirements.md), bot-navigation.md (language row, `/language`),
+- [x] LANG-01 (user-requirements.md), bot-navigation.md (language row, `/language`),
   technical-design.md (`lang` fields), hosting-cost-estimate.md (no extra reads), the 11f
   Done bullet in implementation-plan.md.

@@ -104,10 +104,17 @@ Documents (all scoped under devices/{deviceId} except global lookup collections)
   resolved foreground category, category catalog without rule regexes/URLs.
   Replace this single title in place; never copy titles into snapshots/audit logs.
 - devices/{id}/parents/{telegramUserId}: private chat ID, key label, hourlyEnabled
-  (initially false), joinedAt, revocation state. Telegram IDs are decimal strings.
+  (initially false), joinedAt, revocation state, and `lang` when the caregiver chose one
+  (a mirror of the binding's, read with the recipients at fan-out). Telegram IDs are
+  decimal strings.
 - pairKeys/{sha256(secret)}: deviceId, name, expiresAt, consumedBy; no plaintext.
 - enrollments/{sha256(secret)}: expiry, consumedAt, allowed device count=1.
-- telegramUsers/{userId}: deviceId binding (one laptop in this version).
+- telegramUsers/{userId}: deviceId binding (one laptop in this version), and `lang`
+  (`uk`/`en`) once the caregiver chooses a bot language; revocation keeps it and pairing
+  again copies it to the new parent document. A device purge deletes it with the binding.
+- Bot copy: `bot/src/telegram/i18n/uk.ts` and `en.ts` (Task 11f). Events store
+  `text: {uk, en}`; each outbox row stores its recipient's version (parent `lang`, default
+  Ukrainian), and delivery reads only rows, so rows queued before 11f still send.
 - devices/{id}/actions/{uuid}: actor, kind, bounded message/options, targetAt,
   expiresAt, delivery count, sequence, settings revision, state, presentation state.
 - telegramUpdates/{updateId}: processing state/lease and logical side-effect IDs;

@@ -1327,6 +1327,48 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - **E2E:** a caregiver switches to English and receives the next alert in English while
     another stays in Ukrainian.
   - LANG-01 is updated in user-requirements.md. Backend-only deploy.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-bot-english.md.
+  - **Catalogues:** all bot copy (controllers, reports, backend message builders, the old
+    `format.ts`) is in `bot/src/telegram/i18n/uk.ts`; `en.ts` is `satisfies typeof uk`, and
+    `index.ts` adds a compile-time check that every function's parameter list matches
+    (`satisfies` alone accepts fewer parameters). Removing a key or a parameter from `en.ts`
+    was checked to fail `tsc`. The Ukrainian copy is unchanged: all 378 earlier tests pass
+    on it.
+  - **Resolution:** `authorizeParent`/`authorizeCallback` set `ParentIdentity.lang` from
+    `telegramUsers/{id}.lang`, else `language_code` (`uk*`/`ru*` → `uk`, anything else or
+    none → `en`); `privateActor` passes `languageCode`. Unpaired replies, pairing failures
+    and failure toasts use the fallback.
+  - **Choice:** «🌐 Мова: Українська» / "🌐 Language: English" in Settings opens
+    «Українська» / "English" / back, then Settings in the chosen language;
+    `/language uk|en`, bare `/language` shows the choice; `/help` lists it.
+    `SettingsService.setLanguage` writes the binding and its mirror on the parent
+    document, nothing else. Pairing again keeps the binding's `lang` and copies it to the
+    new parent document.
+  - **Shared messages:** `ParentEvent.text` is `{uk, en}`, built with `both()`; each outbox
+    row stores the recipient's version (parent `lang`, default `uk`). Applied notices store
+    `summary: {uk, en}` and the author's `lang` (their language when making the change);
+    notices and rows written by the deployed backend (one string) send as stored.
+  - **Decision:** fan-out reads the language from the parent document, a mirror of the
+    binding's choice, instead of reading `telegramUsers` docs: no extra reads, and the
+    pinned sync counts are unchanged (hosting-cost-estimate.md).
+  - **Command menu:** `webhook.ts set` registers English (no `language_code`) and Ukrainian
+    (`language_code: 'uk'`); `info` lists both. The spec does not add `/language`, so the
+    menu keeps 11e's eight commands.
+  - **Durations:** «2 год 30 хв» / "2 h 30 min"; `parseDuration` accepts both forms in either
+    language (`1 год 30 хв`, `1 h 30 min`, `90 хв`, `90 min`, `2:30`).
+  - **Tests:** bot 425 unit (new `i18n.test.ts`: parity, every value non-empty, fallback,
+    durations; new `language.test.ts`: fallback, stored override, unpaired hint, `/language`
+    and Settings scope, re-pairing, one row per language, author-language applied message,
+    pre-11f notice and row; e2e: one caregiver switches and gets the next limit warning in
+    English while the other stays Ukrainian), 59 emulator in all seven suites (new
+    `pairing` case for the choice surviving revocation and pairing again), build and bundle
+    check.
+  - **Owner-pending:**
+    - Deploy the backend (no companion or contract change).
+    - Run `webhook.ts set`, check `info` lists both menus, and check the menu in a Telegram app
+      set to English and one set to Ukrainian.
+    - In a live chat, switch one caregiver to English and confirm the next alert arrives in
+      English while another stays in Ukrainian.
 
 ### 11g: English in the laptop app (note 4, owner extension)
 
