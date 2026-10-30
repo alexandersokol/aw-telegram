@@ -1179,10 +1179,11 @@ the owner reorders. 11i is owner-run and can happen at any time.
     have it.
   - A released build (from 11b) shows a notification with no border on the owner's desktop.
 - **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-notification-border.md.
-  - **Tests:** companion 479 passing (478 before). The new
+  - **Tests:** companion 481 passing (478 before). The new
     `test_notification_message_scroll_has_no_frame` failed first (`StyledPanel`), then passed with
-    `NoFrame`. The notification tests (5 in `tests/test_presentation.py`, including the short,
-    long and single-long-word sizing cases) pass. `tools/licenses.py check` passes.
+    `NoFrame`. The sizing tests in `tests/test_presentation.py` cover spaced 240- and
+    1000-character text, and a short message and a single 400-character unbroken word (each fits
+    on screen with its text kept; the word scrolls sideways). `tools/licenses.py check` passes.
   - **Other surfaces:** `overlay.py` (a painted `QWidget` with one button) and `countdown.py` (a
     `QLabel` in a layout) have no `QScrollArea` or framed `QFrame`, so neither changed.
   - **Viewport:** the scroll viewport, its edge and the card all sample `#242424` in a grab of the

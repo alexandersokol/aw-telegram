@@ -207,6 +207,28 @@ def test_notification_all_text_is_accessible_within_primary_screen(qtbot, qapp, 
         assert 0 <= last_line.y() < scroll.viewport().height()
 
 
+@pytest.mark.parametrize(("text", "scrolls_sideways"),
+                         [("Коротке повідомлення", False), ("А" * 400, True)])
+def test_notification_short_and_single_word_text_fits_within_primary_screen(
+        qtbot, qapp, text, scrolls_sideways):
+    # Unbroken text cannot wrap; it must widen the label and scroll sideways, never clip.
+    card = NotificationCard()
+    qtbot.addWidget(card)
+    card.show_message(text)
+    qapp.processEvents()
+    assert card.message.text() == text
+    assert qapp.primaryScreen().availableGeometry().contains(card.geometry())
+    assert card.message.height() >= card.message.heightForWidth(card.message.width())
+    assert card.message.width() >= card.message.minimumSizeHint().width()
+    scroll = card.findChild(QScrollArea)
+    assert scroll is not None
+    if scrolls_sideways:
+        assert scroll.horizontalScrollBar().maximum() > 0
+    else:
+        assert scroll.horizontalScrollBar().maximum() == 0
+        assert scroll.verticalScrollBar().maximum() == 0
+
+
 def test_countdown_ignores_input_while_staying_on_top(qtbot):
     # Removing either input flag would let the countdown intercept interaction.
     countdown = CountdownWindow()
