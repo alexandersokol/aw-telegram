@@ -1202,20 +1202,26 @@ the owner reorders. 11i is owner-run and can happen at any time.
     90 s as online. Owner decision (fix round 2): a today summary whose only change is
     `availableThrough` is sent at most every 60 s (`UNCHANGED_SUMMARY_INTERVAL`). Other changes,
     a new date, the first summary after start and one after a failed sync are never held.
-  - **Tests:** bot 331 unit (with e2e), 54 emulator in all seven suites, build and bundle check;
-    companion 437 and the license check. Cadence assertions in `test_sync.py` and
+  - **Tests (after fix round 3):** bot 331 unit (with e2e), 56 emulator in all seven suites,
+    build and bundle check; companion 438 and the license check. Cadence assertions in `test_sync.py` and
     `test_e2e_simulated.py` moved to 30 s.
-  - **Projection (one caregiver, online all day):**
-    - Idle laptop: a summary every 60 s, so about 34,600 reads and 4,600 writes. That is under
-      the write bound but over the read bound and the goal.
-    - In use, with a summary on every sync: about 43,200 reads and 6,050 writes.
-    - Throttling the post-sync repair to 5 minutes (an owner choice, not done) would bring the
-      idle case to about 29,400 reads (hosting-cost-estimate.md).
+  - **Projection (one caregiver, hosting-cost-estimate.md):**
+    - 8 hours online: 11,520 reads and 1,536 writes idle, 14,400 and 2,016 in use.
+    - 12 hours online: 17,280 and 2,304 idle, 21,600 and 3,024 in use.
+    - 24 hours online: 34,560 and 4,608 idle, 43,200 and 6,048 in use.
+  - **Owner decision:** the laptop is not online all day, so the bound is judged for a realistic
+    online day, which 8 and 12 hours meet. The 24-hour overage and the missed goal are known
+    and accepted. The repair after every sync and the 60 s hold stay. The 5-minute repair
+    throttle (29,376 reads for an idle 24-hour day) remains an option.
+  - **Alert-state retention (fix round 3):** `/hourly` now writes the alert state with its
+    `date`, and a stored state without `date` is rewritten on the next plan. Cleanup selects
+    alert states by their date ID, so legacy states without `date` are removed too.
+    Covered by the `sync` and `cleanup` emulator suites.
   - **Owner-pending:**
     - Deploy the backend, then the companion.
     - One hour of Monitoring `document/read_count` and `write_count` for one online laptop,
       recorded in hosting-cost-estimate.md (placeholder there) and here.
-    - Decide whether to throttle the post-sync repair to 5 minutes.
+    - Optional: throttle the post-sync repair to 5 minutes.
 
 ### 11e: Bot UX (notes 1 and 3, proposal B)
 

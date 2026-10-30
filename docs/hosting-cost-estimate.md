@@ -65,12 +65,28 @@ Projected for one laptop online 24 hours (2,880 syncs, one caregiver):
 
 The companion collects today's summary every 30 s. A summary whose only change is
 `availableThrough` is sent at most every 60 s (`UNCHANGED_SUMMARY_INTERVAL`, owner decision
-2026-10-30, keeping reports within a minute). Any other change, a new date, the first
-summary after start and one after a failed sync go with the next sync. An idle laptop
-therefore alternates summary and idle syncs (the second row). It is under the write bound
-but over the read bound and the 11d goal (about 4,000 writes and 20,000 reads); in use, the
-first row applies. A further owner choice, not implemented: run the post-sync repair at most
-every 5 minutes (the third row), which retries failed enqueues within 5 minutes instead of 30 s.
+2026-10-30). A held summary is committed after 60 s and then waits for the next sync, so on
+an idle laptop "Дані станом на" can be up to about 90 s old. Any other change, a new date,
+the first summary after start and one after a failed sync go with the next sync. An idle
+laptop therefore alternates summary and idle syncs.
+
+By hours online a day (one caregiver; the post-sync repair runs after every sync):
+
+| Online | Idle: reads | Idle: writes | In use: reads | In use: writes |
+|---|---:|---:|---:|---:|
+| 8 hours | 11,520 | 1,536 | 14,400 | 2,016 |
+| 12 hours | 17,280 | 2,304 | 21,600 | 3,024 |
+| 24 hours | 34,560 | 4,608 | 43,200 | 6,048 |
+
+"In use" means usage changes on every sync; live writes on app or title changes come on top.
+
+Owner decision (2026-10-30): the laptop is not online 24 hours a day, so the 11d bound
+(6,000 writes and 30,000 reads a day) is judged for a realistic online day, which the 8- and
+12-hour rows meet. The 24-hour rows are a known overage the owner accepts, as is missing the
+goal of about 4,000 writes and 20,000 reads at 24 hours. The repair after every sync and the
+60 s summary hold stay. Still an option, not implemented: run the post-sync repair at most
+every 5 minutes (29,376 reads for an idle 24-hour day), which retries failed enqueues within
+5 minutes instead of 30 s.
 
 Measured after the 11d deploy (owner-pending): one hour of
 `firestore.googleapis.com/document/read_count` and `write_count` for one online laptop:
