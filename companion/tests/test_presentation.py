@@ -4,7 +4,7 @@ import sys
 import pytest
 from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication, QPushButton, QScrollArea
+from PySide6.QtWidgets import QApplication, QFrame, QPushButton, QScrollArea
 
 from aw_telegram.ui.overlay import OverlayWindow
 from aw_telegram.ui.notification import NotificationCard
@@ -159,6 +159,13 @@ def test_notification_replacement_and_expiry(qtbot):
     qtbot.waitUntil(lambda: not card.isVisible())
     assert retired == [old_id]
     assert expired == [new_id]
+
+
+def test_notification_message_scroll_has_no_frame(qtbot):
+    card = NotificationCard()
+    qtbot.addWidget(card)
+    assert card.message_scroll.frameShape() == QFrame.Shape.NoFrame
+    assert card.message_scroll.frameWidth() == 0
 
 
 def test_notification_clear_id_cannot_clear_replacement(qtbot):

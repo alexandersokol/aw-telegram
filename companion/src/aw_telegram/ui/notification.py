@@ -1,6 +1,6 @@
 """Companion-controlled card, independent of Windows toast settings."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QPushButton, QScrollArea, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QScrollArea, QVBoxLayout
 
 from ._surface import PresentationSurface
 
@@ -20,6 +20,7 @@ class NotificationCard(PresentationSurface):
         self.message_scroll = QScrollArea()
         self.message_scroll.setWidget(self.message)
         self.message_scroll.setWidgetResizable(False)
+        self.message_scroll.setFrameShape(QFrame.Shape.NoFrame)
         layout.addWidget(self.message_scroll, 1)
         self.dismiss_button = QPushButton("Закрити")
         self.dismiss_button.clicked.connect(self.hide_message)
