@@ -30,8 +30,11 @@ Query completion clocks establish health; metadata probes do not establish activ
 success. Synthetic unknown on failed/stale evidence becomes omitted live. A title-free
 query-success watermark survives restart and failures. `SyncCoordinator.step(utc,mono)`
 uses the same injected UTC clock as LocalStore for IO completion times. It serializes
-10s polls, 15s sync and 30s current-day queries, with due control sync first and one
-historical date per bounded opportunity. Midnight and multi-day wake schedule newly
+10s polls, 30s sync (`SYNC_INTERVAL`, Task 11d) and 30s current-day queries, with due
+control sync first and one historical date per bounded opportunity. A receipt queued
+since the last sync began (an accepted offer, a shown or closed message, an applied
+setting) is sent at the next step instead; a receipt already sent and not acknowledged
+waits for the next regular sync, and failures keep their 15s-based backoff. Midnight and multi-day wake schedule newly
 closed retained dates. `IOWorker` starts/stops explicitly and constructs its store on
 its own thread through a factory. An unexpected step failure is counted and retried
 after five seconds instead of ending background sync; a store that cannot open sets
@@ -46,6 +49,20 @@ and independent health/live guards share the Firestore transaction. All reads pr
 writes; the callback performs no network, random ID generation, UI or message delivery.
 Settings uses a validated wrapped-path Firestore representation while wire paths remain
 exact arrays. New settings are pending until the device's durable installation Ack.
+
+Task 11d skips writes and reads a sync doesn't need; the contract is unchanged.
+`sync/current` is written on every sync (contact time, request ordering) and also keeps
+the latest accepted live and health observation (`observed.live`/`observed.health`:
+request sequence, observation time, content digest). Ordering and the same-instant
+conflict check use it, so `live/current` and `health/current` keep the sequence that
+last wrote them. Live is rewritten only when it changes apart from `observedAt`; reports
+take the newer observation time from `sync/current`. Health is rewritten when it changes
+apart from `observedAt` and `lastSuccessAt`, or when the stored copy is 5 minutes older
+than the new observation. The `days` collection is read only with summaries (so pruning
+outside the retained dates happens on those syncs and in the daily sweep), alert state
+only when today's summary changed, and with neither summaries nor receipts the action
+snapshot reads controls, policy and parents only when an action is open. An idle sync
+costs 7 reads and 1 write (`sync` emulator suite).
 
 Every submitted date receives its durable source highwater. Unknown manifests are
 ignored locally; malformed receipt/date/sequence/Ack associations reject atomically.

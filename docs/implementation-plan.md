@@ -1176,6 +1176,35 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - After deploying, one hour of Monitoring counts projects to at most 6,000 writes and 30,000
     reads a day for one online laptop. The numbers go into hosting-cost-estimate.md.
   - The sync contract is unchanged, so the backend and companion deploy independently.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-sync-cost.md.
+  - **Counts:** the `sync` emulator suite counts billable operations. An idle sync costs 7 reads
+    and 1 write (`sync/current`), from 14 and 2. A sync with one new summary still stores it and
+    costs 14 reads and 3 writes (two caregivers, no stored days).
+  - **Backend:** `sync/current` keeps the latest accepted live and health observation, so
+    unchanged ones aren't rewritten and ordering and same-instant conflicts still hold. Health
+    is rewritten on a change apart from `observedAt` and `lastSuccessAt` (which moves on every
+    successful poll), or after 5 minutes. Reports take the newer live time from `sync/current`.
+    Days are read only with summaries and alert state only when today's summary changed; quiet
+    syncs read action controls and parents only for open actions. `/status` counts 90 s as online.
+  - **Alerts:** the sync evaluated alerts only on a changed today summary before 11d too. A
+    settings change evaluates them in its own transaction and the endtime alert arrives as a
+    receipt, so no stored revision or time trigger was needed. A unit test covers both with no
+    new usage data.
+  - **Companion:** `SYNC_INTERVAL = 30`; backoff keeps its 15 s base, floor and 300 s cap.
+    There was no prompt receipt path, although a reminder must be confirmed within 60 s. A
+    receipt queued since the last sync began now goes out at the next IO step. «Стан» counts
+    90 s as online.
+  - **Tests:** bot 331 unit (with e2e), 54 emulator in all seven suites, build and bundle check;
+    companion 437 and the license check. Cadence assertions in `test_sync.py` and
+    `test_e2e_simulated.py` moved to 30 s.
+  - **Projection:** the companion sends a new today summary on nearly every sync, so a laptop
+    online all day projects to about 60,000 reads and 9,000 writes, over the goal. Idle syncs
+    alone would cost about 26,000 and 3,200. hosting-cost-estimate.md lists the further steps.
+  - **Owner-pending:**
+    - Deploy the backend, then the companion.
+    - One hour of Monitoring `document/read_count` and `write_count` for one online laptop,
+      recorded in hosting-cost-estimate.md (placeholder there) and here.
+    - Decide on the further reductions, at least the companion's unchanged-summary cadence.
 
 ### 11e: Bot UX (notes 1 and 3, proposal B)
 

@@ -59,7 +59,7 @@ flowchart LR
   W --> Q[Cloud Tasks]
   Q --> D[Delivery/deadline functions]
   D --> T
-  C[Windows companion] -->|HTTPS sync every 15s| A[Device API function]
+  C[Windows companion] -->|HTTPS sync every 30s| A[Device API function]
   A --> F
   A --> Q
   AW[Local ActivityWatch] --> C
@@ -68,7 +68,7 @@ flowchart LR
 ```
 
 No inbound port on the laptop. No public ActivityWatch endpoint. The companion
-samples AW every 10 seconds, sends a heartbeat/command exchange every 15 seconds,
+samples AW every 10 seconds, sends a heartbeat/command exchange every 30 seconds,
 and includes freshly calculated summaries at least every 30 seconds while healthy.
 Aim at the agreed one-minute report freshness and 30-second command target.
 Use worker threads for IO; only the Qt main thread changes widgets.
@@ -253,7 +253,7 @@ on dismissal and ends at midnight. Buttonless duration is mandatory (1–3600s);
 manual delays/repeats are 1–1439 minutes. No arbitrary executable/script arguments.
 
 Immediate action lifetime is 60s. Server makes at most three delivery offers,
-separated by at least 20s; companion polls every 15s. Persist action ID locally
+separated by at least 20s; companion polls every 30s. Persist action ID locally
 before display, return receipt/status on next sync and promptly after presentation.
 Reject expired offers locally. Crash after recording 'presenting' but before
 completion is 'unconfirmed', not replayed automatically (avoid duplicate overlays).
@@ -275,8 +275,8 @@ failed status comes from the local scheduler when available, not inference from
 silence. Parents see 'Очікуємо підтвердження виконання' for accepted offline timers.
 
 Task6 backend timing is exact: immediate offers are eligible at 0/20/40 seconds
-and only while serverNow<createdAt+60 seconds. Three is a ceiling; 15-second polling
-can yield only two actual offers. Scheduled timers retain their original target
+and only while serverNow<createdAt+60 seconds. Three is a ceiling; 30-second polling
+can yield only one or two actual offers. Scheduled timers retain their original target
 (createdAt+1..1439minutes), use targetAt+5 seconds as an inclusive initial-presentation
 bound, and throttle delivery offers by 20 seconds until accepted/canceled/window end.
 They do not inherit the immediate 60-second delivery window. Closure is strictly
@@ -400,7 +400,7 @@ API guarantee can be made from a Mac. Secure desktop/UAC is outside scope.
 
 Functions minInstances=0, maxInstances=2 per public handler initially; 256 MiB
 for light HTTP workers, task workers bounded similarly. Review actual cold-start
-latency against targets. With eight active hours, 15s polling is ~1920 device calls/day,
+latency against targets. With eight active hours, 30s polling is ~960 device calls/day,
 ~960 summary updates/day at 30s, plus bot commands/tasks. Idle polls should avoid
 Firestore writes unless heartbeat cadence or action state changes; batch fetch state
 and pending actions, avoid scanning histories. Emulator tests count operations;
@@ -445,7 +445,7 @@ must be verified rather than inferred from this checkout alone.
 
 See [hosting-cost-estimate.md](hosting-cost-estimate.md) for current free allowances,
 4/8/24-hour polling estimates, CPU assumptions, and account-wide quota caveats.
-Keep polling responses short; the 15-second wait is on the laptop. Add exponential
+Keep polling responses short; the 30-second wait is on the laptop. Add exponential
 backoff on failures, indexed bounded pending-action reads, and operation accounting
 in integration/staging checks. Alert evaluation runs on changed summaries/settings,
 not empty polls, and empty polls must not enqueue Cloud Tasks. Validate measured
