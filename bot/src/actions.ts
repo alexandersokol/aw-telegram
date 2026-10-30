@@ -75,9 +75,12 @@ export async function readParents(repo: FirestoreRepository, tx: Transaction, de
     const docs = ids.length ? await tx.getAll(...ids.map((id: string) => root.collection('parents').doc(id))) : [];
     return docs.map(d => d.data() as Parent).filter(p => p && p.revokedAt === null);
 }
-export async function readActionSnapshot(repo: FirestoreRepository, tx: Transaction, deviceId: string, ackIds: string[] = []): Promise<ActionSnapshot> {
+/** A quiet sync (no receipts, no summaries) needs controls, policy and parents only for open actions; without
+ * any it gets an empty snapshot whose placeholders it never uses. */
+export async function readActionSnapshot(repo: FirestoreRepository, tx: Transaction, deviceId: string, ackIds: string[] = [], quiet = false): Promise<ActionSnapshot> {
     const root = repo.db.doc('devices/' + deviceId);
-    const [active, controls] = await Promise.all([tx.get(root.collection('actions').where('open', '==', true).limit(201)), tx.getAll(root.collection('actionControls').doc('current'), root.collection('policy').doc('current'))]);
+    const open = tx.get(root.collection('actions').where('open', '==', true).limit(201)), controlRefs = [root.collection('actionControls').doc('current'), root.collection('policy').doc('current')];
+    const [active, controls] = quiet ? [await open, null] : await Promise.all([open, tx.getAll(...controlRefs)]);
     if (active.size > 200)
         throw new BoundaryError('Active action capacity exceeded', 409);
     const rows = new Map<string, {
@@ -90,7 +93,10 @@ export async function readActionSnapshot(repo: FirestoreRepository, tx: Transact
             if (doc.exists)
                 rows.set(doc.id, { ref: doc.ref, row: doc.data() as ActionRow });
     }
-    return { rows, parents: await readParents(repo, tx, deviceId), counter: controls[0]!.data()?.sequence ?? 0, policy: controls[1]!.data() ?? { transitions: [] } };
+    if (!controls && !rows.size)
+        return { rows, parents: [], counter: 0, policy: { transitions: [] } };
+    const [counter, policy] = controls ?? await tx.getAll(...controlRefs);
+    return { rows, parents: await readParents(repo, tx, deviceId), counter: counter!.data()?.sequence ?? 0, policy: policy!.data() ?? { transitions: [] } };
 }
 export function operationRef(repo: FirestoreRepository, identity: ParentIdentity, id: string) {
     if (typeof id !== 'string' || !/^[A-Za-z0-9:_-]{1,128}$/.test(id))

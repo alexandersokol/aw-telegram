@@ -78,7 +78,7 @@ export function world(start='2026-10-28T06:00:00.000Z'){
       revoke:async(id:string)=>(await call('DELETE','/v1/access/'+id,undefined,auth)).status,
       /** One sync; usageMs adds a today summary counted in Games, live adds the foreground Games app. */
       sync:async(options:{usageMs?:number;live?:boolean;acks?:any[]}={})=>{
-        time+=1000;  // a real laptop syncs every 15 s; two observations never share an instant
+        time+=1000;  // a real laptop syncs every 30 s; two observations never share an instant
         const request:any={schemaVersion:2,sequence:++sequence,health:health(),acks:options.acks??[]};
         if(started&&options.usageMs!==undefined){
           const date=kyivDate(clock()),from=started>dayBounds(date).start?started:dayBounds(date).start;

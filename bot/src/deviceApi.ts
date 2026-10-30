@@ -30,13 +30,20 @@ export function checkSettingsCapacity(settings:Settings,cancellations:Cancellati
     acknowledgedAckIds:Array.from({length:100},(_,i)=>`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`),
     summaryReceipts:retainedDates(now).map(date=>({date,sequence:Number.MAX_SAFE_INTEGER}))});
 }
-function observedUpdate(previous:any,value:{observedAt:Instant},sequence:number):any|null {
-  if(previous && sequence<=previous.sequence) return null;
-  if(previous && value.observedAt<previous.value.observedAt) return null;
-  if(previous && value.observedAt===previous.value.observedAt && canonical(value)!==canonical(previous.value))
+/** The latest accepted observation of one kind. sync/current keeps it, so an unchanged one needs no rewrite. */
+interface Seen {sequence:number;observedAt:Instant;digest:string}
+const seenOf=(stored:any):Seen|undefined=>stored&&{sequence:stored.sequence,observedAt:stored.value.observedAt,digest:digest(canonical(stored.value))};
+function observedUpdate(latest:Seen|undefined,value:{observedAt:Instant},sequence:number):Seen|null {
+  if(latest && sequence<=latest.sequence) return null;
+  if(latest && value.observedAt<latest.observedAt) return null;
+  const seen={sequence,observedAt:value.observedAt,digest:digest(canonical(value))};
+  if(latest && value.observedAt===latest.observedAt && seen.digest!==latest.digest)
     throw new BoundaryError('Observation conflict',409);
-  return {sequence,value};
+  return seen;
 }
+/** Timestamps alone never rewrite live or health; stored health is still refreshed every 5 minutes. */
+const HEALTH_REFRESH_MS=5*60000;
+const unstamped=(value:any):string|undefined=>value&&canonical({...value,observedAt:null,lastSuccessAt:null});
 
 export class DeviceApi {
   constructor(private readonly repository:FirestoreRepository,private readonly clock:()=>Instant=()=>new Date().toISOString(),private readonly repair?:()=>Promise<void>) {}
@@ -62,13 +69,14 @@ export class DeviceApi {
       const startedAt=device.collectionStartedAt===null?null:new Date(device.collectionStartedAt).toISOString();
       // Laptop input outside its pairing/clock context is a refused request (400), not a server failure.
       try {validateActivityContext(request,startedAt,now);} catch {throw new BoundaryError('Invalid activity context');}
-      const dayDocs=await tx.get(root.collection('days'));
+      // Days, alert state, action controls and parents are read only by syncs that use them.
+      const quiet=!request.acks.length&&!request.summaries?.length;
+      const dayDocs=request.summaries?.length?(await tx.get(root.collection('days'))).docs:[];
       const receiptRefs=request.acks.map(a=>root.collection('receipts').doc(a.id));
       const receiptDocs=receiptRefs.length?await tx.getAll(...receiptRefs):[];
       const current=syncDoc!.data()??{settingsAckRevision:null,cancellationAckRevision:0,cancellationAckFence:0,maxRequestSequence:0};
       const next={...current};
-      const actions=await readActionSnapshot(this.repository,tx,identity.deviceId,request.acks.filter(a=>a.kind==='action').map(a=>a.actionId));
-      const alertSnapshot=await readAlerts(this.repository,tx,identity.deviceId,now);
+      const actions=await readActionSnapshot(this.repository,tx,identity.deviceId,request.acks.filter(a=>a.kind==='action').map(a=>a.actionId),quiet);
       const endtimeAcks:EndtimeAck[]=[];
       for(let i=0;i<request.acks.length;i++) {
         const ack=request.acks[i]!,previous=receiptDocs[i]!.data();
@@ -94,7 +102,7 @@ export class DeviceApi {
         }
       }
       const retained=retainedDates(now);
-      const oldDays=new Map(dayDocs.docs.map(doc=>[doc.id,doc]));
+      const oldDays=new Map(dayDocs.map(doc=>[doc.id,doc]));
       const dayWrites:{ref:any;value:any}[]=[];
       const summaryReceipts:SyncResponse['summaryReceipts']=[];
       for(const source of request.summaries??[]) {
@@ -108,8 +116,16 @@ export class DeviceApi {
         if(!previous || source.sequence>previous.sequence)
           dayWrites.push({ref:root.collection('days').doc(source.date),value:{source,digest:sourceDigest,sequence,projection,serverReceivedAt:now}});
       }
-      const live=request.live===undefined?null:observedUpdate(liveDoc!.data(),request.live,request.sequence);
-      const health=observedUpdate(healthDoc!.data(),request.health,request.sequence);
+      // Stored live and health keep the sequence that last wrote them; ordering uses the latest accepted one.
+      const storedLive=liveDoc!.data(),storedHealth=healthDoc!.data(),observed={...current.observed};
+      const seenLive=request.live===undefined?null:observedUpdate(observed.live??seenOf(storedLive),request.live,request.sequence);
+      const seenHealth=observedUpdate(observed.health??seenOf(storedHealth),request.health,request.sequence);
+      if(seenLive)observed.live=seenLive;
+      if(seenHealth)observed.health=seenHealth;
+      next.observed=observed;
+      const live=seenLive&&unstamped(request.live)!==unstamped(storedLive?.value)?{sequence:request.sequence,value:request.live}:null;
+      const health=seenHealth&&(unstamped(request.health)!==unstamped(storedHealth?.value)||
+        Date.parse(request.health.observedAt)-Date.parse(storedHealth!.value.observedAt)>=HEALTH_REFRESH_MS)?{sequence:request.sequence,value:request.health}:null;
       if(request.sequence>next.maxRequestSequence) {
         next.maxRequestSequence=request.sequence;next.serverReceivedAt=now;
       }
@@ -117,7 +133,9 @@ export class DeviceApi {
         collectionStartedAt:startedAt,activeCaregivers:device.activeParentIds.length,settings,cancellations,deliveryOffers:[],summaryReceipts,
         acknowledgedAckIds:request.acks.map(a=>a.id)});
       const changedToday=dayWrites.find(w=>w.value.source.date===retained[0])?.value;
-      const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,alertSnapshot,measurement(changedToday)):[];
+      // The sync evaluates alerts only on new evidence for today; settings changes evaluate them in their own transaction.
+      const alertWrites=changedToday?await planAlerts(this.repository,tx,identity.deviceId,now,settings,actions.parents,
+        await readAlerts(this.repository,tx,identity.deviceId,now),measurement(changedToday)):[];
       // Event identity covers device/date/generation; identical rows planned twice in one request collapse.
       // Receipts past the budget stay unacknowledged; the companion retains and resends them.
       const endtimeWrites=new Map<string,PlannedWrite>(),deferred=new Set<string>();
@@ -147,7 +165,7 @@ export class DeviceApi {
       }
       boundedResponse(response);
       // Physical cleanup is optional; it cannot displace controls, accepted receipts or source writes.
-      const cleanup=dayDocs.docs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
+      const cleanup=dayDocs.filter(doc=>!retained.includes(doc.id)).slice(0,Math.max(0,450-mandatoryWrites-actionWrites.length));
       // All reads, validation and response capacity checks precede any protected write.
       if(migrateSettings)tx.set(settingsRef,encodeSettings(settings));
       applyPlan(tx,[...actionWrites,...alertWrites,...endtimeWrites.values()]);

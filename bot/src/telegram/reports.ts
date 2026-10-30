@@ -19,7 +19,7 @@ export interface ReportData {
 
 export const PAGE_CHARS = 3500;
 const LIVE_FRESH_MS = 2 * 60000;
-const ONLINE_MS = 60000;
+const ONLINE_MS = 90000;  // three 30 s syncs, as in the companion's «Стан»
 const WEEKDAYS = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
 /** One transaction after the caregiver check; reports never create events for anyone else. */
@@ -33,8 +33,10 @@ export async function loadReport(repository: FirestoreRepository, identity: Pare
       ...dates.map(date => root.collection('days').doc(date)));
     const stored = new Map<string, DaySummary>();
     days.forEach((doc, i) => {const source = doc!.data()?.source; if (source) stored.set(dates[i]!, validateContract('day', source));});
+    // An unchanged live state is not rewritten; sync/current records when the laptop last reported it.
+    const current = live!.data()?.value ? validateContract('live', live!.data()!.value) : null, seen = sync!.data()?.observed?.live?.observedAt;
     return {now, settings: decodeSettings(settings!.data()), days: stored,
-      live: live!.data()?.value ? validateContract('live', live!.data()!.value) : null,
+      live: current && seen > current.observedAt ? {...current, observedAt: seen} : current,
       health: health!.data()?.value ?? null, lastContactAt: sync!.data()?.serverReceivedAt ?? null};
   });
 }

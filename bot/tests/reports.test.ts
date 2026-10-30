@@ -97,5 +97,8 @@ describe('laptop status',()=>{
     expect(offline).toContain('Зв’язок: немає зв’язку з 10:01, 28.10');expect(offline).toContain('ActivityWatch: недоступний');
     expect(offline).toContain('Сьогодні: даних немає');
     expect(renderStatus(data({lastContactAt:null}))).toContain('Зв’язок: ноутбук ще не синхронізувався');
+    // Online means within three 30 s syncs, as in the companion.
+    expect(renderStatus(data({lastContactAt:'2026-10-29T12:30:31.000Z'}))).toContain('Зв’язок: на зв’язку');
+    expect(renderStatus(data({lastContactAt:'2026-10-29T12:30:29.000Z'}))).toContain('Зв’язок: немає зв’язку з 14:30');
   });
 });
