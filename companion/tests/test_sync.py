@@ -327,6 +327,38 @@ def test_receipts_go_out_at_once_between_30_s_syncs_without_looping_or_skipping_
     s.queue_ack(ack(3));run(71,84.9,85,114.9,115)
     assert syncs==[0,1,31,31.25,40,70,85,115]
 
+def test_today_summary_that_only_moved_its_end_waits_60_s_but_changes_failures_and_new_dates_do_not(tmp_path):
+    from datetime import timedelta
+    from aw_telegram.clock import format_instant
+    from aw_telegram.sync import UNCHANGED_SUMMARY_INTERVAL,SyncCoordinator,Observation
+    from aw_telegram.transport import SyncError
+    assert UNCHANGED_SUMMARY_INTERVAL==60
+    clock=[parse_instant(NOW)];mono=[0];now=lambda:format_instant(clock[0])
+    s=storage().LocalStore(tmp_path/"sync.sqlite",now=now);sent=[];commits=[];usage=[1000]
+    commit=s.commit_day
+    s.commit_day=lambda candidate,at:(commits.append(mono[0]),commit(candidate,at))[1]
+    class Network:
+        fail=False
+        def sync(self,r):
+            if self.fail:raise SyncError(retryable=True)
+            sent.extend((mono[0],d["date"],d["totalActiveMs"]) for d in r.summaries or [])
+            receipts=[dict(date=d["date"],sequence=d["sequence"]) for d in r.summaries or []]
+            return models.SyncResponse.from_wire({**response(r,receipts=receipts),"serverNow":now()})
+    def summarize(date,lo,hi,settings,started):
+        d=day(date,usage[0]);d.update(availableFrom=lo,availableThrough=hi);return d
+    network=Network()
+    c=SyncCoordinator(s,network,lambda *a:Observation(None,HEALTH),summarize,jitter=lambda:1)
+    def run(*times):
+        for t in times:clock[0]=parse_instant(NOW)+timedelta(seconds=t);mono[0]=t;c.step(now(),t)
+    run(0,0.25,30,30.5,60,60.5)  # the first summary goes at once; at 30 only its end moved, so it waits until 60
+    assert commits==[0,60] and sent==[(0.25,"2026-10-28",1000),(60.5,"2026-10-28",1000)]
+    usage[0]=2000;run(90)  # a real change rides the next sync
+    network.fail=True;run(90.5,120)  # after a failed sync the summary is not held
+    network.fail=False;run(150)
+    assert commits==[0,60,90,120] and sent[2:]==[(150,"2026-10-28",2000)]
+    run(36030)  # 22:00:30 UTC is just after Kyiv midnight: the new date is collected at once
+    assert commits[-1]==36030 and s.day("2026-10-29") is not None
+
 def test_status_counts_a_laptop_online_for_three_30_s_syncs():
     from datetime import timedelta
     from aw_telegram.clock import format_instant

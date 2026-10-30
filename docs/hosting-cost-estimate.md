@@ -59,16 +59,18 @@ Projected for one laptop online 24 hours (2,880 syncs, one caregiver):
 |---|---:|---:|
 | Before 11d (measured hour x 24) | 100,512 | 25,224 |
 | Idle syncs only | 25,920 | 3,168 |
-| A today summary on every sync (today's companion) | 43,200 | 6,048 + live changes |
-| Unchanged summary at most every 5 minutes (idle laptop) | 27,648 | 3,456 |
-| As above, repair at most every 5 minutes too | 22,464 | 3,456 |
+| In use: usage changes, a summary on every sync | 43,200 | 6,048 + live changes |
+| Idle: only `availableThrough` moves, a summary every 60 s | 34,560 | 4,608 |
+| Idle, if the repair also ran at most every 5 minutes | 29,376 | 4,608 |
 
-The companion collects and sends a new today summary every 30 s, even when only its
-`availableThrough` time moved, so with today's cadence nearly every sync carries one: the
-third row applies. It misses the 11d goal (about 4,000 writes and 20,000 reads) and is at or
-over its bound (6,000 and 30,000). The last two rows are not implemented and need the
-owner's decision: the companion cadence changes "Дані станом на" freshness while the laptop
-is idle, and a throttled repair retries failed enqueues within 5 minutes instead of 30 s.
+The companion collects today's summary every 30 s. A summary whose only change is
+`availableThrough` is sent at most every 60 s (`UNCHANGED_SUMMARY_INTERVAL`, owner decision
+2026-10-30, keeping reports within a minute). Any other change, a new date, the first
+summary after start and one after a failed sync go with the next sync. An idle laptop
+therefore alternates summary and idle syncs (the second row). It is under the write bound
+but over the read bound and the 11d goal (about 4,000 writes and 20,000 reads); in use, the
+first row applies. A further owner choice, not implemented: run the post-sync repair at most
+every 5 minutes (the third row), which retries failed enqueues within 5 minutes instead of 30 s.
 
 Measured after the 11d deploy (owner-pending): one hour of
 `firestore.googleapis.com/document/read_count` and `write_count` for one online laptop:

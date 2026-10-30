@@ -1199,21 +1199,23 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - **Companion:** `SYNC_INTERVAL = 30`; backoff keeps its 15 s base, floor and 300 s cap.
     There was no prompt receipt path, although a reminder must be confirmed within 60 s. A
     receipt queued since the last sync began now goes out at the next IO step. «Стан» counts
-    90 s as online.
+    90 s as online. Owner decision (fix round 2): a today summary whose only change is
+    `availableThrough` is sent at most every 60 s (`UNCHANGED_SUMMARY_INTERVAL`). Other changes,
+    a new date, the first summary after start and one after a failed sync are never held.
   - **Tests:** bot 331 unit (with e2e), 54 emulator in all seven suites, build and bundle check;
     companion 437 and the license check. Cadence assertions in `test_sync.py` and
     `test_e2e_simulated.py` moved to 30 s.
-  - **Projection (one caregiver):** the companion sends a new today summary on nearly every
-    sync, so a laptop online all day projects to about 43,200 reads and 6,050 writes. That is
-    over the goal and the read bound, and at the write bound. Idle syncs alone would cost about
-    26,000 and 3,200. An unchanged summary at most every 5 minutes would bring an idle laptop to
-    about 27,600 and 3,500, or 22,500 reads with the repair also throttled to 5 minutes
-    (hosting-cost-estimate.md).
+  - **Projection (one caregiver, online all day):**
+    - Idle laptop: a summary every 60 s, so about 34,600 reads and 4,600 writes. That is under
+      the write bound but over the read bound and the goal.
+    - In use, with a summary on every sync: about 43,200 reads and 6,050 writes.
+    - Throttling the post-sync repair to 5 minutes (an owner choice, not done) would bring the
+      idle case to about 29,400 reads (hosting-cost-estimate.md).
   - **Owner-pending:**
     - Deploy the backend, then the companion.
     - One hour of Monitoring `document/read_count` and `write_count` for one online laptop,
       recorded in hosting-cost-estimate.md (placeholder there) and here.
-    - Decide on the companion's unchanged-summary cadence and on throttling the post-sync repair.
+    - Decide whether to throttle the post-sync repair to 5 minutes.
 
 ### 11e: Bot UX (notes 1 and 3, proposal B)
 

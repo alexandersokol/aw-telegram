@@ -31,10 +31,13 @@ success. Synthetic unknown on failed/stale evidence becomes omitted live. A titl
 query-success watermark survives restart and failures. `SyncCoordinator.step(utc,mono)`
 uses the same injected UTC clock as LocalStore for IO completion times. It serializes
 10s polls, 30s sync (`SYNC_INTERVAL`, Task 11d) and 30s current-day queries, with due
-control sync first and one historical date per bounded opportunity. A receipt queued
-since the last sync began (an accepted offer, a shown or closed message, an applied
-setting) is sent at the next step instead; a receipt already sent and not acknowledged
-waits for the next regular sync, and failures keep their 15s-based backoff. Midnight and multi-day wake schedule newly
+control sync first and one historical date per bounded opportunity. A today summary whose
+only change is `availableThrough` is committed (and so sent) at most every 60s
+(`UNCHANGED_SUMMARY_INTERVAL`); another date, the first summary since start, one after a
+failed sync or a requested recollection is never held. A receipt queued since the last sync
+began (an accepted offer, a shown or closed message, an applied setting) is sent at the next
+step instead; a receipt already sent and not acknowledged waits for the next regular sync,
+and failures keep their 15s-based backoff. Midnight and multi-day wake schedule newly
 closed retained dates. `IOWorker` starts/stops explicitly and constructs its store on
 its own thread through a factory. An unexpected step failure is counted and retried
 after five seconds instead of ending background sync; a store that cannot open sets

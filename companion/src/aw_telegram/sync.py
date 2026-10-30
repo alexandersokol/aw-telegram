@@ -9,6 +9,12 @@ from .models import ReportCapacityExceeded, minimal_health, validate_activity_co
 from .transport import CredentialError, EnrollmentError, SyncError
 
 SYNC_INTERVAL = 30  # seconds between regular syncs; failures back off from 15 s, new receipts go at once
+UNCHANGED_SUMMARY_INTERVAL = 60  # seconds; a today summary that only moved availableThrough waits this long
+
+
+def _content(source):
+    """A summary apart from its collection end and the sequence assigned when it is committed."""
+    return {k: v for k, v in source.items() if k not in ("availableThrough", "sequence")}
 
 
 @dataclass(frozen=True)
@@ -61,6 +67,7 @@ class SyncCoordinator:
         self._poll_due = self._sync_due = self._summary_due = self._backfill_due = 0
         self._failures = 0
         self._synced, self._acks_seen = False, set()  # last sync succeeded; receipts queued when it began
+        self._last_today = None  # (date, content, mono) of the last committed today summary
         self._gate = None
         self._last_date = None
         self._backfill = []
@@ -120,6 +127,17 @@ class SyncCoordinator:
         validate_activity_context({**request, 'health': health}, started, completed)
         self.health, self.live = health, observation.live
         self.store.record_activity(observation.live, owned_at=observation.owned_at)
+
+    def _unchanged_today(self, target, today, source, mono):
+        """Today's summary whose only change is `availableThrough` waits for UNCHANGED_SUMMARY_INTERVAL.
+
+        Never held: another date, the first summary since start, one after a failed sync, or a date
+        the backend asked to recollect.
+        """
+        last = self._last_today
+        return (target == today and self._synced and last is not None and last[0] == target
+                and last[1] == _content(source) and mono < last[2] + UNCHANGED_SUMMARY_INTERVAL
+                and not self.store.needs_recollection(target))
 
     def step(self, now_utc, now_monotonic):
         if not self._running.acquire(blocking=False):
@@ -211,9 +229,12 @@ class SyncCoordinator:
             try:
                 candidate = self.summarize(target, format_instant(lo), format_instant(hi), self.store.settings, started)
                 completed = self.store.now()
-                self.store.commit_day(candidate, completed)
-                self.store.record_activity_success(completed)
                 source = candidate.to_wire() if hasattr(candidate, 'to_wire') else candidate
+                if not self._unchanged_today(target, dates[0], source, mono):
+                    self.store.commit_day(candidate, completed)
+                    if target == dates[0]:
+                        self._last_today = (target, _content(source), mono)
+                self.store.record_activity_success(completed)
                 self.health = dict(observedAt=completed, awState='partial' if source['partial'] else 'ready',
                     lastSuccessAt=self.store.last_activity_success_at,
                     reportError=None if target == dates[0] else self.health['reportError'])
