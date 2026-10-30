@@ -112,7 +112,8 @@ it means removing the webhook and deleting or scaling down `api` (see Rollback).
 - **Enrollment code used but the laptop failed to save it:** use `revoke-enrollment`
   with the code on stdin, then issue a new one (enrollment-security.md).
 - **A caregiver's Telegram account is lost:** remove that access in «Доступ
-  батьків», then create a new key for the new account.
+  батьків», then create a new key for the new account. A caregiver who still has
+  the account can remove themselves with `/unpair` (ACCESS-09).
 - **No caregiver left:** the laptop pauses every rule (ACCESS-08) until someone pairs.
 
 ## Rotating secrets

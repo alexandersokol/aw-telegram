@@ -152,3 +152,24 @@ it('admits ten caregivers, refuses the eleventh until one is removed, and pauses
   for(const parent of (await laptop.access()).parents) await laptop.revoke(parent.id);
   expect((await laptop.sync()).activeCaregivers).toBe(0);
 });
+
+it('lets caregivers remove themselves; the other keeps working and the laptop pauses at zero (ACCESS-09)',async()=>{
+  const w=world();
+  const {laptop,people:[mama,tato]}=await paired(w);
+  await mama!.say('/settings');
+  await mama!.tap('Відключитися');
+  await mama!.tap('Так, відключитися');
+  expect(mama!.last()).toContain('Вас відключено.');
+  await mama!.say('/status');
+  expect(mama!.last()).toContain('/pair');
+  await w.runTasks();
+  expect(tato!.inbox().some(m=>/відключ/i.test(m.text))).toBe(false);  // nobody is told
+  expect((await laptop.sync()).activeCaregivers).toBe(1);
+
+  await tato!.say('/status');
+  expect(tato!.last()).not.toContain('/pair');
+  await tato!.say('/unpair');
+  expect(tato!.last()).toContain('Ви останній підключений дорослий.');
+  await tato!.tap('Так, відключитися');
+  expect((await laptop.sync()).activeCaregivers).toBe(0);
+});

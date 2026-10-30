@@ -459,6 +459,11 @@ The complete approved design is
   still-scheduled reminders, which end as canceled. Usage is still recorded. When a
   caregiver pairs again the rules resume at once from today's usage, like free use
   ending; endtime follows its usual rule and resumes only if its time has not passed.
+- ACCESS-09 (owner decision, 2026-10-30): a paired caregiver may remove their own
+  access from Telegram with `/unpair` or «🚪 Відключитися» in Settings, after a
+  confirmation. The effect is identical to removal in «Доступ батьків». Nobody else
+  is notified. When the caregiver is the last active one, the confirmation says
+  that every rule on the laptop will pause (ACCESS-08). Returning requires a new key.
 - ENDTIME-01: Store one recurring daily endtime in exact 24-hour `HH:MM` format,
   limited to `00:15` through `23:59` in Europe/Kyiv. Default to disabled with
   `21:00` saved.

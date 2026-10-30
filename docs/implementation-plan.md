@@ -1069,3 +1069,9 @@ latest-title privacy, and finite retries). Record any subsequent design changes 
 native execution in this chat for the tightly shared contracts and state machines;
 subagent-driven execution is an optional explicit user choice, not enabled by
 this plan alone. Windows testing may be scheduled when the son's laptop is on.
+
+ACCESS-09, caregiver self-removal (2026-10-30). Spec:
+superpowers/specs/2026-10-30-caregiver-unpair-design.md; plan:
+superpowers/plans/2026-10-30-caregiver-unpair.md. `/unpair` and a Settings button
+open a confirmation; removal shares `revokeParentTx` with «Доступ батьків».
+Bot unit 320, emulator 53.
