@@ -138,7 +138,7 @@ user and applies only to them.
 
 ## 5. CI/CD: build and release the companion on every commit to main
 
-- **Status:** in progress — 11a (CI checks) done 2026-10-30; 11b (releases) next. Spec: docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
+- **Status:** in progress — 11a (CI checks) done 2026-10-30; 11b (releases, app version) implemented 2026-10-30, first GitHub run pending. Spec: docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
 - **Found:** 2026-10-30, owner request.
 - **Area:** new `.github/workflows/`, `companion/`.
 

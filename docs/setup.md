@@ -149,7 +149,23 @@ The spec resolves DLLs from the build Python first. It ships only Python's own O
 parts a tray app does not use: software OpenGL, image formats, SVG, TLS and the
 network-information plugins. To check a build, run
 `dist\aw-telegram\aw-telegram.exe --self-check report.json`; every entry in the
-report must be `ok`.
+report must be `ok`, except `version`, which names the build.
+
+**Versions and releases.** The repository's `VERSION` file holds `MAJOR.MINOR` (`1.0`).
+`companion\src\aw_telegram\_version.py` stays `0.0.0-dev`, so a build made by hand shows
+`0.0.0-dev` and its Properties version is `0.0.0.0`. Every push to `main` that changes
+`companion/**`, `contracts/**` or `VERSION` runs `.github/workflows/release.yml`. It checks the
+code, then builds with the python.org 3.12.6 installer (its SHA-256 is pinned in the workflow).
+It stamps `1.0.x` into the app, requires the self-check to report that same `version`, and
+publishes tag `v1.0.x` and release `1.0.x` with `aw-telegram-1.0.x-windows.zip`,
+`changes-1.0.x.patch` and notes listing the commits and files since the previous tag. `x` is one
+more than the highest `v1.0.*` tag; edit `VERSION` to `1.1` and the next release is `1.1.0`.
+Docs-only and bot-only commits release nothing, and a failed run leaves no tag or release.
+To try the workflow without publishing, run it from the Actions tab with `dry_run` ticked (the
+default): it uploads the zip as a workflow artifact. To use a release, download the zip, unzip
+the folder and follow the steps below. The build is not code-signed, so SmartScreen warns on
+first run. «Налаштування» shows «Версія 1.0.x» at the bottom, and File Explorer → Properties →
+Details shows the same number as the file and product version (`1.0.x.0`).
 
 On the laptop:
 

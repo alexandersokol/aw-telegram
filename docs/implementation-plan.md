@@ -1139,6 +1139,30 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - Local builds show `0.0.0-dev`. Companion unit tests cover the self-check field, the
     Settings label and the default.
   - A failed run leaves no tag or release behind.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-releases-and-version.md.
+  - **Tests:** companion 477 passing (435 before), including `tests/test_release.py` (38 cases, run
+    against throwaway git repos), the self-check `version` field, the Settings label and the
+    `0.0.0-dev` default; `tools/licenses.py check` passes.
+  - **Local build:** this worktree stamped `1.0.7` into a scratch copy and built it with
+    `pyinstaller --clean --noconfirm aw-telegram.spec`. `--self-check` exited 0 and reported every
+    entry `ok` with `"version": "1.0.7"`, `release.py verify` accepted it and rejected `1.0.8`, and
+    the exe's FileVersion and ProductVersion read `1.0.7.0`. `Compress-Archive` produced a 31 MB
+    zip. `release.py next`, `previous`, `notes` and `patch` ran against this repository's history
+    (no tags yet: `1.0.0`, first commit as the base).
+  - **Design:** the logic lives in `companion/tools/release.py` (stdlib only, unit tested), not in
+    workflow shell. The spec builds the version resource from the stamped `_version.py`, so there
+    is no second file to drift. The workflow publishes a draft release and then un-drafts it
+    (a draft has no tag), and deletes the draft if publishing fails. The python.org installer's
+    SHA-256 is pinned in the workflow and matches the MD5 python.org lists. The notes' base is the
+    highest release tag of any line, so the first `1.1.0` lists changes since `v1.0.x`.
+  - **Owner-pending:**
+    - Push, then one `workflow_dispatch` dry run on GitHub (`dry_run` ticked) to confirm the
+      installer download, the build and the self-check on the runner.
+    - The first real release: tag `v1.0.0`, release `1.0.0`, assets and notes.
+    - A docs-only or bot-only commit to `main` creating no release.
+    - File Explorer → Properties and «Налаштування» on the owner's desktop for the released build.
+    - Check that `actions/upload-artifact@v7` and the `gh release` flags behave as written; the
+      workflow could not be run here.
 
 ### 11c: Notification border (note 2)
 
