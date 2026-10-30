@@ -1,9 +1,9 @@
 # Operations
 
 Owner runbook for the hosted backend. Status 2026-10-30: `api` and `sweep` are deployed
-from main 2c66e04 (`BACKEND_URL=https://api-ypt64ceg6a-lm.a.run.app`). The webhook is
-not registered yet and no Telegram message has been sent. Each deploy, webhook change
-or data deletion is an explicit owner action.
+from main 2c66e04 (`BACKEND_URL=https://api-ypt64ceg6a-lm.a.run.app`), and the webhook
+is registered at `<BACKEND_URL>/telegram/webhook`. Each deploy, webhook change or data
+deletion is an explicit owner action.
 
 ## What runs
 

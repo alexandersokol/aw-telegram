@@ -1094,8 +1094,9 @@ Checkpoint 10d, first deployment (2026-10-30, owner-authorized), from main 2c66e
   - no application errors were logged.
 - **Found:** Cloud Build runs as the default compute account (project Editor). The CLI
   also enabled the Firebase Extensions API on its own; nothing uses it.
+- **Webhook:** registered the same day with `webhook.ts set`; `info` showed the URL, one
+  connection, `message` and `callback_query`, no pending updates and no error.
 - **Not done yet:**
-  - the Telegram webhook;
   - the client-IP check for enrollment throttling;
   - cold-start latency after idle;
   - live acceptance with two caregiver chats and the laptop.
