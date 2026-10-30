@@ -262,8 +262,10 @@ Activity time validation. Observations use IO completion clocks; the companion c
 its own requests strictly against its own clock (the shared `gates` fixtures). The
 backend compares laptop instants with the server clock and accepts a laptop clock up
 to `CLOCK_SKEW_MS` (5 minutes, `bot/src/contracts.ts`) off: `health.observedAt`,
-`live.observedAt`, summary `availableThrough` and a settings/cancellation receipt's
-`appliedAt` may lie up to 5 minutes after server time; `live.observedAt` and summary
+`live.observedAt`, summary `availableThrough`, a settings/cancellation receipt's
+`appliedAt`, an action receipt's `at` and an endtime receipt's `presentedAt` may lie
+up to 5 minutes after server time (an action receipt's `at` may also name the Kyiv
+date the server reaches within 5 minutes, as may an endtime receipt's `date`); `live.observedAt` and summary
 `availableFrom` up to 5 minutes before collection start; and a summary may name the
 Kyiv date the server reaches within 5 minutes. Beyond that the sync is refused (400
 `Invalid activity context` or `Invalid receipt`), as before. Accepted live and health
@@ -271,8 +273,12 @@ times are clamped into [collection start, server time] before they are ordered o
 stored (`lastSuccessAt` to at most server time), so freshness, `/status` and the
 skip-unchanged rules behave as with a correct clock. Summary sources are stored as
 sent, because their digest is their identity; reports and alerts show coverage up to
-server time at most. Action and endtime receipt times are not covered by the
-tolerance. The tolerance does not change the wire contract or the companion.
+server time at most. Receipts are likewise stored exactly as sent; where the backend
+compares a receipt time with a server time (a clear or free-use fence), it counts as
+at most server time. Checks of receipt times against the action's own server-created
+window (`createdAt`, `targetAt`, `expiresAt`, the repeat family's Kyiv midnight) stay
+strict: the companion applies them to its own receipts. The tolerance does not change
+the wire contract or the companion.
 
 `summaryReceipts:[{date,sequence}]` contains the durably stored per-date highwater for
 submitted dates only, at most seven unique dates. Older source sequences return the
