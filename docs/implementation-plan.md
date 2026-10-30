@@ -1059,7 +1059,7 @@ session that followed. Each subtask is one reviewed change with its own plan und
 `docs/superpowers/plans/`, written when the subtask starts. Do them in order 11a–11i unless
 the owner reorders. 11i is owner-run and can happen at any time.
 
-- [ ] **11a: CI checks**
+- [x] **11a: CI checks**
 - [ ] **11b: Releases and the app version**
 - [ ] **11c: Notification border**
 - [ ] **11d: Sync cost**
@@ -1093,6 +1093,20 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - A deliberately failing test on a throwaway branch turns the run red; that branch is deleted
     afterwards.
   - Job durations are visible in the run. The emulator suites finish in under 10 minutes.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-ci-checks.md.
+  - **Green:** main b7fdd7d, run 41045713359. The bot job took 1 min 44 s including the
+    emulator suites; the companion job took 2 min 58 s, with 435 tests passing.
+  - **Red check:** branch `ci-red-check` (2cce1e5), run 41046650112. The bot job failed at Unit
+    tests with the failing test named in a public annotation; the companion job stayed green.
+    The branch was deleted from GitHub and locally.
+  - **Findings while getting there:**
+    - Job logs and step summaries need a GitHub sign-in, so test failures are also written as
+      error annotations, which are public.
+    - The companion's `test_e2e_simulated.py` builds the bot, so the Windows job also installs
+      Node 22 and runs `npm ci` in `bot/`.
+    - The actions are on current majors (checkout v7, setup-node v7, setup-python v7,
+      setup-java v6, cache v6), with no deprecation warnings. The bot job sets `NO_COLOR` for
+      readable annotations.
 
 ### 11b: Releases and the app version (note 5, proposal D)
 

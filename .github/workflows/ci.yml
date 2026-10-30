@@ -16,6 +16,8 @@ jobs:
     name: Bot (unit, build, emulator)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      NO_COLOR: '1'  # plain text in failure annotations
     defaults:
       run:
         working-directory: bot
