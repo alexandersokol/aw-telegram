@@ -58,11 +58,12 @@ conflict check use it, so `live/current` and `health/current` keep the sequence 
 last wrote them. Live is rewritten only when it changes apart from `observedAt`; reports
 take the newer observation time from `sync/current`. Health is rewritten when it changes
 apart from `observedAt` and `lastSuccessAt`, or when the stored copy is 5 minutes older
-than the new observation. The `days` collection is read only with summaries (so pruning
-outside the retained dates happens on those syncs and in the daily sweep), alert state
-only when today's summary changed, and with neither summaries nor receipts the action
-snapshot reads controls, policy and parents only when an action is open. An idle sync
-costs 7 reads and 1 write (`sync` emulator suite).
+than the new observation. A sync reads only the day documents of the dates it is sent
+(the daily sweep alone deletes days outside the retained dates), alert state only when
+today's summary changed, and with neither summaries nor receipts the action snapshot reads
+controls, policy and parents only when an action is open. An unchanged alert state is not
+rewritten. An idle sync costs 7 reads and 1 write, a summary sync 14 reads and 2 writes with
+two caregivers (`sync` emulator suite).
 
 Every submitted date receives its durable source highwater. Unknown manifests are
 ignored locally; malformed receipt/date/sequence/Ack associations reject atomically.

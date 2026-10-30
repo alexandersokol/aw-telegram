@@ -42,30 +42,33 @@ Before 11d (Cloud Monitoring, one hour on 2026-10-30, 15 s sync): 1,051 writes a
 
 Per sync after 11d, counted in the `sync` emulator suite (transaction only):
 - idle (no summary, no receipt, health unchanged): 7 reads, 1 write (`sync/current`);
-- one new today summary (two caregivers, no stored days): 14 reads, 3 writes (day, alert
-  state, `sync/current`). With one caregiver and seven stored days it is 19 reads, because
-  the `days` query reads every stored day.
+- a today summary (two caregivers): 14 reads, 2 writes (the day and `sync/current`), however
+  many days are stored. Only the summarized date is read; the daily sweep deletes days
+  outside the retained dates, and an unchanged alert state is not rewritten. With one
+  caregiver it is 13 reads.
 
-Every sync is followed by the task-intent repair, two queries (2 reads). Health is also
-written at least every 5 minutes (288 writes a day), and live when the app or title changes.
+Every sync is followed by the task-intent repair, two queries (2 reads). It stays: it is the
+frequent retry for intents whose Cloud Tasks enqueue failed and the recovery for lost
+enqueued tasks, which otherwise wait for the next Telegram update or the daily sweep. Health
+is also written at least every 5 minutes (288 writes a day), and live when the app or title
+changes.
 
-Projected for one laptop online 24 hours (2,880 syncs):
+Projected for one laptop online 24 hours (2,880 syncs, one caregiver):
 
 | Case | Reads/day | Writes/day |
 |---|---:|---:|
 | Before 11d (measured hour x 24) | 100,512 | 25,224 |
 | Idle syncs only | 25,920 | 3,168 |
-| A today summary on every sync | 60,480 | 8,928 + live changes |
+| A today summary on every sync (today's companion) | 43,200 | 6,048 + live changes |
+| Unchanged summary at most every 5 minutes (idle laptop) | 27,648 | 3,456 |
+| As above, repair at most every 5 minutes too | 22,464 | 3,456 |
 
 The companion collects and sends a new today summary every 30 s, even when only its
 `availableThrough` time moved, so with today's cadence nearly every sync carries one: the
-last row applies. That misses the 11d goal (about 4,000 writes and 20,000 reads) and its
-bound (6,000 and 30,000). Not done in 11d, with their effect on a summary sync:
-- read only the summarized dates' day documents, leaving pruning to the daily sweep: -6 reads;
-- skip the alert state write when it is unchanged: -1 write;
-- run the task-intent repair only after a sync that queued work: -2 reads;
-- send an unchanged today summary (only `availableThrough` moved) at most every 5 minutes:
-  most syncs of an idle laptop become idle syncs.
+third row applies. It misses the 11d goal (about 4,000 writes and 20,000 reads) and is at or
+over its bound (6,000 and 30,000). The last two rows are not implemented and need the
+owner's decision: the companion cadence changes "Дані станом на" freshness while the laptop
+is idle, and a throttled repair retries failed enqueues within 5 minutes instead of 30 s.
 
 Measured after the 11d deploy (owner-pending): one hour of
 `firestore.googleapis.com/document/read_count` and `write_count` for one online laptop:
