@@ -15,6 +15,7 @@ ROOT = Path(SPECPATH)
 BASE = Path(sys.base_prefix)
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "tools")]
 import licenses  # noqa: E402
+import release  # noqa: E402
 
 python_license = BASE / "LICENSE.txt"
 if "Additional Conditions for this Windows binary build" not in python_license.read_text(encoding="utf-8", errors="replace"):
@@ -28,6 +29,10 @@ notice.write_text(licenses.notices(), encoding="utf-8")
 missing = licenses.missing_texts()
 if missing:
     print("WARNING: not distributable until companion/licenses has: " + ", ".join(missing))
+
+# File Explorer's Properties shows the version stamped into aw_telegram/_version.py (0.0.0.0 for a local build).
+version_file = Path(CONF["workpath"]) / "version-info.txt"
+version_file.write_text(release.version_info(release.stamped_version(ROOT)), encoding="utf-8")
 
 datas = (collect_data_files("aw_telegram", includes=["schemas/*.schema.json"])
          + collect_data_files("tzdata")
@@ -57,5 +62,5 @@ if not any(openssl(b) for b in a.binaries):
 pyz = PYZ(a.pure)
 # AW_TELEGRAM_CONSOLE=1 builds a console variant for diagnosing a frozen build; never ship it.
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="aw-telegram",
-          console=os.environ.get("AW_TELEGRAM_CONSOLE") == "1", upx=False)
+          console=os.environ.get("AW_TELEGRAM_CONSOLE") == "1", upx=False, version=str(version_file))
 coll = COLLECT(exe, a.binaries, a.datas, name="aw-telegram", upx=False)
