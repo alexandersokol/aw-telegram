@@ -107,8 +107,9 @@ Unit (`bot/tests`):
 - The leave screen with one and with two active caregivers.
 - `/unpair` while paired opens the screen; while unpaired gives the pairing hint.
 - A repeated confirm after removal gets the pairing hint and writes nothing.
-- A confirm whose `leaveDevice` call fails with 401 (removed on the laptop
-  between screen and tap) gets the stale toast.
+- A confirm tapped after the laptop removed the caregiver gets the pairing hint:
+  the webhook resolves the caregiver before the menu runs. Only a removal racing
+  the tap itself reaches `leaveDevice` as a 401, which maps to the stale toast.
 
 Emulator (`pairing` selector):
 - `leaveDevice` revokes the parent and binding, frees the slot and deletes the
