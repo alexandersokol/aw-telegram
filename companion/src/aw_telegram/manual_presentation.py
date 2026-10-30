@@ -7,6 +7,7 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from .texts import t
 from .ui.countdown import CountdownWindow
 from .ui.notification import NotificationCard
 from .ui.overlay import OverlayWindow
@@ -14,32 +15,32 @@ from .windows.foreground import ForegroundAdapter
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Локальна перевірка нагадувань")
+    parser = argparse.ArgumentParser(description=t("harness.description"))
     parser.add_argument("--mode", choices=["overlay", "notification", "countdown", "endtime-sequence"], default="overlay")
     parser.add_argument("--order", choices=["manual-first", "endtime-first"], default="manual-first",
-                        help="endtime-sequence: яке накладання з'являється першим")
-    parser.add_argument("--text", default="Час зробити перерву")
+                        help=t("harness.order_help"))
+    parser.add_argument("--text", default=t("harness.default_text"))
     parser.add_argument("--buttonless", action="store_true")
     parser.add_argument("--duration-ms", type=int)
     parser.add_argument("--delay-ms", type=int, default=3000)
-    parser.add_argument("--quit-after-ms", type=int, help="Завершити після показу")
+    parser.add_argument("--quit-after-ms", type=int, help=t("harness.quit_after_help"))
     parser.add_argument("--allow-minimize-exe", action="append", default=[],
-                        help="Повний шлях дозволеної повноекранної програми")
-    parser.add_argument("--capture", type=Path, help="PNG основного екрана для ручної перевірки")
+                        help=t("harness.allow_minimize_help"))
+    parser.add_argument("--capture", type=Path, help=t("harness.capture_help"))
     options = parser.parse_args(argv)
     maximum = 86_340_000 if options.mode == "countdown" else 3_600_000
     if options.duration_ms is not None and not 1 <= options.duration_ms <= maximum:
         parser.error(f"--duration-ms: 1..{maximum}")
     if options.buttonless and (options.mode != "overlay" or options.duration_ms is None):
-        parser.error("--buttonless потребує --mode overlay та --duration-ms")
+        parser.error(t("harness.buttonless_needs_overlay"))
     if options.buttonless and options.duration_ms < 1000:
-        parser.error("--buttonless потребує тривалості щонайменше 1000 мс")
+        parser.error(t("harness.buttonless_min"))
     if options.delay_ms < 0 or (options.quit_after_ms is not None and options.quit_after_ms <= 0):
-        parser.error("Некоректна тривалість")
+        parser.error(t("harness.bad_duration"))
     try:
         adapter = ForegroundAdapter(allowed_executables=options.allow_minimize_exe)
     except ValueError:
-        parser.error("--allow-minimize-exe потребує повного шляху Windows")
+        parser.error(t("harness.bad_executable"))
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setQuitOnLastWindowClosed(False)

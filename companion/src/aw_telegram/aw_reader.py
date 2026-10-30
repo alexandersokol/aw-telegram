@@ -13,6 +13,7 @@ import math
 import re
 from typing import Callable, Protocol
 
+from . import texts
 from .category_settings import CategorySettingsUnsupported, EffectiveCategories, resolve_categories
 from .clock import format_instant, kyiv_date, local_day_bounds, retained_dates
 from .counting import aggregate, app_leaf_records, category_record, leaf_records, normalize, selected_total
@@ -187,7 +188,8 @@ RETURN = {"events":events, "window_raw":window_raw, "afk_raw":afk_raw, "checks":
     return query, mapping
 
 
-_OWN_TITLES = {'Нагадування AW Telegram', 'Сповіщення AW Telegram', 'Таймер AW Telegram'}
+# The companion's own windows, titled in either language: an event may have been recorded before a language switch.
+_OWN_TITLES = texts.in_all('overlay.title') | texts.in_all('notification.title') | texts.in_all('countdown.title')
 
 
 def companion_foreground(data: dict) -> bool:

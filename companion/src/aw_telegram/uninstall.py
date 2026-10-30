@@ -7,18 +7,19 @@ Local data is listed for manual deletion, never removed. No step's failure stops
 """
 from pathlib import Path
 
+from .texts import t
 from .windows.startup import set_startup
 
-OWNER_COMMAND = "node --experimental-strip-types scripts/enroll.ts revoke-device --project ПРОЄКТ --device-id {device}"
+OWNER_COMMAND = "node --experimental-strip-types scripts/enroll.ts revoke-device --project {project} --device-id {device}"
 
 
 def uninstall(store, *, registry, vault, access, revoke_parents: bool, data: Path) -> list[str]:
     report = []
     try:
         set_startup(False, "", registry)
-        report.append("Автозапуск вимкнено.")
+        report.append(t("uninstall.startup_off"))
     except Exception:
-        report.append("Не вдалося вимкнути автозапуск Windows.")
+        report.append(t("uninstall.startup_failed"))
     binding = store.binding if store is not None else None
     if binding is not None:
         if revoke_parents and access is not None:
@@ -28,16 +29,15 @@ def uninstall(store, *, registry, vault, access, revoke_parents: bool, data: Pat
                 for entry in listing["parents"] + [k for k in listing["keys"] if k["status"] == "pending"]:
                     access.revoke(entry["id"])
                     removed += 1
-                report.append(f"Доступ батьків видалено (записів: {removed}).")
+                report.append(t("uninstall.parents_removed", count=removed))
             except Exception:
-                report.append(f"Не вдалося видалити доступ батьків (видалено записів: {removed}). "
-                              "Його скасує відкликання ноутбука власником — команда нижче.")
+                report.append(t("uninstall.parents_failed", count=removed))
         try:
             vault.delete(binding["backendUrl"], binding["deviceId"])
-            report.append("Облікові дані ноутбука видалено з Windows.")
+            report.append(t("uninstall.vault_deleted"))
         except Exception:
-            report.append("Не вдалося видалити облікові дані з Windows.")
-        report.append("Щоб відкликати ноутбук на сервері (це також скасує доступ усіх батьків і ключі), власник "
-                      "виконує на своєму комп’ютері: " + OWNER_COMMAND.format(device=binding["deviceId"]))
-    report.append(f"Дані програми залишилися в {data}; їх можна видалити вручну.")
+            report.append(t("uninstall.vault_failed"))
+        command = OWNER_COMMAND.format(project=t("uninstall.project"), device=binding["deviceId"])
+        report.append(t("uninstall.owner_revoke", command=command))
+    report.append(t("uninstall.data_left", path=data))
     return report

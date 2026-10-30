@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QLabel, QVBoxLayout
 
 from ._surface import PresentationSurface
+from ..texts import t
 
 
 class CountdownWindow(PresentationSurface):
@@ -14,8 +15,7 @@ class CountdownWindow(PresentationSurface):
         self.setWindowFlag(Qt.WindowType.WindowTransparentForInput)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowTitle("Таймер AW Telegram")
-        self.setAccessibleName("Таймер AW Telegram")
+        self.retranslate()
         self.setStyleSheet("background: transparent; color: white; font-size: 22px;")
         layout = QVBoxLayout(self)
         self.label = QLabel()
@@ -29,15 +29,20 @@ class CountdownWindow(PresentationSurface):
         self.dismissed.connect(self._ticks.stop)
         self.expired.connect(self._ticks.stop)
 
+    def retranslate(self) -> None:
+        self.setWindowTitle(t("countdown.title"))
+        self.setAccessibleName(t("countdown.title"))
+
     @property
     def text(self):
         return self.label.text()
 
-    def start_countdown(self, duration_ms: int, text: str = "До нагадування") -> None:
+    def start_countdown(self, duration_ms: int, text: str | None = None) -> None:
         if type(duration_ms) is not int or not 1 <= duration_ms <= 86_340_000:
             raise ValueError("duration_ms must be 1..86340000")
         def prepare():
-            self._caption = text
+            self.retranslate()
+            self._caption = t("countdown.caption") if text is None else text
             self._duration = duration_ms
             self._elapsed.start()
             self._timer.start(duration_ms)

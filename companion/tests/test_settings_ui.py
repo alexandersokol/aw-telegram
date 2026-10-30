@@ -179,7 +179,7 @@ def test_store_binds_once_and_validates_the_activitywatch_address(tmp_path):
         with pytest.raises(ValueError):
             store.bind(DeviceIdentity("00000000-0000-4000-8000-000000000002", "https://backend.example"))
         store.set_app_config(awHost="::1", awPort=5666)
-        assert store.app_config == {"awHost": "::1", "awPort": 5666}
+        assert store.app_config == {"awHost": "::1", "awPort": 5666, "language": "system"}
         for bad in (dict(awHost="10.0.0.1", awPort=5600), dict(awHost="127.0.0.1", awPort=0),
                     dict(awHost="127.0.0.1", awPort="5600")):
             with pytest.raises(ValueError):

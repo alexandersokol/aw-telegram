@@ -1,4 +1,4 @@
-"""Ukrainian «Стан» text for the companion window. Pure: no Qt, IO or clock reads.
+"""The «Стан» / Status text for the companion window, in the chosen language. Pure: no Qt, IO or clock reads.
 
 Wording follows the bot's /status so caregivers and the laptop describe the same facts the same way.
 Missing data is never shown as zero usage.
@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from .clock import KYIV, kyiv_date, parse_instant
 from .models import Settings
 from .policy import effective_limit_ms
+from .texts import t
 
 ONLINE = timedelta(seconds=60)  # sync runs every 15 s
-AW_STATE = dict(ready="працює", partial="неповні дані", stale="дані застаріли", unavailable="недоступний",
-                unsupported="категорії не налаштовано", unknown="невідомо")
+AW_STATES = ("ready", "partial", "stale", "unavailable", "unsupported", "unknown")
 
 
 @dataclass(frozen=True)
@@ -30,67 +30,66 @@ class StatusInput:
 
 def duration(ms: int) -> str:
     if 0 < ms < 60_000:
-        return "менше 1 хв"
+        return t("status.duration.under_minute")
     minutes = ms // 60_000
     hours = minutes // 60
-    return f"{hours} год {minutes % 60:02d} хв" if hours else f"{minutes} хв"
+    return t("status.duration.hours", hours=hours, minutes=minutes % 60) if hours else t("status.duration.minutes", minutes=minutes)
 
 
 def _when(instant: str, now: datetime) -> str:
     local, today = parse_instant(instant).astimezone(KYIV), now.astimezone(KYIV)
     clock = local.strftime("%H:%M")
-    return f"о {clock}" if local.date() == today.date() else f"{local.strftime('%d.%m')} о {clock}"
+    return (t("status.when.today", clock=clock) if local.date() == today.date()
+            else t("status.when.date", date=local.strftime("%d.%m"), clock=clock))
 
 
 def status_lines(s: StatusInput) -> list[str]:
     if not s.enrolled:
-        return ["Сервер: ноутбук не підключено. Введіть код підключення в «Налаштування»."]
+        return [t("status.server.not_enrolled")]
     lines = []
     if s.sync is not None and s.sync["auth_blocked"]:
-        lines.append("Сервер: доступ ноутбука відхилено. Попросіть власника видати новий код і натисніть "
-                     "«Підключити заново» в «Налаштування».")
+        lines.append(t("status.server.rejected"))
     elif s.sync is not None and s.sync.get("last_error") == "startup_failed":
-        lines.append("Сервер: синхронізація не запустилася. Закрийте програму через «Вийти» і запустіть знову.")
+        lines.append(t("status.server.startup_failed"))
     elif s.sync is not None and s.sync.get("last_error") == "credential_vault_unavailable":
-        lines.append("Сервер: не вдалося прочитати облікові дані ноутбука зі сховища Windows; "
-                     "синхронізацію буде повторено.")
+        lines.append(t("status.server.vault_unavailable"))
     elif s.last_sync_at is None:
-        lines.append("Сервер: ще не синхронізувався")
+        lines.append(t("status.server.never"))
     elif s.now - parse_instant(s.last_sync_at) <= ONLINE:
-        lines.append(f"Сервер: на зв’язку, остання синхронізація {_when(s.last_sync_at, s.now)}")
+        lines.append(t("status.server.online", when=_when(s.last_sync_at, s.now)))
     else:
-        lines.append(f"Сервер: немає зв’язку, остання синхронізація {_when(s.last_sync_at, s.now)}")
+        lines.append(t("status.server.offline", when=_when(s.last_sync_at, s.now)))
     if not s.paired:
-        lines.append("Батьки: ще ніхто не під’єднався. Створіть ключ у «Доступ батьків».")
-        lines.append("ActivityWatch: облік почнеться після першого під’єднання батьків")
+        lines.append(t("status.caregivers.none_yet"))
+        lines.append(t("status.aw.after_pairing"))
     else:
         if s.caregivers == 0:
-            lines.append("Батьки: зараз ніхто не під’єднаний. Обмеження й нагадування призупинено, доки хтось "
-                         "не під’єднається в «Доступ батьків».")
+            lines.append(t("status.caregivers.none_now"))
         health = (s.sync or {}).get("health") or {}
-        aw = AW_STATE.get(health.get("awState"), "невідомо")
+        state = health.get("awState")
+        aw = t(f"status.aw.{state if state in AW_STATES else 'unknown'}")
         if health.get("reportError"):
-            aw += " (звіт завеликий, надіслано останні дані)"
-        lines.append(f"ActivityWatch: {aw}")
+            aw += t("status.aw.report_error")
+        lines.append(t("status.aw.line", state=aw))
 
     date, settings = kyiv_date(s.now), s.settings
     if not settings.selectedPaths and not settings.selectedUncategorized:
-        lines.append("Сьогодні: для обліку не вибрано жодної категорії. Оберіть їх у Telegram: /categories.")
+        lines.append(t("status.today.no_categories"))
     elif s.used_ms is None:
-        lines.append("Сьогодні: даних немає")
+        lines.append(t("status.today.no_data"))
     else:
-        partial = " (неповні дані)" if s.partial else ""
+        partial = t("status.today.partial") if s.partial else ""
         if settings.freeUseDate == date:
-            lines.append(f"Сьогодні: {duration(s.used_ms)}{partial}, вільний режим")
+            lines.append(t("status.today.free_use", used=duration(s.used_ms), partial=partial))
         else:
             limit = effective_limit_ms(settings, date)
             left = limit - s.used_ms
-            rest = f"залишилось {duration(left)}" if left >= 0 else f"перевищено на {duration(-left)}"
-            lines.append(f"Сьогодні: {duration(s.used_ms)} з {duration(limit)}, {rest}{partial}")
-    lines.append(f"Час завершення: увімкнено, о {settings.endtimeLocalTime}" if settings.endtimeEnabled
-                 else "Час завершення: вимкнено")
-    lines.append(f"Вільний режим: {'увімкнено до опівночі' if settings.freeUseDate == date else 'вимкнено'}")
-    lines.append(f"Автоматичні нагадування: {'вимкнено до опівночі' if settings.suppressedDate == date else 'активні'}")
+            rest = t("status.today.left", left=duration(left)) if left >= 0 else t("status.today.over", over=duration(-left))
+            lines.append(t("status.today.limit", used=duration(s.used_ms), limit=duration(limit), rest=rest, partial=partial))
+    lines.append(t("status.endtime.on", time=settings.endtimeLocalTime) if settings.endtimeEnabled
+                 else t("status.endtime.off"))
+    lines.append(t("status.free_use.on" if settings.freeUseDate == date else "status.free_use.off"))
+    lines.append(t("status.reminders.off" if settings.suppressedDate == date else "status.reminders.on"))
     return lines
 
 

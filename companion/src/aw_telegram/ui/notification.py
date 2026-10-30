@@ -3,13 +3,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QScrollArea, QVBoxLayout
 
 from ._surface import PresentationSurface
+from ..texts import t
 
 
 class NotificationCard(PresentationSurface):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Сповіщення AW Telegram")
-        self.setAccessibleName("Сповіщення AW Telegram")
         self.setStyleSheet("background: #242424; color: white; font-size: 18px;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -22,14 +21,21 @@ class NotificationCard(PresentationSurface):
         self.message_scroll.setWidgetResizable(False)
         self.message_scroll.setFrameShape(QFrame.Shape.NoFrame)
         layout.addWidget(self.message_scroll, 1)
-        self.dismiss_button = QPushButton("Закрити")
+        self.dismiss_button = QPushButton()
         self.dismiss_button.clicked.connect(self.hide_message)
         layout.addWidget(self.dismiss_button)
+        self.retranslate()
         self._position()
+
+    def retranslate(self) -> None:
+        self.setWindowTitle(t("notification.title"))
+        self.setAccessibleName(t("notification.title"))
+        self.dismiss_button.setText(t("notification.dismiss"))
 
     def show_message(self, text: str, duration_ms: int = 10_000) -> None:
         if type(duration_ms) is not int or not 1 <= duration_ms <= 3_600_000:
             raise ValueError("duration_ms must be 1..3600000")
+        self.retranslate()
         self.message.setText(text)
         self._present(duration_ms)
 

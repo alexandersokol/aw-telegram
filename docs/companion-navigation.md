@@ -3,7 +3,12 @@
 Status: agreed initial interface recorded 2026-10-27; endtime and newest-overlay
 amendment approved 2026-10-29. The window, tray and all three sections, including
 first-launch enrollment and re-enrollment, are implemented and packaged (Task 9).
-All built-in interface text is Ukrainian.
+The interface is Ukrainian or English, set on the laptop in «Налаштування» → «Мова / Language»
+(«Системна / System», «Українська», "English"). System follows the Windows display language:
+Ukrainian for Ukrainian, English otherwise. The choice is stored locally and applies at once to
+open windows and to the next overlay or notification. The section names below are the Ukrainian
+ones; in English they are Status, Parent access and Settings. Text typed by a caregiver is shown
+as received.
 
 ## Window and tray behavior
 

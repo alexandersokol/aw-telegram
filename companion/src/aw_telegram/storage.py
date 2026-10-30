@@ -15,7 +15,8 @@ from .models import (Ack, ActionAck, CancellationAck, DaySummary, EndtimeAck, Se
     validate_activity_context, validate_contract, wire_bytes)
 
 
-APP_DEFAULTS = {"awHost": "127.0.0.1", "awPort": 5600}
+APP_DEFAULTS = {"awHost": "127.0.0.1", "awPort": 5600, "language": "system"}
+LANGUAGES = ("system", "uk", "en")
 _ACCESS_ID = re.compile(r"key:[0-9a-f-]{36}|parent:[1-9][0-9]{0,15}:[0-9a-f-]{36}")
 _OCCURRENCE_ENDED = {"dismissed", "completed", "replaced", "failed", "expired", "canceled", "skipped"}
 
@@ -210,6 +211,14 @@ class LocalStore:
         with self._transaction():
             state = self._state()
             state["app"] = {**state.get("app", {}), "awHost": awHost, "awPort": awPort}
+            self._save(state)
+
+    def set_language(self, choice: str) -> None:
+        if choice not in LANGUAGES:
+            raise ValueError("language must be system, uk or en")
+        with self._transaction():
+            state = self._state()
+            state["app"] = {**state.get("app", {}), "language": choice}
             self._save(state)
 
     @property

@@ -17,11 +17,8 @@ from .clock import format_instant, kyiv_date, local_day_bounds, parse_instant, r
 from .models import EndtimeAck
 from .policy import (AllowanceState, EndtimeState, allowance_finished, allowance_shown, endtime_finished, endtime_shown,
                      evaluate_allowance, evaluate_endtime)
+from .texts import t
 
-OVERLAY_TEXT = "Час завершення {time}.\nЧас відкласти ноутбук."
-WARNING_TEXT = "Час завершення о {time}: залишилося {minutes} хв."
-ALLOWANCE_OVERLAY_TEXT = "Денний час вичерпано.\nБудь ласка, вимкни комп’ютер."
-ALLOWANCE_WARNING_TEXT = "Денний час: залишилося {minutes} хв або менше."
 NOTIFY_CARD_MS = 10_000
 _LIVE = {"waiting", "visible"}
 
@@ -132,21 +129,21 @@ class Scheduler:
         if decision.warning:
             self._warning(state, events, commands, now, Presentation(
                 f"endtime-warning:{endtime.date}:{endtime.generation}:{decision.warning}", "endtime", "notification",
-                WARNING_TEXT.format(time=settings.endtimeLocalTime, minutes=decision.warning.removesuffix("m"))))
+                t("scheduler.endtime_warning", time=settings.endtimeLocalTime, minutes=decision.warning.removesuffix("m"))))
         if verdict.warning:
             self._warning(state, events, commands, now, Presentation(
                 f"allowance-warning:{allowance.date}:{verdict.warning}", "allowance", "notification",
-                ALLOWANCE_WARNING_TEXT.format(minutes=verdict.warning.removesuffix("m"))))
+                t("scheduler.allowance_warning", minutes=verdict.warning.removesuffix("m"))))
         overlays, cards = [], []
         if decision.show:
             state["sequence"] += 1
             overlays.append((decision.due_at, state["sequence"], None, Presentation(
                 f"endtime:{endtime.date}:{endtime.generation}:{state['sequence']}", "endtime", "overlay",
-                OVERLAY_TEXT.format(time=settings.endtimeLocalTime))))
+                t("scheduler.endtime_overlay", time=settings.endtimeLocalTime))))
         if verdict.show:
             state["sequence"] += 1
             overlays.append((verdict.due_at, state["sequence"], None, Presentation(
-                f"allowance:{allowance.date}:{state['sequence']}", "allowance", "overlay", ALLOWANCE_OVERLAY_TEXT)))
+                f"allowance:{allowance.date}:{state['sequence']}", "allowance", "overlay", t("scheduler.allowance_overlay"))))
         free = settings.freeUseDate == kyiv_date(now)
         if free:
             # Active reminders must not bypass free use (FREE-04): remove a visible manual overlay or card.

@@ -3,6 +3,8 @@ from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from ..texts import t
+
 
 def tray_icon() -> QIcon:
     pixmap = QPixmap(64, 64)
@@ -27,15 +29,20 @@ class CompanionTray(QSystemTrayIcon):
         super().__init__(tray_icon())
         self.setToolTip("AW Telegram")
         self._menu = QMenu()
-        open_action = QAction("Відкрити", self._menu)
-        open_action.triggered.connect(self.open_requested)
-        quit_action = QAction("Вийти", self._menu)
-        quit_action.triggered.connect(self.quit_requested)
-        self._menu.addAction(open_action)
+        self._open_action = QAction(self._menu)
+        self._open_action.triggered.connect(self.open_requested)
+        self._quit_action = QAction(self._menu)
+        self._quit_action.triggered.connect(self.quit_requested)
+        self._menu.addAction(self._open_action)
         self._menu.addSeparator()
-        self._menu.addAction(quit_action)
+        self._menu.addAction(self._quit_action)
         self.setContextMenu(self._menu)
         self.activated.connect(self._activated)
+        self.retranslate()
+
+    def retranslate(self) -> None:
+        self._open_action.setText(t("tray.open"))
+        self._quit_action.setText(t("tray.quit"))
 
     def _activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):

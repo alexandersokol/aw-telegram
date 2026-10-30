@@ -4,6 +4,7 @@ from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import QPushButton
 
 from ._surface import PresentationSurface
+from ..texts import t
 from ..windows.foreground import ForegroundAdapter
 
 
@@ -15,16 +16,20 @@ class OverlayWindow(PresentationSurface):
         self.presentation_result = None
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowTitle("Нагадування AW Telegram")
-        self.setAccessibleName("Нагадування AW Telegram")
-        self.dismiss_button = QPushButton("Закрити", self)
+        self.dismiss_button = QPushButton(self)
         self.dismiss_button.setFixedSize(160, 48)
         self.dismiss_button.setStyleSheet(
             "QPushButton {color: white; background: #333; border: 1px solid white;"
             "border-radius: 6px; font-size: 20px;}"
             "QPushButton:focus {border: 3px solid white;}")
         self.dismiss_button.clicked.connect(self.hide_message)
+        self.retranslate()
         self._position()
+
+    def retranslate(self) -> None:
+        self.setWindowTitle(t("overlay.title"))
+        self.setAccessibleName(t("overlay.title"))
+        self.dismiss_button.setText(t("overlay.dismiss"))
 
     def _before_show(self):
         self.presentation_result = self._foreground_adapter.reveal_overlay(int(self.winId()))
@@ -37,6 +42,7 @@ class OverlayWindow(PresentationSurface):
         if duration_ms is not None and (type(duration_ms) is not int
                                         or not 1 <= duration_ms <= 3_600_000):
             raise ValueError("duration_ms must be 1..3600000")
+        self.retranslate()
         self._text = text
         self._dismissible = dismissible
         self.dismiss_button.setVisible(dismissible)

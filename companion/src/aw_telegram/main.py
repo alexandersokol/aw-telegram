@@ -10,7 +10,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from . import _version
+from . import _version, texts
 from .aw_reader import AWReader, LocalAWClient
 from .runtime import CompanionRuntime, build_coordinator
 from .single_instance import SingleInstance
@@ -18,10 +18,11 @@ from .status import read_status, status_lines
 from .transport import Transport
 from .transport import DeviceIdentity
 from .ui.access import AccessClient, AccessPanel
-from .ui.i18n import install_translations
+from .ui.i18n import apply_language, install_translations
 from .ui.presenter import utc_now
 from .ui.settings import SettingsPanel
 from .ui.tray import CompanionTray
+from .texts import t
 from .ui.window import CompanionWindow
 
 
@@ -32,6 +33,21 @@ def data_directory() -> Path:
 
 def instance_name() -> str:
     return "aw-telegram-" + hashlib.sha256(getpass.getuser().encode("utf-8")).hexdigest()[:16]
+
+
+def saved_language(database: Path) -> str:
+    """The stored language choice, or "system" when there is no readable local data yet."""
+    from .storage import LocalStore
+    try:
+        if not database.exists():
+            return "system"
+        store = LocalStore(database)
+        try:
+            return store.app_config["language"]
+        finally:
+            store.close()
+    except Exception:
+        return "system"
 
 
 def production_coordinator(store, on_update):
@@ -78,7 +94,7 @@ class CompanionApp(QObject):
         self.settings_panel = SettingsPanel(enroll=enroll, probe=probe, on_enrolled=self._enrolled,
                                             on_aw_changed=self._aw_changed, executable=executable,
                                             registry=registry, runner=runner, on_reset=self._reset_enrollment,
-                                            confirm=confirm)
+                                            confirm=confirm, on_language=self._language_changed)
         self._access = access
         self.access_panel = AccessPanel(runner=runner)
         self.window = CompanionWindow(settings=self.settings_panel, access=self.access_panel)
@@ -94,6 +110,7 @@ class CompanionApp(QObject):
 
     def start(self) -> None:
         self.runtime.start()
+        self.apply_language(self.runtime.store.app_config["language"])
         self._timer.start()
         self._settings_state()
         self.refresh()
@@ -105,6 +122,17 @@ class CompanionApp(QObject):
         self.tray.show()
         if not enrolled or not self._background:
             self.open()
+
+    def _language_changed(self, choice: str) -> None:
+        self.runtime.store.set_language(choice)
+        self.apply_language(choice)
+
+    def apply_language(self, choice: str) -> None:
+        """Make the choice current for Qt's strings and every open window; the next overlay uses it as it shows."""
+        apply_language(QApplication.instance(), texts.apply(choice))
+        for widget in (self.window, self.tray, self.settings_panel, self.access_panel):
+            widget.retranslate()
+        self.refresh()
 
     def _settings_state(self) -> None:
         store = self.runtime.store
@@ -127,7 +155,7 @@ class CompanionApp(QObject):
 
     def _reset_enrollment(self) -> None:
         """Forget this enrollment for a new code: the old database is kept under a dated name, never deleted."""
-        binding = self.runtime.store.binding
+        binding, language = self.runtime.store.binding, self.runtime.store.app_config["language"]
         stopped = self.runtime.stop()
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         moved = stopped
@@ -147,12 +175,12 @@ class CompanionApp(QObject):
         self.runtime = self._make_runtime()
         self.runtime.synced.connect(self._synced, Qt.ConnectionType.QueuedConnection)
         self.runtime.start()
+        self.runtime.store.set_language(language)  # the new database keeps the language chosen on this laptop
         self._settings_state()
         self.refresh()
         self.window.show_section("settings")
         if not moved:
-            self.settings_panel.connection_message.setText(
-                "Не вдалося звільнити файл даних. Закрийте програму через «Вийти» і спробуйте ще раз.")
+            self.settings_panel.say_connection(lambda: t("main.reset_failed"))
 
     def _aw_changed(self, host: str, port: int) -> None:
         self.runtime.store.set_app_config(awHost=host, awPort=port)
@@ -216,15 +244,14 @@ def _uninstall(app: QApplication) -> int:
     title = "AW Telegram"
     guard = SingleInstance(instance_name())
     if not guard.acquire():
-        QMessageBox.warning(None, title, "Спершу закрийте AW Telegram: значок у треї → «Вийти».")
+        QMessageBox.warning(None, title, t("uninstall.close_first"))
         return 1
     store = None
     try:
         yes = QMessageBox.StandardButton.Yes
-        if QMessageBox.question(None, title, "Вимкнути AW Telegram на цьому ноутбуці? Автозапуск буде вимкнено, "
-                                "а облікові дані ноутбука видалено з Windows.") != yes:
+        if QMessageBox.question(None, title, t("uninstall.confirm")) != yes:
             return 0
-        revoke = QMessageBox.question(None, title, "Також видалити доступ усіх батьків? Потрібен зв’язок із сервером.") == yes
+        revoke = QMessageBox.question(None, title, t("uninstall.revoke_parents")) == yes
         directory = data_directory()
         database = directory / "companion.sqlite"
         store = LocalStore(database) if database.exists() else None
@@ -247,13 +274,14 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(argv)
     app.setApplicationName("AW Telegram")
     app.setQuitOnLastWindowClosed(False)
-    install_translations(app)  # Qt's own buttons and menus in Ukrainian (LANG-01)
     if "--self-check" in argv:  # packaging check: writes a JSON report to the given path
         if argv.index("--self-check") + 1 >= len(argv):
             return 2
         report = self_check()
         Path(argv[argv.index("--self-check") + 1]).write_text(json.dumps(report), encoding="utf-8")
         return 0 if {v for k, v in report.items() if k != "version"} == {"ok"} else 1
+    # Qt's own buttons and menus follow the stored language too (LANG-01); the app re-reads it once its store is open.
+    apply_language(app, texts.apply(saved_language(data_directory() / "companion.sqlite")))
     if "--uninstall" in argv:
         return _uninstall(app)
     guard = SingleInstance(instance_name())
@@ -268,9 +296,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         companion.start()
     except Exception:
-        # e.g. an unreadable or newer local database: a Ukrainian message instead of a frozen-app traceback
-        QMessageBox.critical(None, "AW Telegram", "Не вдалося запустити AW Telegram: не відкриваються локальні дані "
-                             f"в {directory}. Перезапустіть комп’ютер; якщо не допоможе, зверніться до власника.")
+        # e.g. an unreadable or newer local database: a plain message instead of a frozen-app traceback
+        QMessageBox.critical(None, "AW Telegram", t("main.start_failed", directory=directory))
         guard.release()
         return 1
     try:

@@ -14,13 +14,14 @@ from PySide6.QtWidgets import (QAbstractItemView, QGroupBox, QHBoxLayout, QHeade
                                QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 from ..clock import KYIV, parse_instant
+from ..texts import t
 from ..transport import SyncError, Transport
+from .i18n import Messages
 from .presenter import utc_now
 from .settings import ThreadRunner
 
 MAX_CAREGIVERS = 10
 KEY_LIFETIME = timedelta(minutes=15)  # PAIR-06; also bounds a laptop clock that runs behind the server
-WAITING = "видалення чекає на підтвердження сервера"
 _NO_HISTORY = b"\x00\x00\x00\x00"  # DWORD 0
 
 
@@ -64,14 +65,14 @@ def _local_time(instant: str) -> str:
 
 def entry_status(entry: dict, now: datetime, pending: bool = False) -> str:
     if pending:
-        return WAITING
+        return t("access.waiting")
     if entry["id"].startswith("parent:"):
-        return f"підключено, Telegram ID {entry['userId']}"
+        return t("access.parent", user_id=entry["userId"])
     if entry["status"] == "revoked":
-        return "ключ скасовано"
+        return t("access.key_revoked")
     if entry["status"] == "expired" or parse_instant(entry["expiresAt"]) <= now:
-        return "ключ прострочено"
-    return f"ключ чекає на підключення до {_local_time(entry['expiresAt'])}"
+        return t("access.key_expired")
+    return t("access.key_pending", time=_local_time(entry["expiresAt"]))
 
 
 class AccessPanel(QWidget):
@@ -79,6 +80,7 @@ class AccessPanel(QWidget):
         super().__init__()
         self._run = runner or ThreadRunner()
         self._confirm = confirm or self._ask
+        self._messages = Messages()
         self._now = now
         self._store = self._client = None
         self._entries: list[dict] = []
@@ -94,14 +96,13 @@ class AccessPanel(QWidget):
 
         create = QHBoxLayout()
         self.name = QLineEdit()
-        self.name.setPlaceholderText("Ім’я, наприклад «Мама»")
-        self.create_button = QPushButton("Створити ключ")
+        self.create_button = QPushButton()
         self.create_button.clicked.connect(self.create_key)
         create.addWidget(self.name, 1)
         create.addWidget(self.create_button)
         layout.addLayout(create)
 
-        self.key_box = QGroupBox("Новий ключ")
+        self.key_box = QGroupBox()
         box = QVBoxLayout(self.key_box)
         self.key_command = QLabel()
         self.key_command.setTextFormat(Qt.TextFormat.PlainText)
@@ -110,9 +111,9 @@ class AccessPanel(QWidget):
         self.key_note = QLabel()
         self.key_note.setWordWrap(True)
         buttons = QHBoxLayout()
-        self.copy_button = QPushButton("Копіювати команду")
+        self.copy_button = QPushButton()
         self.copy_button.clicked.connect(lambda: copy_secret(self.key_command.text()))
-        self.done_button = QPushButton("Готово")
+        self.done_button = QPushButton()
         self.done_button.clicked.connect(self._clear_key)
         buttons.addWidget(self.copy_button)
         buttons.addWidget(self.done_button)
@@ -127,14 +128,26 @@ class AccessPanel(QWidget):
         self.capacity.setWordWrap(True)
         layout.addWidget(self.capacity)
         self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Ім’я", "Стан", ""])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table, 1)
-        self.refresh_button = QPushButton("Оновити")
+        self.refresh_button = QPushButton()
         self.refresh_button.clicked.connect(self.refresh)
         layout.addWidget(self.refresh_button, 0, Qt.AlignmentFlag.AlignRight)
+        self.retranslate()
+
+    def retranslate(self) -> None:
+        """Static texts, the table and every remembered message, in the current language."""
+        self.name.setPlaceholderText(t("access.name_hint"))
+        self.create_button.setText(t("access.create"))
+        self.key_box.setTitle(t("access.new_key"))
+        self.copy_button.setText(t("access.copy"))
+        self.done_button.setText(t("access.done"))
+        self.table.setHorizontalHeaderLabels([t("access.header_name"), t("access.header_state"), ""])
+        self.refresh_button.setText(t("access.refresh"))
+        self._messages.retranslate()
+        self._render()
 
     def _ask(self, text: str) -> bool:
         return QMessageBox.question(self, "AW Telegram", text) == QMessageBox.StandardButton.Yes
@@ -145,7 +158,10 @@ class AccessPanel(QWidget):
         enabled = client is not None
         for widget in (self.name, self.create_button, self.refresh_button):
             widget.setEnabled(enabled)
-        self.message.setText("" if enabled else "Спочатку підключіть ноутбук у «Налаштування».")
+        if enabled:
+            self._messages.clear(self.message)
+        else:
+            self._messages.say(self.message, lambda: t("access.connect_first"))
         self._render()
         if enabled:
             self.refresh()
@@ -162,7 +178,7 @@ class AccessPanel(QWidget):
         if generation is not None and (generation != self._generation or client is not self._client):
             return  # a newer refresh or a rebind superseded this answer
         if error is not None:
-            self.message.setText("Список недоступний: немає зв’язку з сервером.")
+            self._messages.say(self.message, lambda: t("access.list_failed"))
         else:
             self._entries = result["parents"] + result["keys"]
         self._render()
@@ -185,20 +201,19 @@ class AccessPanel(QWidget):
             self.table.setItem(row, 1, QTableWidgetItem(entry_status(entry, now, waiting)))
             self.table.removeCellWidget(row, 2)
             if not waiting and entry.get("status") != "revoked":
-                button = QPushButton("Видалити")
+                button = QPushButton(t("access.remove"))
                 button.clicked.connect(lambda _=False, access_id=entry["id"]: self.remove(access_id))
                 self.table.setCellWidget(row, 2, button)
         active = sum(1 for e, waiting in rows if e["id"].startswith("parent:") and not waiting)
         full = active >= MAX_CAREGIVERS
-        self.capacity.setText(f"Підключено {MAX_CAREGIVERS} із {MAX_CAREGIVERS} облікових записів: "
-                              "щоб додати новий, спершу видаліть один." if full else "")
+        self.capacity.setText(t("access.full", max=MAX_CAREGIVERS) if full else "")
         self.create_button.setEnabled(self._client is not None and not full)  # a new key could not pair
 
     # Keys
     def create_key(self) -> None:
         name = self.name.text().strip()
         if not name or len(name) > 80:
-            self.message.setText("Введіть ім’я до 80 символів, наприклад «Мама».")
+            self._messages.say(self.message, lambda: t("access.name_invalid"))
             return
         self.create_button.setEnabled(False)
         self._run(lambda: self._client.create(name), self._created)
@@ -206,11 +221,11 @@ class AccessPanel(QWidget):
     def _created(self, result, error) -> None:
         self.create_button.setEnabled(True)
         if error is not None:
-            self.message.setText("Немає зв’язку з сервером. Спробуйте ще раз."
-                                 if isinstance(error, SyncError) and error.retryable else "Не вдалося створити ключ.")
+            offline = isinstance(error, SyncError) and error.retryable
+            self._messages.say(self.message, lambda: t("access.create_offline" if offline else "access.create_failed"))
             return
         self.name.clear()
-        self.message.setText("")
+        self._messages.clear(self.message)
         self.key_command.setText(f"/pair {result['secret']}")
         # A laptop clock ahead of the server must not hide the key at once, nor one behind keep it too long.
         now = self._now()
@@ -218,8 +233,7 @@ class AccessPanel(QWidget):
         if self._key_expires <= now:
             self._key_expires = now + KEY_LIFETIME
         local = self._key_expires.astimezone(KYIV).strftime("%H:%M")
-        self.key_note.setText("Надішліть цю команду боту в особистому чаті Telegram. "
-                              f"Ключ діє до {local} і підключає один обліковий запис.")
+        self._messages.say(self.key_note, lambda: t("access.key_note", time=local))
         self.key_box.setVisible(True)
         remaining = int((self._key_expires - now).total_seconds() * 1000)
         QTimer.singleShot(min(max(0, remaining), int(KEY_LIFETIME.total_seconds() * 1000)) + 500, self.expire_key)
@@ -234,7 +248,7 @@ class AccessPanel(QWidget):
         if self.key_command.text() and clipboard.text() == self.key_command.text():
             clipboard.clear()
         self.key_command.setText("")
-        self.key_note.setText("")
+        self._messages.clear(self.key_note)
         self.key_box.setVisible(False)
         self._key_expires = None
 
@@ -244,8 +258,7 @@ class AccessPanel(QWidget):
         if entry is None:
             return
         name, is_key = entry["name"], access_id.startswith("key:")
-        question = (f"Видалити ключ «{name}»? Його більше не можна буде використати." if is_key else
-                    f"Видалити доступ «{name}»? Цей обліковий запис Telegram більше не зможе керувати ноутбуком.")
+        question = t("access.remove_key_confirm" if is_key else "access.remove_parent_confirm", name=name)
         if not self._confirm(question):
             return
         self._store.request_revocation(access_id, name)  # durable before anything is claimed
@@ -254,10 +267,10 @@ class AccessPanel(QWidget):
 
     def _removed(self, access_id, name, is_key, error) -> None:
         if error is not None:
-            self.message.setText("Видалення збережено. Його буде надіслано, щойно з’явиться зв’язок із сервером.")
+            self._messages.say(self.message, lambda: t("access.remove_saved"))
             self._render()
             return
         self._store.revocation_done(access_id)
         # A key redeemed meanwhile is a paired parent now; the refreshed list shows it.
-        self.message.setText(f"Ключ «{name}» більше не можна використати." if is_key else f"Доступ «{name}» видалено.")
+        self._messages.say(self.message, lambda: t("access.key_removed" if is_key else "access.parent_removed", name=name))
         self.refresh()

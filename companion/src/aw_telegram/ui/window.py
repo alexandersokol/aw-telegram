@@ -1,6 +1,9 @@
-"""Small companion window: «Стан», «Доступ батьків», «Налаштування». Closing it keeps the tray app running."""
+"""Small companion window: Status, Parent access, Settings («Стан», «Доступ батьків», «Налаштування»).
+Closing it keeps the tray app running."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel, QTabWidget, QVBoxLayout, QWidget
+
+from ..texts import t
 
 SECTIONS = ("status", "access", "settings")
 
@@ -21,9 +24,13 @@ class CompanionWindow(QWidget):
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.access_panel = access or QWidget()
         self.settings_panel = settings or QWidget()
-        for widget, title in ((self._page(self.status), "Стан"), (self.access_panel, "Доступ батьків"),
-                              (self.settings_panel, "Налаштування")):
-            self.tabs.addTab(widget, title)
+        for widget in (self._page(self.status), self.access_panel, self.settings_panel):
+            self.tabs.addTab(widget, "")
+        self.retranslate()
+
+    def retranslate(self) -> None:
+        for index, key in enumerate(("tab.status", "tab.access", "tab.settings")):
+            self.tabs.setTabText(index, t(key))
 
     @staticmethod
     def _page(content: QWidget) -> QWidget:
