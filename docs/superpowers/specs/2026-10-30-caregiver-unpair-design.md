@@ -1,6 +1,6 @@
 # Caregiver Self-Removal Design
 
-Status: approved by the owner in conversation, 2026-10-30; spec pending review.
+Status: approved by the owner, 2026-10-30; implemented in 19984ce..8884aeb.
 
 ## Intent
 
@@ -59,12 +59,13 @@ Edge cases:
   session's nonce and version check, like every other stale button.
 - The warning reflects the count when the screen was shown. If the count changes
   before the tap, removal still proceeds; the warning is informational.
+- If the reply to a confirmed removal fails to send and Telegram redelivers the tap, the caregiver is already removed, so the redelivered tap gets the `PAIRING` hint instead of «Вас відключено.». Access is removed either way.
 
 ## Backend
 
 `repository.ts`:
 - Extract the caregiver branch of `revokeAccess` into one private transaction
-  helper, `revokeParentTx(tx, deviceId, device, userId, pairingId, now)`. It
+  helper, `revokeParentTx(tx, deviceId, userId, pairingId)`. It
   marks the parent document and the matching Telegram binding revoked, removes
   the user from `activeParentIds` and deletes their menu session. Both
   `revokeAccess` and the new method call it, so the two paths cannot drift.

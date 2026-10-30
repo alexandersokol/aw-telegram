@@ -330,7 +330,7 @@ on nonempty offers. Task6 does not claim a complete running companion.
 Persist menus/drafts per parent with a 30-minute timeout and nonce. Stale buttons
 ask to reopen menu; duplicate updates/callbacks cannot enqueue duplicate actions.
 Use the agreed button tree, 5/10/15/30 minute presets + custom input and review before
-submission. Command spellings: /start, /pair, /help, /status, /settings,
+submission. Command spellings: /start, /pair, /unpair, /help, /status, /settings,
 /usage [today|yesterday|week], /categories, /add_category, /remove_category,
 /limit [duration today|daily], /notify, /overlay, /pending,
 /clear manual|all, /restore, /free on|off, /hourly on|off,

@@ -58,3 +58,21 @@ describe('endtime menu transitions',()=>{
       expect(decodeCallback(data)).toBeNull();
   });
 });
+describe('self-removal menu transitions',()=>{
+  const nav=()=>import('../src/telegram/navigation.js');
+  it('opens the leave screen from Settings, confirms with the leave effect and cancels back to Settings',async()=>{
+    const {transitionNav}=await nav();
+    expect(transitionNav({screen:'settings'},'leave')).toEqual({state:{screen:'leave'}});
+    expect(transitionNav({screen:'leave'},'leaveyes')).toEqual({state:null,effect:'leave'});
+    expect(transitionNav({screen:'leave'},'leaveno')).toEqual({state:{screen:'settings'}});
+  });
+  it.each(['back','leave','hourlyon','settings','refresh'] as const)('treats %s on the leave screen as stale',async action=>{
+    const {transitionNav}=await nav();
+    expect(transitionNav({screen:'leave'},action)).toEqual({state:{screen:'leave'},error:'stale'});
+  });
+  it('refuses a confirm from any screen other than leave',async()=>{
+    const {transitionNav}=await nav();
+    expect(transitionNav({screen:'settings'},'leaveyes').error).toBe('stale');
+    expect(transitionNav({screen:'main'},'leaveyes').error).toBe('stale');
+  });
+});
