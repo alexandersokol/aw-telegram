@@ -18,6 +18,19 @@ const day=(sequence=1,totalMs=1000)=>({date:'2026-10-28',sequence,settingsRevisi
   leafTotalsMs:[{category:{id:'["Study"]',path:['Study']},totalMs}],appLeafTotalsMs:[{app:'Editor 😀',categoryId:'["Study"]',totalMs}],
   totalActiveMs:totalMs,selectedTotalMs:0,availableFrom:START,availableThrough:NOW,partial:false});
 const path=(suffix:string)=>`devices/${identity.deviceId}/${suffix}`;
+/** Billable operations of the transactions `body` runs: each document read, a query at least one. */
+async function counted(body:()=>Promise<unknown>):Promise<{reads:number;writes:number}> {
+  const ops={reads:0,writes:0},run=db.runTransaction.bind(db);
+  (db as any).runTransaction=(fn:(tx:any)=>Promise<unknown>,options?:any)=>run(tx=>fn(new Proxy(tx,{get(target:any,key){
+    const value=target[key];
+    if(key==='get')return async(ref:any)=>{const result=await value.call(target,ref);ops.reads+=result.docs?Math.max(1,result.size):1;return result;};
+    if(key==='getAll')return (...refs:any[])=>{ops.reads+=refs.length;return value.apply(target,refs);};
+    if(['set','create','update','delete'].includes(key as string))return (...args:any[])=>{ops.writes++;return value.apply(target,args);};
+    return typeof value==='function'?value.bind(target):value;
+  }})),options);
+  try{await body();}finally{delete (db as any).runTransaction;}
+  return ops;
+}
 beforeEach(async()=>{
   await resetFixture();now=Date.parse(START);repo=new FirestoreRepository(db,()=>now);
   const code=randomBytes(32).toString('base64url');await repo.issueEnrollment(code);
@@ -183,6 +196,18 @@ describe('sync Firestore transactions',()=>{
     await expect(api.syncDevice(identity,{...request(3),acks:[{...ack,appliedAt:START}]})).rejects.toThrow('conflict');
     await expect(api.syncDevice(identity,{...request(4),summaries:[day(),{...day(),date:'2026-10-20',availableFrom:null,availableThrough:null,partial:true,leafTotalsMs:[],appLeafTotalsMs:[],totalActiveMs:0}]})).rejects.toThrow();
     expect((await db.collection(path('days')).get()).empty).toBe(true);
+  });
+  test('an idle sync costs at most 7 reads and 2 writes and a summary is still stored',async()=>{
+    await api.syncDevice(identity,request(1));
+    const idle=await counted(()=>api.syncDevice(identity,request(2)));
+    const summary=await counted(()=>api.syncDevice(identity,{...request(3),summaries:[day()]}));
+    // Idle: device, settings, cancellations, sync, live, health and the open-action query; only sync/current is written.
+    expect(idle.reads).toBeLessThanOrEqual(7);expect(idle.writes).toBeLessThanOrEqual(2);expect(idle).toEqual({reads:7,writes:1});
+    // A summary adds the days query (one read per stored day, at least one), action controls, the device again, two parents and today's alert
+    // state, and writes the day, the alert state and sync/current. hosting-cost-estimate.md projects from these.
+    expect(summary).toEqual({reads:14,writes:3});
+    expect((await db.doc(path('days/2026-10-28')).get()).data()).toMatchObject({sequence:1,source:{totalActiveMs:1000}});
+    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({maxRequestSequence:3,serverReceivedAt:NOW});
   });
   test('v2 HTTP route sanitizes raw requests and preserves Task4 envelope version',async()=>{
     const router=createRouter(repo),headers={authorization:`Bearer ${deviceSecret}`};
