@@ -39,6 +39,7 @@ jobs:
           set -o pipefail
           npm test 2>&1 | tee test.log || {
             { echo "### Bot unit tests failed"; echo; echo '```text'; tail -n 150 test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=vitest output (tail)::$(tail -n 40 test.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
       - name: Build and typecheck
@@ -55,6 +56,7 @@ jobs:
           set -o pipefail
           npm run test:emulator -- auth pairing rules sync delivery purge cleanup 2>&1 | tee test.log || {
             { echo "### Emulator suites failed"; echo; echo '```text'; tail -n 150 test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=emulator output (tail)::$(tail -n 40 test.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 
@@ -86,5 +88,9 @@ jobs:
           if ($code -ne 0) {
             $lines = @('### Companion tests failed', '', '```text') + (Get-Content test.log -Tail 150) + @('```')
             $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            # Annotations are public on a public repository; logs and summaries need a sign-in.
+            Get-Content test.log | Where-Object { $_ -match '^(FAILED|ERROR) ' } | Select-Object -First 20 | ForEach-Object { "::error title=pytest::$_" }
+            $tail = (Get-Content test.log -Tail 40) -join '%0A'
+            "::error title=pytest output (tail)::$tail"
           }
           exit $code
