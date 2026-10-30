@@ -260,6 +260,17 @@ describe('sync Firestore transactions',()=>{
     await cleanup(repo,'2026-11-05T12:00:00.000Z');
     expect(await state()).toBeUndefined();
   });
+  test('a laptop 2 min ahead syncs and its health, live and sync state hold server-clamped times',async()=>{
+    const ahead=new Date(now+2*60000).toISOString(),health={observedAt:ahead,awState:'ready' as const,lastSuccessAt:ahead,reportError:null};
+    const live={observedAt:ahead,state:'active' as const,app:'game.exe',title:'Game',category:null,rulesRevision:'r1',categoryCatalog:[]};
+    const ops=await counted(()=>api.syncDevice(identity,{...request(),health,live,summaries:[{...day(),availableThrough:ahead}]}));
+    expect(ops).toEqual({reads:14,writes:4});  // the summary sync's 14 reads; day, live, health and sync/current written
+    expect((await db.doc(path('health/current')).get()).data()).toEqual({sequence:1,value:{...health,observedAt:NOW,lastSuccessAt:NOW}});
+    expect((await db.doc(path('live/current')).get()).data()).toEqual({sequence:1,value:{...live,observedAt:NOW}});
+    expect((await db.doc(path('sync/current')).get()).data()).toMatchObject({serverReceivedAt:NOW,
+      observed:{health:{sequence:1,observedAt:NOW},live:{sequence:1,observedAt:NOW}}});
+    expect((await db.doc(path('days/2026-10-28')).get()).data()?.source.availableThrough).toBe(ahead);
+  });
   test('v2 HTTP route sanitizes raw requests and preserves Task4 envelope version',async()=>{
     const router=createRouter(repo),headers={authorization:`Bearer ${deviceSecret}`};
     const result=await router({method:'POST',path:'/v2/sync',headers,body:JSON.stringify(request()),remoteAddress:'127.0.0.1'});
