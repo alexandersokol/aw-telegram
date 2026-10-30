@@ -26,7 +26,8 @@ new reader.
   5. `npm run test:emulator -- auth pairing rules sync delivery purge cleanup`, using the pinned
      `firebase-tools` from `bot/node_modules`.
 - **Job `companion`** (`windows-latest`), in `companion/`:
-  1. install the python.org CPython 3.12.6 installer silently (see section 2);
+  1. set up Python 3.12.6 with `actions/setup-python`. The tests don't need the python.org build;
+     the installer requirement applies to the release build in section 2;
   2. create a virtual environment and `pip install -r requirements.lock`;
   3. run `python tools/licenses.py check`;
   4. run `python -m pytest -q`. Some UI tests need a real window; the Windows runner provides a

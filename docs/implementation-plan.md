@@ -1084,16 +1084,15 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - The `bot` job runs `npm ci`, `npm test`, `npm run build`, `npm run check:bundle` and
     `npm run test:emulator -- auth pairing rules sync delivery purge cleanup` with Node 22 and
     Java 21, and passes on `main`.
-  - The `companion` job installs python.org CPython 3.12.6 from its official installer, checking
-    a pinned SHA-256. It installs `requirements.lock` in a virtual environment, then runs
-    `tools/licenses.py check` and `python -m pytest -q` without `QT_QPA_PLATFORM=offscreen`, and
-    passes on `main`.
+  - The `companion` job sets up Python 3.12.6 with `actions/setup-python`, installs
+    `requirements.lock` in a virtual environment, runs `tools/licenses.py check` and
+    `python -m pytest -q` without `QT_QPA_PLATFORM=offscreen`, and passes on `main`. The
+    python.org installer, with a pinned SHA-256, is for the release build in 11b.
   - Both jobs run on `push` (all branches) and `pull_request`, with `contents: read` and no
     secrets.
   - A deliberately failing test on a throwaway branch turns the run red; that branch is deleted
     afterwards.
-  - Run times are recorded in the workflow summary. The emulator suites finish in under 10
-    minutes.
+  - Job durations are visible in the run. The emulator suites finish in under 10 minutes.
 
 ### 11b: Releases and the app version (note 5, proposal D)
 

@@ -27,7 +27,8 @@ Prerequisites are in setup.md: project, APIs, service accounts, queue, secrets,
 rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
 `bot/node_modules` (15.34.1), from the repository root.
 
-1. Run the complete checks:
+1. CI (`.github/workflows/ci.yml`) runs the bot and companion checks on every push. Deploy only
+   a commit whose CI run is green. To run the complete checks locally:
    - `npm.cmd test`
    - `npm.cmd run build`
    - `npm.cmd run check:bundle`
