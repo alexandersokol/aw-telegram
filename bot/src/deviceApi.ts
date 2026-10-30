@@ -1,7 +1,7 @@
 /** Authenticated aggregate synchronization. No action producer, network or UI side effects. */
 import {decodeSettings,encodeSettings,needsSettingsMigration} from './settingsCodec.js';
 import {BoundaryError,FirestoreRepository,MAX_ACTIVE_CAREGIVERS,digest,type DeviceIdentity} from './repository.js';
-import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,CLOCK_SKEW_MS,ActivityContextError,
+import {defaultSettings,projectDay,validateContract,validateActivityContext,wireBytes,MAX_BODY_BYTES,CLOCK_SKEW_MS,ActivityContextError,pastSkew,atMost,
   type Settings,type SyncRequest,type SyncResponse,type Cancellations,type Instant,type EndtimeAck} from './contracts.js';
 import {applyPlan,type PlannedWrite} from './outbox.js';
 import {readActionSnapshot,planActionSync} from './actions.js';
@@ -76,10 +76,9 @@ export class DeviceApi {
       try {validateActivityContext(request,startedAt,now,CLOCK_SKEW_MS);}
       catch(error) {throw new BoundaryError('Invalid activity context',400,undefined,
         error instanceof ActivityContextError?{reason:error.message,skewMs:error.skewMs}:undefined);}
-      const upTo=(at:Instant):Instant=>at>now?now:at;
-      request.health={...request.health,observedAt:upTo(request.health.observedAt),
-        lastSuccessAt:request.health.lastSuccessAt&&upTo(request.health.lastSuccessAt)};
-      if(request.live)request.live={...request.live,observedAt:request.live.observedAt<startedAt!?startedAt!:upTo(request.live.observedAt)};
+      request.health={...request.health,observedAt:atMost(request.health.observedAt,now),
+        lastSuccessAt:request.health.lastSuccessAt&&atMost(request.health.lastSuccessAt,now)};
+      if(request.live)request.live={...request.live,observedAt:request.live.observedAt<startedAt!?startedAt!:atMost(request.live.observedAt,now)};
       // Days, alert state, action controls and parents are read only by syncs that use them. Only the summarized
       // dates are read; the daily sweep deletes days outside the retained dates (cleanup.ts).
       const quiet=!request.acks.length&&!request.summaries?.length;
@@ -101,7 +100,7 @@ export class DeviceApi {
           continue;
         }
         // appliedAt is laptop time and only part of the receipt's identity.
-        if(Date.parse(ack.appliedAt)-Date.parse(now)>CLOCK_SKEW_MS) throw new BoundaryError('Invalid receipt');
+        if(pastSkew(ack.appliedAt,now)) throw new BoundaryError('Invalid receipt');
         if(previous && previous.digest!==digest(canonical(ack))) throw new BoundaryError('Receipt identity conflict',409);
         if(ack.kind==='settings') {
           if(ack.revision>settings.revision) throw new BoundaryError('Unknown settings revision');

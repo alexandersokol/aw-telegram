@@ -336,6 +336,13 @@ export const CLOCK_SKEW_MS = 5 * 60000;
 export class ActivityContextError extends Error {
   constructor(message: string, readonly skewMs: number | null = null) {super(message);}
 }
+/** Laptop time `at` lies more than CLOCK_SKEW_MS after server time `now`: refused. */
+export const pastSkew = (at: Instant, now: Instant): boolean => Date.parse(at) - Date.parse(now) > CLOCK_SKEW_MS;
+/** A laptop time as the backend stores or decides with it: never after server time. */
+export const atMost = (at: Instant, now: Instant): Instant => at > now ? now : at;
+/** Kyiv dates a laptop up to `toleranceMs` ahead may name: the retained ones and the one it reaches first. */
+export const laptopDates = (now: Instant, toleranceMs = CLOCK_SKEW_MS): string[] =>
+  [...new Set([kyivDate(new Date(Date.parse(now) + toleranceMs).toISOString()), ...retainedDates(now)])];
 
 /** `toleranceMs` 0 (the shared fixtures, the companion) compares strictly; sync passes CLOCK_SKEW_MS. */
 export function validateActivityContext(input: unknown, startedAt: Instant | null, now: Instant, toleranceMs = 0): void {
@@ -352,8 +359,7 @@ export function validateActivityContext(input: unknown, startedAt: Instant | nul
   if (startedAt > now) throw new ActivityContextError('collection start is in the future');
   const early = (at: Instant, reason: string): void => {
     const ms = Date.parse(at) - Date.parse(startedAt); if (-ms > toleranceMs) throw new ActivityContextError(reason, ms);};
-  // A laptop ahead of the server reaches the next Kyiv date first.
-  const dates = [...new Set([kyivDate(new Date(Date.parse(now) + toleranceMs).toISOString()), ...retainedDates(now)])];
+  const dates = laptopDates(now, toleranceMs);
   for (const summary of request.summaries ?? []) {
     if (!dates.includes(summary.date) || dayBounds(summary.date).end <= startedAt) throw new ActivityContextError('summary outside retained collection dates');
     if (summary.availableFrom !== null) {

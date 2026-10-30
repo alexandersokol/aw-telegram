@@ -67,7 +67,7 @@ describe('endtime receipts',()=>{
   });
   it.each([
     ['unknown generation',{endtimeGeneration:5}],['wrong time',{endtimeLocalTime:'13:05',presentedAt:'2026-10-28T11:05:00.000Z'}],
-    ['unknown revision',{settingsRevision:9}],['future presentation',{presentedAt:'2026-10-28T12:00:01.000Z'}],
+    ['unknown revision',{settingsRevision:9}],['presentation past the clock tolerance',{presentedAt:'2026-10-28T12:05:00.001Z'}],
     ['generation zero',{endtimeGeneration:0,settingsRevision:0}],
   ])('rejects %s atomically',async(_,extra)=>{
     const s=await setup();

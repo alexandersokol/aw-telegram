@@ -499,6 +499,25 @@ describe('laptop clock skew',()=>{
       .toEqual([{date:'2026-10-29',sequence:1}]);
     expect(db.data.get(root+'/days/2026-10-29').source).toEqual(tomorrow);
   });
+  it('accepts action and endtime receipts from a laptop 2 min ahead and refuses them 6 min ahead',async()=>{
+    const {api,db,repository,settings}=await setup();
+    const {action}=await new ActionService(repository,()=>NOW).createAction(parent(),{...draft,delayMinutes:10},'skew:timer');
+    expect((await api.syncDevice(identity,request(1))).deliveryOffers.map(a=>a.id)).toEqual([action.id]);
+    const accepted=(id:string,at:string)=>({id,kind:'action' as const,actionId:action.id,eventSequence:1,occurrence:0,status:'accepted' as const,
+      at,acceptedAt:at,presentedAt:null,reason:null});
+    await settings.updateSettings(parent(),{kind:'setEndtime',localTime:'14:01'},'skew:endtime');
+    const endtime=(id:string,presentedAt:string)=>({id,kind:'endtime' as const,date:'2026-10-28',settingsRevision:1,endtimeGeneration:1,
+      endtimeLocalTime:'14:01',presentedAt});
+    const before=structuredClone(db.data);
+    await expect(api.syncDevice(identity,{...request(2),acks:[accepted('00000000-0000-4000-8000-0000000000a1',off(6*60000))]})).rejects.toThrow('Invalid receipt time');
+    await expect(api.syncDevice(identity,{...request(2),acks:[endtime('00000000-0000-4000-8000-0000000000e1',off(6*60000))]})).rejects.toThrow('Invalid endtime receipt');
+    expect(db.data).toEqual(before);
+    const acks=[accepted('00000000-0000-4000-8000-0000000000a2',off(2*60000)),endtime('00000000-0000-4000-8000-0000000000e2',off(90000))];
+    expect((await api.syncDevice(identity,{...request(3),acks})).acknowledgedAckIds).toEqual(acks.map(a=>a.id));
+    // Stored as sent: a receipt's times are its identity.
+    expect(db.data.get(root+'/actions/'+action.id)).toMatchObject({state:'accepted',acceptedAt:off(2*60000),latestAt:off(2*60000)});
+    expect([...db.data.values()].filter(v=>v?.kind==='endtime'&&Array.isArray(v.recipients))).toHaveLength(1);
+  });
 });
 
 it('R5 stores category paths in Firestore maps and returns unchanged wire arrays',async()=>{

@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Transaction, DocumentReference } from 'firebase-admin/firestore';
 import { BoundaryError, FirestoreRepository, digest, MAX_ACTIVE_CAREGIVERS, type ParentIdentity, type Parent, type DeviceIdentity } from './repository.js';
-import { validateContract, validateActionReceipt, actionCanceled, type Action, type ActionAck, type Cancellations, type Settings, type SyncResponse } from './contracts.js';
+import { validateContract, validateActionReceipt, actionCanceled, pastSkew, atMost, laptopDates, type Action, type ActionAck, type Cancellations, type Settings, type SyncResponse } from './contracts.js';
 import { dayBounds, kyivDate, kyivTime, parseInstant, retainedDates, retentionStart } from './clock.js';
 import { canonical, checkSettingsCapacity, emptyCancellations, boundedResponse } from './deviceApi.js';
 import { decodeSettings, encodeSettings, needsSettingsMigration } from './settingsCodec.js';
@@ -296,7 +296,9 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
         catch {
             throw new BoundaryError('Invalid action receipt');
         }
-        if (ack.at > now || !retainedDates(now).includes(kyivDate(ack.at)))
+        // Receipt times are laptop time, stored as sent (they are its identity); a clock up to CLOCK_SKEW_MS ahead is
+        // accepted. Checks against the action's own server-created window stay strict: the companion applies them itself.
+        if (pastSkew(ack.at, now) || !laptopDates(now).includes(kyivDate(ack.at)))
             throw new BoundaryError('Invalid receipt time');
         const evidence = { ...ack } as Partial<ActionAck>;
         delete evidence.id;
@@ -326,7 +328,8 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
         // can really be accepted or shown after either. It is recorded and the reminder stays cleared or
         // skipped; failing the sync would leave the receipt queued and stop every later sync.
         const fence = (snapshot.policy.fences ?? []).find((f: any) => a.sequence <= f.throughActionSequence || f.canceledIds.includes(a.id));
-        const afterFence = !!fence && (ack.presentedAt !== null && ack.presentedAt >= fence.at || ack.acceptedAt !== null && ack.acceptedAt >= fence.at);
+        // Compared with server time, a receipt time counts at most as now.
+        const afterFence = !!fence && (ack.presentedAt !== null && atMost(ack.presentedAt, now) >= fence.at || ack.acceptedAt !== null && atMost(ack.acceptedAt, now) >= fence.at);
         const duringFree = ack.acceptedAt !== null && ack.presentedAt !== null && freeAt(snapshot.policy, settings, a.targetAt);
         const ranks: Record<string, number> = { accepted: 0, presenting: 1, unconfirmed: 1, presented: 2, dismissed: 3, completed: 3, replaced: 3 };
         if (occ && ack.eventSequence > occ.sequence && (ranks[ack.status] ?? 3) < (ranks[occ.status] ?? 3))
