@@ -10,7 +10,7 @@ import type { CallbackGuard } from './settings.js';
 import { applyPlan, planParentEvent, taskIntent, ensureTaskIntent, type PlannedWrite, type ParentEvent } from './outbox.js';
 import { planEndtimeSuppression } from './endtime.js';
 import { noticeWrite } from './notices.js';
-import { CLEAR_APPLIED } from './telegram/uk.js';
+import { both, type Localized } from './telegram/i18n/index.js';
 export type ActionDraft = ({
     kind: 'notify';
     options: Extract<Action, {
@@ -113,20 +113,15 @@ export async function readOperation(repo: FirestoreRepository, tx: Transaction, 
         throw new BoundaryError('Operation identity expired', 409);
     return { ref, hash, previous };
 }
-export function eventFor(deviceId: string, id: string, at: string, text: string, parents: Parent[]): ParentEvent { return { id: digest(id), deviceId, at, kind: 'status', text, recipients: parents }; }
+export function eventFor(deviceId: string, id: string, at: string, text: Localized, parents: Parent[]): ParentEvent { return { id: digest(id), deviceId, at, kind: 'status', text, recipients: parents }; }
 /** The caregiver's pairing name, chosen when their key was created in the companion. */
 export const issuerName = (parents: Parent[], identity: ParentIdentity): string => parents.find(p => p.pairingId === identity.pairingId)?.name ?? identity.userId;
 /** Who asked for what and when; the parent's own text is plain and never interpreted as markup. */
-function createdText(action: Action, name: string, skipped: boolean): string {
-    const what = `${action.kind === 'overlay' ? 'повідомлення на екрані' : 'сповіщення'} «${action.options.message}»`;
-    if (skipped)
-        return `Нагадування від «${name}» пропущено, бо ввімкнено вільний режим: ${what}.`;
-    const when = action.targetAt === action.createdAt ? 'зараз' : `о ${kyivTime(action.targetAt)}`;
-    return `Нове нагадування від «${name}»: ${what}. Показати: ${when}. Очікуємо підтвердження ноутбука.`;
+function createdText(action: Action, name: string, skipped: boolean): Localized {
+    const at = action.targetAt === action.createdAt ? null : kyivTime(action.targetAt), message = action.options.message;
+    return both(t => skipped ? t.reminderSkipped(action.kind, message, name) : t.reminderCreated(action.kind, message, name, at));
 }
-const clearText = (scope: 'manual' | 'all', name: string): string => scope === 'all' ?
-    `«${name}» очищує всі нагадування та вимикає попередження про ліміт до опівночі. Очікуємо підтвердження ноутбука.` :
-    `«${name}» очищує ручні нагадування. Очікуємо підтвердження ноутбука.`;
+const clearText = (scope: 'manual' | 'all', name: string): Localized => both(t => t.clearing(scope, name));
 export function freeAt(policy: any, settings: Settings, instant: string): boolean {
     const transitions = (policy.transitions ?? []).filter((x: any) => x.at <= instant);
     const last = transitions.at(-1);
@@ -137,8 +132,6 @@ export function freeAt(policy: any, settings: Settings, instant: string): boolea
     return settings.freeUseDate === kyivDate(instant);
 }
 const terminal = new Set(['canceled', 'skipped', 'failed', 'expired', 'completed', 'replaced']);
-const LATE_CLEAR = 'Нагадування встигло з’явитися на ноутбуці до того, як туди дійшло очищення (це не означає прочитання).';
-const LATE_FREE = 'Нагадування встигло з’явитися на ноутбуці до того, як туди дійшов вільний режим (це не означає прочитання).';
 export function planCancellation(snapshot: ActionSnapshot, current: Cancellations, now: string, mode: 'clear' | 'free'): Cancellations {
     if (current.revision === Number.MAX_SAFE_INTEGER)
         throw new BoundaryError('Cancellation revision exhausted', 409);
@@ -237,7 +230,7 @@ export class ActionService {
             if (scope === 'all' || needsSettingsMigration(s!.data()))
                 tx.set(root.collection('settings').doc('current'), encodeSettings(settings));
             tx.set(op.ref, { digest: op.hash, result: cancellations, at: now, expired: false });
-            applyPlan(tx, [...events, noticeWrite(this.repo, identity, 'cancellation', cancellations.revision, CLEAR_APPLIED[scope], now)]);
+            applyPlan(tx, [...events, noticeWrite(this.repo, identity, 'cancellation', cancellations.revision, both(t => t.CLEAR_APPLIED[scope]), now)]);
             return cancellations;
         });
     }
@@ -274,7 +267,7 @@ export class ActionService {
             else
                 state = row.acceptedAt ? 'execution_unconfirmed' : 'delivery_unconfirmed';
             const parents = await readParents(this.repo, tx, location.deviceId);
-            const text = state === 'execution_unconfirmed' ? 'Очікуємо підтвердження виконання' : state === 'delivery_unconfirmed' ? 'Не вдалося підтвердити доставку' : state === 'skipped' ? 'Таймер пропущено: вільне користування' : 'Команду завершено';
+            const key = state === 'execution_unconfirmed' || state === 'delivery_unconfirmed' || state === 'skipped' ? state : 'done', text = both(t => t.DEADLINE[key]);
             const events = state === row.state ? [] : await planParentEvent(this.repo, tx, eventFor(location.deviceId, 'deadline:' + action.id, now, text, parents));
             const familyIntent = open ? await ensureTaskIntent(this.repo, tx, 'deadline', location.deviceId + ':' + action.id, end, now) : [];
             if (needsSettingsMigration(s!.data()))
@@ -289,7 +282,7 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
     const writes: PlannedWrite[] = [], events: ParentEvent[] = [], rows = new Map([...snapshot.rows].map(([id, v]) => [id, { ref: v.ref, row: structuredClone(v.row) }]));
     const offerCandidates: {ref: DocumentReference; row: ActionRow}[] = [];
     const cached = new Map<string, any>();
-    const lateTexts = new Set<string>();  // explanations a batched status message must keep
+    const lateTexts = new Set<'LATE_CLEAR' | 'LATE_FREE'>();  // explanations a batched status message must keep
     const read = async (ref: DocumentReference) => { if (!cached.has(ref.path))
         cached.set(ref.path, (await tx.get(ref)).data() ?? null); return cached.get(ref.path); };
     for (const ack of acks) {
@@ -378,9 +371,10 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
         row.open = !fenced && !lifecycleClosed && !(row.presentedAt && !familyEnd) && (!familyEnd || now < familyEnd);
         row.version++;
         const correction = uncertain && presentationConfirmed;
-        const late = ack.presentedAt === null ? null : duringFree ? LATE_FREE : afterFence ? LATE_CLEAR : null;
+        const late = ack.presentedAt === null ? null : duringFree ? 'LATE_FREE' as const : afterFence ? 'LATE_CLEAR' as const : null;
         if (late) lateTexts.add(late);
-        const statusText = late ?? (presentationConfirmed ? 'Показ підтверджено (це не означає прочитання)' : ack.status === 'accepted' && !fenced ? 'Розклад прийнято ноутбуком' : 'Оновлено стан команди; показ не підтверджено');
+        const receipt = presentationConfirmed ? 'presented' : ack.status === 'accepted' && !fenced ? 'accepted' : 'updated';
+        const statusText = both(t => late ? t[late] : t.RECEIPT[receipt]);
         events.push({
             ...eventFor(row.deviceId, (correction ? 'correction:' : 'receipt:') + a.id + ':' + (correction ? 'presented:' + ack.occurrence : ack.eventSequence), now, statusText, snapshot.parents),
             actions: [{id:a.id,status:row.state,eventSequence:ack.eventSequence,occurrence:ack.occurrence,presentedAt:nextOcc.presentedAt}]
@@ -395,7 +389,7 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
         if (row.open && now >= a.targetAt && freeAt(snapshot.policy, settings, a.targetAt)) {
             row.state = 'skipped';
             row.open = false;
-            events.push(eventFor(row.deviceId, 'due-free:' + a.id, now, 'Таймер пропущено: вільне користування', snapshot.parents));
+            events.push(eventFor(row.deviceId, 'due-free:' + a.id, now, both(t => t.DEADLINE.skipped), snapshot.parents));
         }
         if (a.targetAt < retentionStart(now)) {
             row.open = false;
@@ -418,7 +412,7 @@ export async function planActionSync(repo: FirestoreRepository, tx: Transaction,
         const confirmedOccurrences = new Set(actionEvidence.filter(a => a.presentedAt !== null).map(a => a.id + ':' + a.occurrence));
         const changedActions = new Set(actionEvidence.map(a => a.id));
         const combined: ParentEvent = { id: digest('receipt-batch:' + ids.join(':')), deviceId: events[0]!.deviceId, at: now, kind: 'status', recipients: snapshot.parents,
-            text: [`Оновлено стан ${changedActions.size} команд. Підтверджено показ: ${confirmedOccurrences.size}. Показ не означає прочитання.`, ...lateTexts].join(' '), actions: actionEvidence };
+            text: both(t => [t.receiptBatch(changedActions.size, confirmedOccurrences.size), ...[...lateTexts].map(key => t[key])].join(' ')), actions: actionEvidence };
         writes.push(...await planParentEvent(repo, tx, combined));
     }
     else

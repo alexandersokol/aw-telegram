@@ -154,9 +154,9 @@ describe('/pending',()=>{
 describe('coordination wording',()=>{
   it('names the caregiver, reminder, message and schedule for the other caregivers',async()=>{
     const s=await setup();await s.say('/overlay +15 Завершуй гру');
-    expect(events(s,'status').at(-1)!.text).toBe('Нове нагадування від «Parent»: повідомлення на екрані «Завершуй гру». Показати: о 14:15. Очікуємо підтвердження ноутбука.');
+    expect(events(s,'status').at(-1)!.text.uk).toBe('Нове нагадування від «Parent»: повідомлення на екрані «Завершуй гру». Показати: о 14:15. Очікуємо підтвердження ноутбука.');
     await s.say('/free on');await s.say('/notify Привіт');
-    expect(events(s,'status').at(-1)!.text).toBe('Нагадування від «Parent» пропущено, бо ввімкнено вільний режим: сповіщення «Привіт».');
-    await s.say('/clear manual');expect(events(s,'status').at(-1)!.text).toBe('«Parent» очищує ручні нагадування. Очікуємо підтвердження ноутбука.');
+    expect(events(s,'status').at(-1)!.text.uk).toBe('Нагадування від «Parent» пропущено, бо ввімкнено вільний режим: сповіщення «Привіт».');
+    await s.say('/clear manual');expect(events(s,'status').at(-1)!.text.uk).toBe('«Parent» очищує ручні нагадування. Очікуємо підтвердження ноутбука.');
   });
 });

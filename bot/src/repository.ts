@@ -3,6 +3,7 @@ import {createHash, randomBytes, randomUUID} from 'node:crypto';
 import {isIP} from 'node:net';
 import type {Firestore, Transaction, DocumentSnapshot} from 'firebase-admin/firestore';
 import {defaultSettings,type Counter,type Instant} from './contracts.js';
+import {languageOf,storedLang,type Lang} from './telegram/i18n/index.js';
 
 export const KEY_LIFETIME_MS = 900000;
 export const ENROLL_ATTEMPTS = 5;
@@ -26,10 +27,14 @@ export class BoundaryError extends Error {
 }
 export const unauthorized = (): never => {throw new BoundaryError('Unauthorized',401);};
 export interface DeviceIdentity {deviceId: string; credentialDigest: string}
-export interface PrivateActor {userId: string; chatId: string}
+/** languageCode is Telegram's from.language_code, the fallback when no language is stored. */
+export interface PrivateActor {userId: string; chatId: string; languageCode?: string}
 export interface RecipientRef {deviceId: string; userId: string; pairingId: string}
-export interface ParentIdentity extends RecipientRef {chatId: string}
-export interface Parent extends ParentIdentity {name: string; joinedAt: number; revokedAt: number | null; hourlyEnabled: boolean}
+/** lang is the language replies use (LANG-01): the stored choice, otherwise the update's language_code. */
+export interface ParentIdentity extends RecipientRef {chatId: string; lang: Lang}
+export type ParentRef = Omit<ParentIdentity,'lang'>;
+/** lang mirrors the binding's stored choice, so fan-out reads it with the recipients (absent: Ukrainian). */
+export interface Parent extends ParentRef {name: string; joinedAt: number; revokedAt: number | null; hourlyEnabled: boolean; lang?: Lang}
 export function numericId(value: unknown): string {
   if(typeof value==='number' && Number.isSafeInteger(value) && value>0) return String(value);
   if(typeof value==='string' && /^[1-9][0-9]{0,15}$/.test(value) && Number.isSafeInteger(Number(value))) return value;
@@ -58,6 +63,8 @@ function activeDevice(snapshot: DocumentSnapshot, identity?: DeviceIdentity): Re
     device.activeParentIds.length>MAX_ACTIVE_CAREGIVERS || new Set(device.activeParentIds).size!==device.activeParentIds.length) unauthorized();
   return device!;
 }
+const resolved=(actor: PrivateActor, binding: Record<string, any>): ParentIdentity=>({userId:actor.userId,chatId:actor.chatId,
+  deviceId:binding.deviceId,pairingId:binding.pairingId,lang:storedLang(binding.lang)??languageOf(actor.languageCode)});
 function actorChecked(actor: PrivateActor): void {
   if(numericId(actor.userId)!==actor.userId || numericId(actor.chatId)!==actor.chatId || actor.userId!==actor.chatId) unauthorized();
 }
@@ -132,9 +139,11 @@ export class FirestoreRepository {
         device.activeParentIds.length>=MAX_ACTIVE_CAREGIVERS || new Set(device.activeParentIds).size!==device.activeParentIds.length ||
         device.activeParentIds.includes(userId) || (binding && binding.revokedAt===null) || (previous && previous.revokedAt===null))
         throw new BoundaryError('Invalid pairing');
-      const parent:Parent={deviceId:key.deviceId,userId,chatId,pairingId,name:key.name,joinedAt:now,revokedAt:null,hourlyEnabled:false};
+      // A language chosen before an earlier revocation stays with the account.
+      const lang=storedLang(binding?.lang), kept=lang?{lang}:{};
+      const parent:Parent={deviceId:key.deviceId,userId,chatId,pairingId,name:key.name,joinedAt:now,revokedAt:null,hourlyEnabled:false,...kept};
       tx.update(keyRef,{consumedAt:now,consumedBy:userId,pairingId});
-      tx.set(parentRef,parent); tx.set(bindingRef,{deviceId:key.deviceId,pairingId,revokedAt:null});
+      tx.set(parentRef,parent); tx.set(bindingRef,{deviceId:key.deviceId,pairingId,revokedAt:null,...kept});
       tx.update(deviceRef,{activeParentIds:[...device.activeParentIds,userId],collectionStartedAt:device.collectionStartedAt??now});
       return parent;
     });
@@ -210,12 +219,12 @@ export class FirestoreRepository {
     return this.db.runTransaction(async tx=>{
       const binding=(await tx.get(this.db.doc(`telegramUsers/${actor.userId}`))).data();
       if(!binding) return unauthorized();
-      const identity={...actor,deviceId:binding.deviceId,pairingId:binding.pairingId};
+      const identity=resolved(actor,binding);
       await this.requireParent(tx,identity); return identity;
     });
   }
   /** Call before protected reads/writes in the same transaction, including callbacks. */
-  async requireParent(tx: Transaction, identity: ParentIdentity): Promise<Parent> {
+  async requireParent(tx: Transaction, identity: ParentRef): Promise<Parent> {
     actorChecked(identity);
     if(!UUID.test(identity.deviceId) || !UUID.test(identity.pairingId)) return unauthorized();
     const [d,b,p]=await tx.getAll(this.db.doc(`devices/${identity.deviceId}`),this.db.doc(`telegramUsers/${identity.userId}`),this.db.doc(`devices/${identity.deviceId}/parents/${identity.userId}`));
@@ -224,7 +233,7 @@ export class FirestoreRepository {
       binding.pairingId!==identity.pairingId || !parent || parent.revokedAt!==null || parent.chatId!==identity.chatId || parent.pairingId!==identity.pairingId) return unauthorized();
     return parent as Parent;
   }
-  async requireCallback(tx: Transaction, identity: ParentIdentity, nonce: string, version: number): Promise<Parent> {
+  async requireCallback(tx: Transaction, identity: ParentRef, nonce: string, version: number): Promise<Parent> {
     const parent=await this.requireParent(tx,identity);
     const session=(await tx.get(this.db.doc(`devices/${identity.deviceId}/sessions/${identity.userId}`))).data();
     if(!session || typeof nonce!=='string' || !nonce || !Number.isSafeInteger(version) || version<0 ||
@@ -236,7 +245,7 @@ export class FirestoreRepository {
     actorChecked(actor);
     return this.db.runTransaction(async tx=>{
       const b=(await tx.get(this.db.doc(`telegramUsers/${actor.userId}`))).data(); if(!b) return unauthorized();
-      const identity={...actor,deviceId:b.deviceId,pairingId:b.pairingId};
+      const identity=resolved(actor,b);
       await this.requireCallback(tx,identity,nonce,version); return identity;
     });
   }

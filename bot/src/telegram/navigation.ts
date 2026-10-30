@@ -6,21 +6,22 @@ import type {EndtimeController} from './commands.js';
 import type {AllowanceController} from './allowance.js';
 import type {RemindersController} from './reminders.js';
 import {MenuSessions} from './sessions.js';
-import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,HELP,STALE_NAV,CHOOSE_PERIOD,LEAVE_CONFIRM,LEAVE_LAST,LEFT,PAIRING,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
+import {text as copy,type Button,type Catalogue,type Lang,type Reply} from './i18n/index.js';
 import {loadReport,renderStatus,renderUsage,type UsagePeriod} from './reports.js';
 
 /** Limit and Reminders are separate menus that the main menu hands over to. */
-export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status' | 'leave';
+export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status' | 'leave' | 'language';
 export interface NavState {screen: NavScreen; period?: UsagePeriod}
 export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourlyon' | 'hourlyoff' | 'endtime' | 'help' | 'back' |
-  UsagePeriod | 'refresh' | 'leave' | 'leaveyes' | 'leaveno';
+  UsagePeriod | 'refresh' | 'leave' | 'leaveyes' | 'leaveno' | 'language' | 'languk' | 'langen';
 /** A null state leaves this menu: openEndtime hands over to the Endtime submenu; leave ends the caregiver's access. */
-export interface NavResult {state: NavState | null; effect?: 'hourlyOn' | 'hourlyOff' | 'openEndtime' | 'openLimit' | 'openReminders' | 'leave'; error?: 'stale'}
+export interface NavResult {state: NavState | null; effect?: 'hourlyOn' | 'hourlyOff' | 'openEndtime' | 'openLimit' | 'openReminders' | 'leave' |
+  'langUk' | 'langEn'; error?: 'stale'}
 
 const SECTIONS: readonly NavScreen[] = ['usage', 'status'];
 const PERIODS: readonly UsagePeriod[] = ['today', 'yesterday', 'week'];
 const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourlyon', 'hourlyoff', 'endtime', 'help', 'back', ...PERIODS, 'refresh',
-  'leave', 'leaveyes', 'leaveno'];
+  'leave', 'leaveyes', 'leaveno', 'language', 'languk', 'langen'];
 
 export function transitionNav(state: NavState, action: NavAction): NavResult {
   const to = (screen: NavScreen): NavResult => ({state: {screen}});
@@ -34,7 +35,12 @@ export function transitionNav(state: NavState, action: NavAction): NavResult {
     if (action === 'endtime') return {state: null, effect: 'openEndtime'};
     if (action === 'help') return to('help');
     if (action === 'leave') return to('leave');
+    if (action === 'language') return to('language');
     if (action === 'back') return to('main');
+  } else if (state.screen === 'language') {
+    // The choice returns to Settings, rendered in the chosen language.
+    if (action === 'languk' || action === 'langen') return {state: {screen: 'settings'}, effect: action === 'languk' ? 'langUk' : 'langEn'};
+    if (action === 'back') return to('settings');
   } else if (state.screen === 'help') {
     if (action === 'back') return to('settings');
   } else if (state.screen === 'leave') {
@@ -59,7 +65,7 @@ export function decodeNav(data: unknown): (CallbackGuard & {action: NavAction}) 
   return Number.isSafeInteger(version) ? {nonce: match[1]!, version, action: match[3] as NavAction} : null;
 }
 
-const stale = (): Reply => ({text: STALE_NAV, buttons: [], toast: true});
+const stale = (t: Catalogue): Reply => ({text: t.STALE_NAV, buttons: [], toast: true});
 
 export class NavigationController {
   private readonly sessions: MenuSessions;
@@ -73,6 +79,7 @@ export class NavigationController {
   openSettings(identity: ParentIdentity, prefix?: string): Promise<Reply> {return this.open(identity, 'settings', prefix);}
   openStatus(identity: ParentIdentity): Promise<Reply> {return this.open(identity, 'status');}
   openLeave(identity: ParentIdentity): Promise<Reply> {return this.open(identity, 'leave');}
+  openLanguage(identity: ParentIdentity): Promise<Reply> {return this.open(identity, 'language');}
   async openUsage(identity: ParentIdentity, period: UsagePeriod): Promise<Reply> {
     const state = {screen: 'usage' as const, period};
     return this.render(identity, await this.sessions.open(identity, 'nav', state), state);
@@ -85,29 +92,35 @@ export class NavigationController {
 
   async callback(identity: ParentIdentity, data: unknown): Promise<Reply> {
     if (data === HOME) return this.openMain(identity);
-    const parsed = decodeNav(data);
-    if (!parsed) return stale();
+    const parsed = decodeNav(data), t = copy(identity.lang);
+    if (!parsed) return stale(t);
     try {
       const session = await this.sessions.read<NavState>(identity, parsed, 'nav');
       const result = transitionNav(session.state, parsed.action);
-      if (result.error) return stale();
+      if (result.error) return stale(t);
       if (result.effect === 'openEndtime') return this.endtime.openMenu(identity);
       if (result.effect === 'openLimit') return this.allowance.openStatus(identity);
       if (result.effect === 'openReminders') return this.reminders.openHome(identity);
       // The removal deletes the menu session, so nothing is advanced afterwards.
       if (result.effect === 'leave') {
         await this.repository.leaveDevice(identity);
-        return {text: LEFT + '\n\n' + PAIRING, buttons: [], bare: true};
+        return {text: t.LEFT + '\n\n' + t.PAIRING, buttons: [], bare: true};
       }
-      let prefix: string | undefined;
+      let prefix: string | undefined, shown = identity;
       if (result.effect === 'hourlyOn' || result.effect === 'hourlyOff') {
         const enabled = result.effect === 'hourlyOn';
         await this.settings.setHourly(identity, enabled, `menu:${session.nonce}:${session.version}`, session);
-        prefix = hourlySaved(enabled);
+        prefix = t.hourlySaved(enabled);
       }
-      return this.render(identity, await this.sessions.advance(identity, session, 'nav', result.state), result.state!, prefix);
+      if (result.effect === 'langUk' || result.effect === 'langEn') {
+        const lang: Lang = result.effect === 'langUk' ? 'uk' : 'en';
+        await this.settings.setLanguage(identity, lang, session);
+        shown = {...identity, lang};
+        prefix = copy(lang).LANGUAGE_SAVED;
+      }
+      return this.render(shown, await this.sessions.advance(identity, session, 'nav', result.state), result.state!, prefix);
     } catch (error) {
-      if (error instanceof BoundaryError && error.status === 401) return stale();
+      if (error instanceof BoundaryError && error.status === 401) return stale(t);
       throw error;
     }
   }
@@ -124,28 +137,31 @@ export class NavigationController {
   }
 
   private async render(identity: ParentIdentity, guard: CallbackGuard, state: NavState, prefix?: string): Promise<Reply> {
-    const button = (action: NavAction, text: string = NAV_LABELS[action as keyof typeof NAV_LABELS]): Button => ({text, data: encodeNav(guard, action)});
+    const t = copy(identity.lang);
+    const button = (action: NavAction, text: string = t.NAV_LABELS[action as keyof Catalogue['NAV_LABELS']]): Button => ({text, data: encodeNav(guard, action)});
     let reply: Reply;
     if (state.screen === 'main') {
-      reply = {text: MAIN_MENU, buttons: [[button('usage'), button('status')], [button('reminders'), button('limit')], [button('settings')]]};
+      reply = {text: t.MAIN_MENU, buttons: [[button('usage'), button('status')], [button('reminders'), button('limit')], [button('settings')]]};
     } else if (state.screen === 'settings') {
       const [hourly, {settings}] = await Promise.all([this.hourlyEnabled(identity), this.settings.status(identity)]);
-      reply = {text: SETTINGS_MENU, buttons: [[button(hourly ? 'hourlyoff' : 'hourlyon', hourlyLabel(hourly))], [button('endtime', endtimeLabel(settings))],
-        [button('help')], [button('leave')], [button('back')]]};
+      reply = {text: t.SETTINGS_MENU, buttons: [[button(hourly ? 'hourlyoff' : 'hourlyon', t.hourlyLabel(hourly))], [button('endtime', t.endtimeLabel(settings))],
+        [button('language', t.LANGUAGE_LABEL)], [button('help')], [button('leave')], [button('back')]]};
+    } else if (state.screen === 'language') {
+      reply = {text: t.CHOOSE_LANGUAGE, buttons: [[button('languk', t.LANGUAGE_NAMES.uk)], [button('langen', t.LANGUAGE_NAMES.en)], [button('back')]]};
     } else if (state.screen === 'leave') {
-      reply = {text: (await this.lastCaregiver(identity)) ? LEAVE_CONFIRM + '\n\n' + LEAVE_LAST : LEAVE_CONFIRM,
+      reply = {text: (await this.lastCaregiver(identity)) ? t.LEAVE_CONFIRM + '\n\n' + t.LEAVE_LAST : t.LEAVE_CONFIRM,
         buttons: [[button('leaveyes')], [button('leaveno')]]};
     } else if (state.screen === 'help') {
-      reply = {text: HELP, buttons: [[button('back')]]};
+      reply = {text: t.HELP, buttons: [[button('back')]]};
     } else if (state.screen === 'usage') {
-      const periods = [[button('today', 'Сьогодні'), button('yesterday', 'Учора'), button('week', 'Останні 7 днів')], [button('back')]];
-      if (!state.period) reply = {text: CHOOSE_PERIOD, buttons: periods};
+      const periods = [[button('today'), button('yesterday'), button('week')], [button('back')]];
+      if (!state.period) reply = {text: t.CHOOSE_PERIOD, buttons: periods};
       else {
-        const [first, ...extra] = renderUsage(state.period, await loadReport(this.repository, identity, this.clock()));
+        const [first, ...extra] = renderUsage(state.period, await loadReport(this.repository, identity, this.clock()), t);
         reply = {text: first!, buttons: periods, ...(extra.length ? {extra} : {})};
       }
     } else {
-      reply = {text: renderStatus(await loadReport(this.repository, identity, this.clock())), buttons: [[button('refresh', '🔄 Оновити'), button('back')]]};
+      reply = {text: renderStatus(await loadReport(this.repository, identity, this.clock()), t), buttons: [[button('refresh'), button('back')]]};
     }
     return prefix ? {...reply, text: prefix + '\n\n' + reply.text} : reply;
   }

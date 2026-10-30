@@ -13,7 +13,7 @@ async function withCatalog(entries=catalog){
 }
 const nested=(value:unknown):boolean=>Array.isArray(value)?value.some(v=>Array.isArray(v)||nested(v)):
   !!value&&typeof value==='object'&&Object.values(value).some(nested);
-const coordination=(s:Bot)=>events(s,'coordination').map(e=>e.text);
+const coordination=(s:Bot)=>events(s,'coordination').map(e=>e.text.uk);
 
 describe('/limit',()=>{
   it('shows the allowance status with every action',async()=>{

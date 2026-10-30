@@ -6,7 +6,7 @@ async function setup(send:any=async()=>({kind:'sent',messageId:42})){
   expect(existsSync(new URL('../src/outbox.ts',import.meta.url)),'durable outbox is missing').toBe(true);
   const m=await import('../src/outbox.js'),f=fixture();return {...f,...m,worker:new m.OutboxService(f.repo,{send},f.clock)};
 }
-const event={id:'event-1',deviceId:parent().deviceId,at:NOW,kind:'status',text:'Очікуємо підтвердження виконання',recipients:[parent(),parent('2')]};
+const event={id:'event-1',deviceId:parent().deviceId,at:NOW,kind:'status',text:{uk:'Очікуємо підтвердження виконання',en:'Waiting for confirmation that it ran'},recipients:[parent(),parent('2')]};
 describe('outbox',()=>{
   it('accepts ten unique recipients and stages exactly one independent row and task each',async()=>{
     const f=await setup(),recipients=Array.from({length:10},(_,i)=>({...parent(String(i+1)),pairingId:randomUUID()}));

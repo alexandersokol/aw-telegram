@@ -328,7 +328,7 @@ describe('revisioned settings',()=>{
     await settings.updateSettings(parent(),{kind:'selectCategories',paths:[['Study']],uncategorized:false},'endtime:select');
     await settings.updateSettings(parent(),{kind:'setTodayLimit',ms:60000},'endtime:warn');
     const events=[...db.data].filter(([key])=>key.startsWith('events/')).map(([,value])=>value);
-    const recipients=(kind:string)=>events.filter(e=>e.kind===kind&&e.text.includes('Залишилося 5 хв')).flatMap(e=>e.recipients.map((r:any)=>r.userId));
+    const recipients=(kind:string)=>events.filter(e=>e.kind===kind&&e.text.uk.includes('Залишилося 5 хв')).flatMap(e=>e.recipients.map((r:any)=>r.userId));
     expect(recipients('coordination')).toEqual(['2']);expect(recipients('warning')).toEqual(['1']);
     expect(db.data.get(root+'/alertStates/2026-10-28').lastWarning).toBe('5m');
   });

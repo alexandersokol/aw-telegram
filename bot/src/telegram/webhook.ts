@@ -15,8 +15,7 @@ import {NavigationController,HOME} from './navigation.js';
 import {AllowanceController} from './allowance.js';
 import {ClearController} from './clear.js';
 import {RemindersController} from './reminders.js';
-import {HOME_LABEL,PAIRING,PAIRED,PAIR_FAILED,PAIR_THROTTLED,ALREADY_PAIRED,STALE_NAV,HINT,UNKNOWN_COMMAND,HOURLY_USAGE,USAGE_USAGE,HELP,
-  hourlySaved,ACTION_CAPACITY,DATA_CAPACITY,OPERATION_CONFLICT,TOO_MANY,REQUEST_FAILED,type Reply} from './uk.js';
+import {text as copy,languageOf,type Catalogue,type Lang,type Reply} from './i18n/index.js';
 
 export interface TelegramClient {
   send(chatId: string, reply: Reply): Promise<void>;
@@ -47,19 +46,19 @@ const MARKER_TTL_MS = 2 * 86400000;
 /** Telegram 4xx other than 429 (blocked bot, unknown chat, bad request) will fail the same way again. */
 const permanentTelegramError = (error: unknown): boolean =>
   error instanceof GrammyError && error.error_code >= 400 && error.error_code < 500 && error.error_code !== 429;
-function failureText(error: BoundaryError): string {
-  if (error.status === 401) return STALE_NAV;
-  if (error.status === 429) return TOO_MANY;
-  if (/action capacity/i.test(error.message)) return ACTION_CAPACITY;
-  if (/capacity|exhausted/i.test(error.message)) return DATA_CAPACITY;
-  if (/operation identity/i.test(error.message)) return OPERATION_CONFLICT;
-  return REQUEST_FAILED;
+function failureText(error: BoundaryError, t: Catalogue): string {
+  if (error.status === 401) return t.STALE_NAV;
+  if (error.status === 429) return t.TOO_MANY;
+  if (/action capacity/i.test(error.message)) return t.ACTION_CAPACITY;
+  if (/capacity|exhausted/i.test(error.message)) return t.DATA_CAPACITY;
+  if (/operation identity/i.test(error.message)) return t.OPERATION_CONFLICT;
+  return t.REQUEST_FAILED;
 }
 const command = (text: string) => /^\/([a-z_]+)(?:@[A-Za-z0-9_]{1,64})?(?:\s+([\s\S]*))?$/.exec(text.trim());
 const unauthorized = (error: unknown) => error instanceof BoundaryError && error.status === 401;
 /** UX-02: a reply without buttons offers the way back unless it is a toast or bare. Outbox messages never pass here. */
-const withHome = (reply: Reply): Reply =>
-  reply.buttons.length || reply.toast || reply.bare ? reply : {...reply, buttons: [[{text: HOME_LABEL, data: HOME}]]};
+const withHome = (reply: Reply, lang: Lang): Reply =>
+  reply.buttons.length || reply.toast || reply.bare ? reply : {...reply, buttons: [[{text: copy(lang).HOME_LABEL, data: HOME}]]};
 
 export class TelegramBot {
   private readonly endtime: EndtimeController;
@@ -85,16 +84,18 @@ export class TelegramBot {
     const marker = this.repository.db.doc(`telegramUpdates/${updateId}`);
     if (await this.repository.db.runTransaction(async tx => (await tx.get(marker)).exists)) return;
     const identity = await this.identity(actor);
+    // Unpaired users, and failures before authorization, get the language_code fallback.
+    const lang = identity?.lang ?? languageOf(actor.languageCode);
     const callback = (update as any).callback_query, message = (update as any).message;
     // An unpaired user's chatter changes nothing and has nothing to protect from replay.
     const durable = identity !== null || !!callback || KEY.test(command(message?.text ?? '')?.[2]?.trim() ?? '');
     try {
-      if (callback) await this.onCallback(actor, identity, callback);
-      else await this.onMessage(actor, identity, message, updateId as number);
+      if (callback) await this.onCallback(actor, identity, callback, lang);
+      else await this.onMessage(actor, identity, message, updateId as number, lang);
     } catch (error) {
       // Retrying cannot help a refused request or a permanently refused Telegram call; anything else is retried.
       if (permanentTelegramError(error)) {/* nothing more can be delivered */}
-      else if (error instanceof BoundaryError && error.status < 500) await this.reportFailure(actor, callback, error);
+      else if (error instanceof BoundaryError && error.status < 500) await this.reportFailure(actor, callback, error, lang);
       else throw error;
     }
     if (!durable) return;
@@ -103,8 +104,8 @@ export class TelegramBot {
     await this.repository.db.runTransaction(async tx => {tx.set(marker, {at, expireAt: new Date(Date.parse(at) + MARKER_TTL_MS)});});
   }
 
-  private async reportFailure(actor: PrivateActor, callback: any, error: BoundaryError): Promise<void> {
-    const text = failureText(error);
+  private async reportFailure(actor: PrivateActor, callback: any, error: BoundaryError, lang: Lang): Promise<void> {
+    const text = failureText(error, copy(lang));
     try {
       if (callback) await this.client.answer(String(callback.id), text);
       else await this.client.send(actor.chatId, {text, buttons: []});
@@ -118,10 +119,10 @@ export class TelegramBot {
     catch (error) {if (unauthorized(error)) return null; throw error;}
   }
 
-  private async onCallback(actor: PrivateActor, identity: ParentIdentity | null, callback: any): Promise<void> {
+  private async onCallback(actor: PrivateActor, identity: ParentIdentity | null, callback: any, lang: Lang): Promise<void> {
     const data = callback.data;
     let reply: Reply;
-    if (!identity) reply = {text: PAIRING, buttons: [], bare: true};
+    if (!identity) reply = {text: copy(lang).PAIRING, buttons: [], bare: true};
     else if (typeof data === 'string' && data.startsWith('et:')) {
       reply = await this.endtime.callback(identity, data);
       if (reply.navigate === 'settings') reply = await this.navigation.openSettings(identity);
@@ -129,12 +130,12 @@ export class TelegramBot {
     else if (typeof data === 'string' && data.startsWith('lm:')) reply = await this.allowance.callback(identity, data);
     else if (typeof data === 'string' && data.startsWith('cl:')) reply = await this.clear.callback(identity, data);
     else if (typeof data === 'string' && data.startsWith('rm:')) reply = await this.reminders.callback(identity, data);
-    else reply = {text: STALE_NAV, buttons: []};
+    else reply = {text: copy(lang).STALE_NAV, buttons: []};
     if (identity && reply.navigate) reply = await this.handOver(identity, reply);
     // A refused tap (stale or double) must not overwrite the live menu or a confirmation.
     if (reply.toast) {await this.answer(callback, reply.text); return;}
     await this.answer(callback);
-    await this.deliver(actor.chatId, reply, callback.message?.message_id);
+    await this.deliver(actor.chatId, reply, lang, callback.message?.message_id);
   }
 
   private async answer(callback: any, text?: string): Promise<void> {
@@ -153,8 +154,8 @@ export class TelegramBot {
   }
 
   /** Edit the menu message in place when possible, then send any further report pages. */
-  private async deliver(chatId: string, first: Reply, messageId?: unknown): Promise<void> {
-    const reply = withHome(first);
+  private async deliver(chatId: string, first: Reply, lang: Lang, messageId?: unknown): Promise<void> {
+    const reply = withHome(first, lang);
     let edited = false;
     if (Number.isSafeInteger(messageId)) {
       try {await this.client.edit(chatId, messageId as number, reply); edited = true;} catch {/* fall back to a new message */}
@@ -163,46 +164,53 @@ export class TelegramBot {
     for (const page of reply.extra ?? []) await this.client.send(chatId, {text: page, buttons: []});
   }
 
-  private async onMessage(actor: PrivateActor, identity: ParentIdentity | null, message: any, updateId: number): Promise<void> {
+  private async onMessage(actor: PrivateActor, identity: ParentIdentity | null, message: any, updateId: number, lang: Lang): Promise<void> {
     const text = typeof message?.text === 'string' ? message.text : '';
     const parsed = command(text);
-    if (!identity) return this.onUnpaired(actor, parsed, message);
-    await this.deliver(actor.chatId, await this.reply(identity, text, parsed, updateId));
+    if (!identity) return this.onUnpaired(actor, parsed, message, copy(lang));
+    await this.deliver(actor.chatId, await this.reply(identity, text, parsed, updateId), lang);
   }
 
-  private async onUnpaired(actor: PrivateActor, parsed: RegExpExecArray | null, message: any): Promise<void> {
+  private async onUnpaired(actor: PrivateActor, parsed: RegExpExecArray | null, message: any, t: Catalogue): Promise<void> {
     const key = parsed && (parsed[1] === 'pair' || parsed[1] === 'start') ? (parsed[2] ?? '').trim() : '';
-    if (!KEY.test(key)) return this.client.send(actor.chatId, {text: PAIRING, buttons: []});
+    if (!KEY.test(key)) return this.client.send(actor.chatId, {text: t.PAIRING, buttons: []});
     try {
       await this.repository.pairParent(key, actor.userId, actor.chatId);
     } catch (error) {
       if (!(error instanceof BoundaryError)) throw error;
-      return this.client.send(actor.chatId, {text: error.status === 429 ? PAIR_THROTTLED : PAIR_FAILED, buttons: []});
+      return this.client.send(actor.chatId, {text: error.status === 429 ? t.PAIR_THROTTLED : t.PAIR_FAILED, buttons: []});
     }
     let removed = false;
     try {await this.client.delete(actor.chatId, message.message_id); removed = true;} catch {/* the key is single-use anyway */}
-    const identity = await this.repository.authorizeParent(actor);
-    await this.client.send(actor.chatId, await this.navigation.openMain(identity,
-      PAIRED + (removed ? ' Повідомлення з ключем видалено.' : ' Видаліть повідомлення з ключем із чату.')));
+    // A re-paired account gets back the language it chose before.
+    const identity = await this.repository.authorizeParent(actor), paired = copy(identity.lang);
+    await this.client.send(actor.chatId, await this.navigation.openMain(identity, paired.PAIRED + (removed ? paired.KEY_DELETED : paired.KEY_NOT_DELETED)));
   }
 
   private async reply(identity: ParentIdentity, text: string, parsed: RegExpExecArray | null, updateId: number): Promise<Reply> {
-    const plain = (value: string): Reply => ({text: value, buttons: []});
+    const plain = (value: string): Reply => ({text: value, buttons: []}), t = copy(identity.lang);
     if (!parsed) return (await this.endtime.text(identity, text)) ?? (await this.allowance.text(identity, text)) ??
-      (await this.reminders.text(identity, text)) ?? plain(HINT);
+      (await this.reminders.text(identity, text)) ?? plain(t.HINT);
     const args = (parsed[2] ?? '').trim();
     switch (parsed[1]) {
       case 'start': return this.navigation.openMain(identity);
       case 'status': return this.navigation.openStatus(identity);
       case 'usage': {
         const period = args || 'today';
-        if (period !== 'today' && period !== 'yesterday' && period !== 'week') return plain(USAGE_USAGE);
+        if (period !== 'today' && period !== 'yesterday' && period !== 'week') return plain(t.USAGE_USAGE);
         return this.navigation.openUsage(identity, period);
       }
       case 'settings': return this.navigation.openSettings(identity);
       case 'unpair': return this.navigation.openLeave(identity);
-      case 'help': return plain(HELP);
-      case 'pair': return plain(ALREADY_PAIRED);
+      case 'help': return plain(t.HELP);
+      case 'pair': return plain(t.ALREADY_PAIRED);
+      case 'language': {
+        if (!args) return this.navigation.openLanguage(identity);
+        if (args !== 'uk' && args !== 'en') return plain(t.LANGUAGE_USAGE);
+        // Only this caregiver's replies and messages change; nobody else is told. Settings opens in the new language.
+        await this.settings.setLanguage(identity, args);
+        return this.navigation.openSettings({...identity, lang: args}, copy(args).LANGUAGE_SAVED);
+      }
       case 'endtime': return this.endtime.command(identity, text, updateId);
       case 'limit': return this.allowance.limitCommand(identity, args, updateId);
       case 'categories': return this.allowance.openCategories(identity);
@@ -214,10 +222,10 @@ export class TelegramBot {
       case 'notify': case 'overlay': return this.reminders.command(identity, parsed[1], args, updateId);
       case 'pending': return this.reminders.openPending(identity);
       case 'hourly':
-        if (args !== 'on' && args !== 'off') return plain(HOURLY_USAGE);
+        if (args !== 'on' && args !== 'off') return plain(t.HOURLY_USAGE);
         await this.settings.setHourly(identity, args === 'on', `tg:${updateId}`);
-        return plain(hourlySaved(args === 'on'));
-      default: return plain(UNKNOWN_COMMAND);
+        return plain(t.hourlySaved(args === 'on'));
+      default: return plain(t.UNKNOWN_COMMAND);
     }
   }
 }

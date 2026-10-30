@@ -64,7 +64,7 @@ describe('paired navigation',()=>{
     expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['📊 Використання','💻 Стан ноутбука'],['💬 Нагадування','⏱ Ліміт часу'],['⚙️ Налаштування']]);
     await s.handle(s.press('1',s.button('Налаштування')));
     expect(s.last()).toMatchObject({kind:'edit',messageId:7});
-    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Щогодинні звіти: вимкнено'],['Час завершення: вимкнено'],['Допомога'],['🚪 Відключитися'],['← Назад']]);
+    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Щогодинні звіти: вимкнено'],['Час завершення: вимкнено'],['🌐 Мова: Українська'],['Допомога'],['🚪 Відключитися'],['← Назад']]);
     expect(s.calls.filter(c=>c.kind==='answer')).toHaveLength(1);
     await s.handle(s.press('1',s.button('Час завершення')));expect(s.last().text.startsWith('🌙 Час завершення')).toBe(true);
     await s.handle(s.press('1',s.button('Назад')));expect(s.last().buttons!.flat().map(b=>b.text)).toContain('Допомога');
@@ -134,7 +134,7 @@ describe('paired navigation',()=>{
   });
   it('names the issuing caregiver in settings coordination',async()=>{
     const s=await setup();await s.handle(s.message('1','/free on'));
-    expect(events(s,'coordination').at(-1).text.startsWith('Налаштування змінив(-ла) «Parent».')).toBe(true);
+    expect(events(s,'coordination').at(-1).text.uk.startsWith('Налаштування змінив(-ла) «Parent».')).toBe(true);
   });
   it('routes time entry text into the Endtime menu',async()=>{
     const s=await setup();await s.handle(s.message('1','/endtime'));

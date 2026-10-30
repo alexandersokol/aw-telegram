@@ -229,7 +229,7 @@ describe('sync Firestore transactions',()=>{
     expect(repeated).toEqual({reads:BASE_ACK_READS,writes:2});
     expect(first).toEqual({reads:BASE_ACK_READS+2,writes:6});
     expect(idle).toEqual({reads:7,writes:1});
-    expect((await applied()).map(e=>[e.recipients.map((r:any)=>r.userId),e.text])).toEqual([[['1'],'✅ Ноутбук застосував: ліміт на сьогодні 10 хв.']]);
+    expect((await applied()).map(e=>[e.recipients.map((r:any)=>r.userId),e.text.uk])).toEqual([[['1'],'✅ Ноутбук застосував: ліміт на сьогодні 10 хв.']]);
     expect((await db.collection(path('appliedNotices')).get()).empty).toBe(true);
   });
   test('the notice query inside the sync transaction is bounded by revision and to 50, the rest on the next sync',async()=>{
@@ -243,7 +243,7 @@ describe('sync Firestore transactions',()=>{
     await writer.close();
     const first=await counted(()=>api.syncDevice(identity,settingsAck(1,55)));
     expect(first.reads).toBe(BASE_ACK_READS+50+2);  // 50 notices and two event checks, however many are due
-    expect((await applied()).map(e=>e.text.split('; ').length).sort()).toEqual([25,25]);
+    expect((await applied()).map(e=>e.text.uk.split('; ').length).sort()).toEqual([25,25]);
     expect((await db.doc(path('sync/current')).get()).data()!.noticesDue).toBe(true);
     await api.syncDevice(identity,request(2));
     expect((await db.collection(path('appliedNotices')).get()).docs.map(d=>d.id)).toEqual(['s-60']);

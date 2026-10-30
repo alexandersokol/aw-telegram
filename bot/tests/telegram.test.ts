@@ -45,7 +45,7 @@ describe('/endtime commands',()=>{
     const s=await setup();await s.bot.command(parent(),'/endtime set 22:15',20);
     const coordination=events(s,'coordination');
     expect(coordination).toHaveLength(1);expect(coordination[0].recipients.map((r:any)=>r.userId)).toEqual(['2']);
-    expect(coordination[0].text).toContain('Час завершення: увімкнено, 22:15.');
+    expect(coordination[0].text.uk).toContain('Час завершення: увімкнено, 22:15.');
   });
   it.each(['/endtime set 24:00','/endtime set 9:00','/endtime set'])('rejects %j with exact guidance and no mutation',async text=>{
     const s=await setup(),before=structuredClone(s.db.data);

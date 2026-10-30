@@ -273,7 +273,7 @@ it.each(['dismissed','completed','replaced'])('accepts contract-valid %s without
   const f=await setup(),{action}=await f.actions.createAction(parent(),draft,'null-'+status);await f.api.syncDevice(identity,request());
   const receipt=ack(action,status,{reason:status==='replaced'?'replaced':null});const response=await f.api.syncDevice(identity,{...request(),acks:[receipt]});
   expect(response.acknowledgedAckIds).toEqual([receipt.id]);const row=f.db.data.get(root+'/actions/'+action.id);expect(row.state).toBe(status);expect(row.open).toBe(false);expect(row.presentedAt).toBeNull();
-  const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text).not.toContain('Показ підтверджено');expect(event.text).toContain('показ не підтверджено');
+  const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text.uk).not.toContain('Показ підтверджено');expect(event.text.uk).toContain('показ не підтверджено');
   f.advance(60000);await f.actions.expireAction(action.id);expect(f.db.data.get(root+'/actions/'+action.id).state).toBe(status);expect((await f.api.syncDevice(identity,request())).deliveryOffers).toEqual([]);
 });
 it('reports zero confirmed displays for a mixed batch of null-evidence widget terminals',async()=>{
@@ -281,7 +281,7 @@ it('reports zero confirmed displays for a mixed batch of null-evidence widget te
   for(const [i,status]of ['dismissed','completed','replaced'].entries()){
     const {action}=await f.actions.createAction(parent(),draft,'null-batch:'+i);await f.api.syncDevice(identity,request());receipts.push(ack(action,status,{reason:status==='replaced'?'replaced':null}));
   }
-  await f.api.syncDevice(identity,{...request(),acks:receipts});const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text).toContain('Підтверджено показ: 0.');
+  await f.api.syncDevice(identity,{...request(),acks:receipts});const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text.uk).toContain('Підтверджено показ: 0.');
 });
 it('keeps repeating null-evidence dismissal on its original interval and midnight without borrowing earlier visibility',async()=>{
   const f=await setup(),{action}=await f.actions.createAction(parent(),{...draft,options:{...draft.options,repeatEveryMinutes:1}},'null-repeat');await f.api.syncDevice(identity,request());
@@ -289,10 +289,10 @@ it('keeps repeating null-evidence dismissal on its original interval and midnigh
   await f.api.syncDevice(identity,{...request(),acks:[ack(action,'dismissed',{eventSequence:2,at:f.clock(),presentedAt:NOW})]});f.advance(60000);
   const dismissed=f.clock();await f.api.syncDevice(identity,{...request(),acks:[ack(action,'dismissed',{eventSequence:3,occurrence:1,at:dismissed})]});
   let row=f.db.data.get(root+'/actions/'+action.id);expect(row.open).toBe(true);expect(row.state).toBe('dismissed');expect(row.presentedAt).toBe(NOW);expect(f.db.data.get(root+'/actions/'+action.id+'/occurrences/1').presentedAt).toBeNull();
-  const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text).not.toContain('Показ підтверджено');expect(event.text).toContain('показ не підтверджено');
+  const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text.uk).not.toContain('Показ підтверджено');expect(event.text.uk).toContain('показ не підтверджено');
   const second=(await f.actions.createAction(parent(),draft,'null-mixed-with-old-proof')).action;await f.api.syncDevice(identity,request());
   f.advance(60000);await f.api.syncDevice(identity,{...request(),acks:[ack(action,'dismissed',{eventSequence:4,occurrence:2,at:f.clock()}),ack(second,'completed',{at:f.clock(),acceptedAt:second.createdAt})]});
-  const batch=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(batch.text).toContain('Підтверджено показ: 0.');
+  const batch=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(batch.text.uk).toContain('Підтверджено показ: 0.');
   f.setTime('2026-10-28T22:00:00.000Z');await f.actions.expireAction(action.id);expect(f.db.data.get(root+'/actions/'+action.id).open).toBe(false);
 });
 it('preserves an initially unproven repeating dismissal through delivery closure and valid next occurrence',async()=>{
@@ -309,7 +309,7 @@ it('retains real proof for the same occurrence when a later terminal receipt omi
   const f=await setup(),a=(await f.actions.createAction(parent(),draft,'same-proof')).action,b=(await f.actions.createAction(parent(),draft,'no-proof')).action;await f.api.syncDevice(identity,request());
   await f.api.syncDevice(identity,{...request(),acks:[ack(a,'presented',{presentedAt:NOW})]});f.advance(1);
   await f.api.syncDevice(identity,{...request(),acks:[ack(a,'completed',{eventSequence:2,at:f.clock()}),ack(b,'completed',{at:f.clock()})]});
-  const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text).toContain('Підтверджено показ: 1.');expect(event.actions.find((item:any)=>item.id===a.id).presentedAt).toBe(NOW);expect(event.actions.find((item:any)=>item.id===b.id).presentedAt).toBeNull();
+  const event=[...f.db.data].filter(([key])=>key.startsWith('events/')).at(-1)![1];expect(event.text.uk).toContain('Підтверджено показ: 1.');expect(event.actions.find((item:any)=>item.id===a.id).presentedAt).toBe(NOW);expect(event.actions.find((item:any)=>item.id===b.id).presentedAt).toBeNull();
 });
 it('accepts historical null-visibility dismissal after midnight without reopening a repeat family',async()=>{
   const f=await setup(),{action}=await f.actions.createAction(parent(),{...draft,options:{...draft.options,repeatEveryMinutes:1}},'late-null');await f.api.syncDevice(identity,request());

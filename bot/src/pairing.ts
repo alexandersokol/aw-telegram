@@ -10,7 +10,8 @@ export function privateActor(update: unknown): PrivateActor {
   if(!message || !from || from.is_bot===true || message.chat?.type!=='private' || message.sender_chat ||
     message.forward_origin || message.forward_from || message.forward_from_chat || message.business_connection_id || callback?.inline_message_id) return unauthorized();
   const userId=numericId(from.id), chatId=numericId(message.chat.id);
-  if(userId!==chatId) return unauthorized(); return {userId,chatId};
+  if(userId!==chatId) return unauthorized();
+  return {userId,chatId,...(typeof from.language_code==='string'?{languageCode:from.language_code}:{})};
 }
 export async function pairPrivateUpdate(repository: FirestoreRepository, secret: string, update: unknown) {
   const actor=privateActor(update); return repository.pairParent(secret,actor.userId,actor.chatId);

@@ -18,7 +18,9 @@ import {SettingsService} from '../src/settings.js';
 import {ActionService} from '../src/actions.js';
 import {OutboxService,TelegramHttpAdapter} from '../src/outbox.js';
 import {cleanup} from '../src/cleanup.js';
-import {appliedText,APPLIED_PREFIX} from '../src/telegram/uk.js';
+import {appliedText} from '../src/notices.js';
+import {text} from '../src/telegram/i18n/index.js';
+const uk=text('uk'),APPLIED_PREFIX=uk.APPLIED_PREFIX;
 
 function setup(){
   const f=fixture(),api=new DeviceApi(f.repo,f.clock);
@@ -26,7 +28,8 @@ function setup(){
   const sync=(acks:{settings?:number;cancellation?:{revision:number;throughActionSequence:number}}={})=>api.syncDevice(identity,{...request(++sequence),acks:[
     ...(acks.settings===undefined?[]:[{id:randomUUID(),kind:'settings' as const,revision:acks.settings,appliedAt:f.clock()}]),
     ...(acks.cancellation?[{id:randomUUID(),kind:'cancellation' as const,...acks.cancellation,appliedAt:f.clock()}]:[])]});
-  const applied=()=>[...f.db.data].filter(([k,v])=>k.startsWith('events/')&&v.kind==='applied').map(([,v])=>v);
+  /** Applied events with their Ukrainian text (the authors here are Ukrainian). */
+  const applied=()=>[...f.db.data].filter(([k,v])=>k.startsWith('events/')&&v.kind==='applied').map(([,v])=>({...v,text:v.text.uk}));
   const notices=()=>[...f.db.data.keys()].filter(k=>k.startsWith(root+'/appliedNotices/'));
   /** The outbox row of the first "applied" message; the issuer gets no coordination copy. */
   const appliedRow=()=>[...f.db.data].find(([k,v])=>k.startsWith('outbox/')&&v.eventId===applied()[0].id)![1].id as string;
@@ -42,7 +45,7 @@ describe('applied messages',()=>{
     await s.settings.updateSettings(parent('1'),limit(10),'b');  // «Без змін»
     expect(s.notices()).toEqual([root+'/appliedNotices/s-1']);
     expect(s.db.data.get(root+'/appliedNotices/s-1')).toEqual({pairingId:parent('1').pairingId,userId:'1',
-      summary:'ліміт на сьогодні 10 хв',createdAt:s.clock(),settingsRevision:1});
+      summary:{uk:'ліміт на сьогодні 10 хв',en:"today's limit 10 min"},lang:'uk',createdAt:s.clock(),settingsRevision:1});
   });
   it('sends one message listing both changes of one author, to that author only',async()=>{
     const s=setup();
@@ -132,10 +135,10 @@ describe('applied messages',()=>{
     expect(s.notices()).toEqual([]);expect(s.db.data.get(root+'/sync/current').noticesDue).toBeUndefined();
   });
   it('cuts an overlong message on a code-point boundary',()=>{
-    const text=appliedText(['a'.repeat(3498-APPLIED_PREFIX.length)+'😀😀']);
+    const text=appliedText(uk,['a'.repeat(3498-APPLIED_PREFIX.length)+'😀😀']);
     expect(text).toBe(APPLIED_PREFIX+'a'.repeat(3498-APPLIED_PREFIX.length)+'…');
     expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(text)).toBe(false);
-    expect(appliedText(['b'.repeat(3497-APPLIED_PREFIX.length)+'😀😀']).endsWith('😀…')).toBe(true);
+    expect(appliedText(uk,['b'.repeat(3497-APPLIED_PREFIX.length)+'😀😀']).endsWith('😀…')).toBe(true);
   });
   it('keeps a message with many long summaries within the outbox bound',async()=>{
     const s=setup();

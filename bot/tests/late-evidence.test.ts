@@ -14,7 +14,7 @@ function setup(){
 }
 const ack=(action:any,status:string,extra:any={})=>({id:randomUUID(),kind:'action' as const,actionId:action.id,eventSequence:1,occurrence:0,status,
   at:action.createdAt,acceptedAt:action.createdAt,presentedAt:null,reason:null,...extra});
-const texts=(f:any)=>[...f.db.data.entries()].filter(([k]:any)=>k.startsWith('events/')).map(([,v]:any)=>v.text as string);
+const texts=(f:any)=>[...f.db.data.entries()].filter(([k]:any)=>k.startsWith('events/')).map(([,v]:any)=>v.text.uk as string);
 
 it('records a presentation made before a clear reached the laptop and keeps the reminder cleared',async()=>{
   const f=setup();const {action}=await f.actions.createAction(parent(),{...draft,delayMinutes:1},'a');

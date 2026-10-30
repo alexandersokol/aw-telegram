@@ -49,7 +49,7 @@ export function world(start='2026-10-28T06:00:00.000Z'){
 
   /** Telegram, as a caregiver in a private chat. */
   const caregiver=(userId:string)=>{
-    const from={id:Number(userId),is_bot:false,first_name:'P'+userId};
+    const from={id:Number(userId),is_bot:false,first_name:'P'+userId,language_code:'uk'};
     const post=(u:any)=>call('POST','/telegram/webhook',u,{'x-telegram-bot-api-secret-token':WEBHOOK_SECRET});
     const inbox=()=>messages.filter(m=>m.chatId===userId);
     return {userId,inbox,last:()=>inbox().at(-1)?.text??'',
