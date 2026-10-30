@@ -48,7 +48,7 @@ after `/unpair` must not get the button either.
 
 ## 2. Border around the text of the laptop notification
 
-- **Status:** open
+- **Status:** fixed (d65f017); desktop check owner-pending
 - **Found:** 2026-10-30, live acceptance (checkpoint 10d), on the workstation.
 - **Area:** companion, `companion/src/aw_telegram/ui/notification.py`.
 

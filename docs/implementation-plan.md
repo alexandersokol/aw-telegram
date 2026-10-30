@@ -1178,6 +1178,18 @@ the owner reorders. 11i is owner-run and can happen at any time.
   - The overlay and countdown surfaces are checked for the same look and changed only if they
     have it.
   - A released build (from 11b) shows a notification with no border on the owner's desktop.
+- **Done (2026-10-30).** Plan: superpowers/plans/2026-10-30-notification-border.md.
+  - **Tests:** companion 479 passing (478 before). The new
+    `test_notification_message_scroll_has_no_frame` failed first (`StyledPanel`), then passed with
+    `NoFrame`. The notification tests (5 in `tests/test_presentation.py`, including the short,
+    long and single-long-word sizing cases) pass. `tools/licenses.py check` passes.
+  - **Other surfaces:** `overlay.py` (a painted `QWidget` with one button) and `countdown.py` (a
+    `QLabel` in a layout) have no `QScrollArea` or framed `QFrame`, so neither changed.
+  - **Viewport:** the scroll viewport, its edge and the card all sample `#242424` in a grab of the
+    card, so the viewport needed no transparency change.
+  - **Owner-pending:**
+    - a released build (from 11b) shows a notification with no border on the owner's desktop;
+    - the portable app rebuilt from this change, checked on the desktop (note 2).
 
 ### 11d: Sync cost (note 7)
 
