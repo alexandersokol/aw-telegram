@@ -38,6 +38,12 @@ def test_qt_ships_lgpl_not_commercial_terms_and_needs_its_third_party_notices():
     assert "download.qt.io/official_releases/qt/6.12/6.12.0/" in licenses.notices()
 
 
+def test_the_bundle_carries_the_projects_own_license():
+    root = Path(__file__).parents[2]
+    assert "MIT License" in (root / "LICENSE").read_text(encoding="utf-8")
+    assert 'ROOT.parent / "LICENSE"' in (root / "companion" / "aw-telegram.spec").read_text(encoding="utf-8")
+
+
 def test_notices_name_python_the_bootloader_and_each_package():
     text = licenses.notices()
     assert "Python" in text and "PyInstaller" in text and "PySide6" in text and "LGPL" in text

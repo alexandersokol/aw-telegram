@@ -37,7 +37,7 @@ version_file.write_text(release.version_info(release.stamped_version(ROOT)), enc
 datas = (collect_data_files("aw_telegram", includes=["schemas/*.schema.json"])
          + collect_data_files("tzdata")
          + licenses.license_files()
-         + [(str(notice), ".")])
+         + [(str(notice), "."), (str(ROOT.parent / "LICENSE"), ".")])
 
 a = Analysis(
     [str(ROOT / "tools" / "entry.py")],
