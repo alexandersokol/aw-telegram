@@ -62,7 +62,7 @@ async function control(path:string,body:any):Promise<unknown> {
   if(path==='/e2e/clock'){time=Date.parse(body.now);return {now:clock()};}
   if(path==='/e2e/enrollment'){const secret=newSecret(32);await repo.issueEnrollment(secret);return {secret};}
   if(path==='/e2e/telegram'){
-    const from={id:Number(body.userId),is_bot:false,first_name:'P'};
+    const from={id:Number(body.userId),is_bot:false,first_name:'P',language_code:'uk'};
     const update_={update_id:++update,message:{message_id:update,date:0,chat:{id:Number(body.userId),type:'private'},from,text:body.text}};
     const r=await backend.router({method:'POST',path:'/telegram/webhook',headers:{'x-telegram-bot-api-secret-token':SECRET},body:JSON.stringify(update_),remoteAddress:'127.0.0.1'});
     return {status:r.status};
