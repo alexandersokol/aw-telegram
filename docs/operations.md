@@ -81,7 +81,12 @@ rules and indexes, and the Telegram update TTL. Use the pinned Firebase CLI in
 Application logs never contain request bodies, message text, titles, tokens or
 provider detail. An unexpected failure logs `request failed` with a fixed route label
 (IDs removed, e.g. `DELETE /v1/access/:id`) and the error type only. The sweep logs its
-counts. Route boundary errors (4xx) are answers, not logged failures.
+counts. Route boundary errors (4xx) are answers, not logged failures, with one exception:
+an authenticated laptop sync that is refused logs one warning, `sync refused`, with
+`route` (`POST /v2/sync`), `status`, a fixed `reason` (for example `health observation
+is in the future`) and `skewMs`: for a laptop time refused as too late, that time minus
+server time; as too early, that time minus collection start (negative); otherwise null.
+It holds no body, device ID or user ID.
 
 Cloud Run's own request logs record method, full path, status and latency for 30 days.
 An access removal's path is `/v1/access/parent:<Telegram user ID>:<pairing ID>`, so
@@ -131,6 +136,19 @@ it means removing the webhook and deleting or scaling down `api` (see Rollback).
   батьків», then create a new key for the new account. A caregiver who still has
   the account can remove themselves with `/unpair` (ACCESS-09).
 - **No caregiver left:** the laptop pauses every rule (ACCESS-08) until someone pairs.
+
+## Troubleshooting
+
+- **A laptop never syncs** (the laptop app and `/status` show no sync, the request logs
+  show `POST /v2/sync` 400s): read the `sync refused` warnings in Cloud Logging
+  (`jsonPayload.message="sync refused"`). A reason about a future observation, coverage
+  or live time, with `skewMs` beyond ±300000, means the laptop clock is more than 5
+  minutes off: turn on «Set time automatically» in Windows Settings → Time & language →
+  Date & time, or press «Sync now» there. The backend accepts and corrects a clock up
+  to 5 minutes off (api-contract.md, activity time validation). Before 2026-10-30 it
+  accepted none, so a laptop clock even 1 s ahead of the server failed every sync
+  (review-notes.md, note 9). A reason that does not name a time points at the
+  companion or the request; compare the companion version with the deployed backend.
 
 ## Rotating secrets
 

@@ -284,3 +284,24 @@ The target is about 4,000 writes and 20,000 reads a day per laptop.
 
 **Rollback.** Grant `roles/editor` back to the default compute account and re-enable the API.
 Neither affects the running functions.
+
+## 9. A laptop whose clock is ahead of the server never syncs
+
+- **Status:** fixed (55b8262, 7a5d0b9); deploy pending
+- **Found:** 2026-10-30, production incident.
+- **Area:** `bot/src/contracts.ts` (`validateActivityContext`), `bot/src/deviceApi.ts`.
+
+**What happened.** A new laptop enrolled at 18:42:32Z and two caregivers paired, but every
+`POST /v2/sync` returned 400, even the first one before pairing. The laptop app and the bot showed
+the laptop as never synced. The 400s carried no reason and nothing was logged.
+
+**Cause.** Sync compared laptop-clock instants with the server clock with zero tolerance. A health
+observation even 1 ms after server time was refused (`Invalid activity context`), so a laptop clock
+ahead of the server failed every sync for good. After pairing, live and coverage times outside
+[collection start, server time] were refused too, so a clock behind failed until real time caught up.
+
+**Fix.** Sync accepts a laptop clock up to 5 minutes off (`CLOCK_SKEW_MS`) and refuses beyond it as
+before. Accepted live and health times are clamped into the server's window before they are ordered or
+stored, so freshness, `/status` and the online window behave as with a correct clock; reports and alerts
+show coverage up to server time. The companion and the wire contract are unchanged. A refused sync now
+logs one `sync refused` warning with a fixed reason and the clock skew (operations.md, troubleshooting).

@@ -258,6 +258,22 @@ preserve last success, and leave the remote live value at its original observedA
 explicit valid unknown clears identity. Cloud contact, AW health and day coverage
 have independent freshness/sequence guards. No exception text belongs in health.
 
+Activity time validation. Observations use IO completion clocks; the companion checks
+its own requests strictly against its own clock (the shared `gates` fixtures). The
+backend compares laptop instants with the server clock and accepts a laptop clock up
+to `CLOCK_SKEW_MS` (5 minutes, `bot/src/contracts.ts`) off: `health.observedAt`,
+`live.observedAt`, summary `availableThrough` and a settings/cancellation receipt's
+`appliedAt` may lie up to 5 minutes after server time; `live.observedAt` and summary
+`availableFrom` up to 5 minutes before collection start; and a summary may name the
+Kyiv date the server reaches within 5 minutes. Beyond that the sync is refused (400
+`Invalid activity context` or `Invalid receipt`), as before. Accepted live and health
+times are clamped into [collection start, server time] before they are ordered or
+stored (`lastSuccessAt` to at most server time), so freshness, `/status` and the
+skip-unchanged rules behave as with a correct clock. Summary sources are stored as
+sent, because their digest is their identity; reports and alerts show coverage up to
+server time at most. Action and endtime receipt times are not covered by the
+tolerance. The tolerance does not change the wire contract or the companion.
+
 `summaryReceipts:[{date,sequence}]` contains the durably stored per-date highwater for
 submitted dates only, at most seven unique dates. Older source sequences return the
 stored higher watermark; equal identical canonical content retries idempotently;
