@@ -3,6 +3,7 @@
 Review a child's Windows laptop activity and send reminders through Telegram, built on ActivityWatch.
 
 [![CI](https://github.com/alexandersokol/aw-telegram/actions/workflows/ci.yml/badge.svg)](https://github.com/alexandersokol/aw-telegram/actions/workflows/ci.yml)
+[![Release](https://github.com/alexandersokol/aw-telegram/actions/workflows/release.yml/badge.svg)](https://github.com/alexandersokol/aw-telegram/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/alexandersokol/aw-telegram)](https://github.com/alexandersokol/aw-telegram/releases)
 [![License: MIT](https://img.shields.io/github/license/alexandersokol/aw-telegram)](LICENSE)
 
@@ -98,11 +99,19 @@ You need a Google Cloud/Firebase project on the Blaze plan (the expected cost is
 1. **Prerequisites.** Install Node.js 22, the Google Cloud CLI (`gcloud`) and, to build the
    companion yourself, python.org Python 3.12. Sign in with `gcloud auth login` and
    `gcloud auth application-default login`. Everything runs with your own credentials.
-2. **Create the cloud project.** Enable the APIs, create the Firestore database, the two
-   service accounts and the `delivery` queue, and deploy the Firestore rules and indexes. Exact
-   commands: [docs/setup.md](docs/setup.md).
-3. **Store the secrets.** Put the BotFather token and a random webhook secret in Secret Manager,
-   at a hidden prompt; they never appear in files or command arguments. See *Secrets* in
+2. **Create the cloud project.** Create a Firebase project on the Blaze plan and, as
+   [docs/setup.md](docs/setup.md) lists, enable the APIs, create the Firestore database, the two
+   service accounts and the `delivery` queue, and deploy the Firestore rules and indexes.
+   setup.md records the environment of the existing `aw-telegram` project: it gives the settings
+   to create and the commands for the rules and indexes, the Firestore TTL policy and the IAM
+   grants, but not commands for creating the APIs, database, accounts and queue. It names
+   `aw-telegram` and `aw-backend@aw-telegram.iam.gserviceaccount.com` throughout, and the
+   backend hard-codes that account as `RUNTIME_ACCOUNT` in `bot/src/functions.ts`. For your own
+   project, replace the project ID in the commands and change `RUNTIME_ACCOUNT` before deploying.
+3. **Store the secrets.** Put the BotFather token (`TELEGRAM_BOT_TOKEN`) and a random webhook
+   secret (`TELEGRAM_WEBHOOK_SECRET`) in Secret Manager, and let `aw-backend` read them. Enter
+   the token at the hidden prompt; secrets never appear in files or command arguments. The
+   commands for the token and the access grants are under *Secrets* in
    [docs/setup.md](docs/setup.md).
 4. **Deploy.** Install the bot's dependencies (`npm ci` in `bot/`), then deploy the functions
    twice: the first deploy discovers the `api` URL, which you put in `bot/.env.<project-id>` as
@@ -120,9 +129,9 @@ You need a Google Cloud/Firebase project on the Blaze plan (the expected cost is
 7. **Enroll the laptop.** After `npm run build` in `bot/`, issue a one-time code with
    `scripts/enroll.ts issue` (command in
    [docs/enrollment-security.md](docs/enrollment-security.md)), start `aw-telegram.exe` on the
-   laptop and paste the code in Settings («Налаштування»). Tick "start with Windows" so it runs
+   laptop and paste the code in Settings («Налаштування» in Ukrainian). Tick "start with Windows" so it runs
    in the background. Steps: [docs/setup.md](docs/setup.md#companion-laptop).
-8. **Pair the caregivers.** In Parent access («Доступ батьків»), create a key for each
+8. **Pair the caregivers.** In Parent access («Доступ батьків» in Ukrainian), create a key for each
    caregiver. Each caregiver sends the shown `/pair` command to the bot in a private chat within
    15 minutes.
 
@@ -132,8 +141,8 @@ Day-two tasks (rotating secrets, recovering a lost laptop, deleting data, rollba
 ## Using the bot
 
 After pairing, `/start` opens the main menu, with buttons for usage, laptop status, reminders,
-the time limit and settings. Every reply without buttons carries «🏠 Головне меню» to return to
-the menu, and the bot registers a short command menu in Telegram. The commands you will use most:
+the time limit and settings. Every reply without buttons carries a "🏠 Main menu" button («🏠 Головне меню» in Ukrainian)
+to return to the menu, and the bot registers a short command menu in Telegram. The commands you will use most:
 
 | Command | What it does |
 |---|---|
@@ -186,7 +195,7 @@ npm run test:emulator -- auth pairing rules sync delivery purge cleanup
 
 `npm test` is the unit suite, including the in-process end-to-end scenarios. The emulator
 suites need Java 21 on `PATH` (and `JAVA_HOME`); the Firebase CLI downloads the Firestore
-emulator on first use. Run one emulator suite at a time: they share a port.
+emulator on first use. Run one `test:emulator` command at a time: the Firestore emulator uses a fixed port (8080).
 
 Companion, from `companion/`, in a virtual environment made from Python 3.12 on Windows:
 

@@ -15,7 +15,11 @@ dependency is pinned there). Run the commands from this directory in PowerShell.
   ```powershell
   python -m venv .venv
   .venv/Scripts/python.exe -m pip install -r requirements.lock
+  .venv/Scripts/python.exe -m pip install --no-build-isolation --no-deps -e .
   ```
+
+  The editable install is needed to run `python -m aw_telegram...` (the manual harness below);
+  the tests do not need it (`pythonpath = ["src"]` in `pyproject.toml`).
 
 - **Builds** (`.venv-build`): made from a python.org CPython 3.12 for Windows, because the
   PyInstaller spec refuses any other base Python. Commands:
