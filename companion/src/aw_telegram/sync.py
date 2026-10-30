@@ -8,6 +8,8 @@ from .clock import format_instant, parse_instant, retained_dates, local_day_boun
 from .models import ReportCapacityExceeded, minimal_health, validate_activity_context
 from .transport import CredentialError, EnrollmentError, SyncError
 
+SYNC_INTERVAL = 30  # seconds between regular syncs; failures back off from 15 s, new receipts go at once
+
 
 @dataclass(frozen=True)
 class Observation:
@@ -58,6 +60,7 @@ class SyncCoordinator:
         self.last_error = None
         self._poll_due = self._sync_due = self._summary_due = self._backfill_due = 0
         self._failures = 0
+        self._synced, self._acks_seen = False, set()  # last sync succeeded; receipts queued when it began
         self._gate = None
         self._last_date = None
         self._backfill = []
@@ -131,9 +134,14 @@ class SyncCoordinator:
         self.store.prune(now)
         if self.store.collection_started_at is None:
             self.health, self.live = minimal_health(now), None
+        # A receipt queued since the last sync began (an accepted offer, a shown or closed message, an
+        # applied setting) goes out at this step rather than at the next interval. Failures keep their backoff.
+        if self._synced and mono < self._sync_due and not self.store.ack_ids() <= self._acks_seen:
+            self._sync_due = mono
         # Controls always precede activity/backfill work that is due at this tick.
         if mono >= self._sync_due and not self.auth_blocked:
-            self._sync_due = mono + 15
+            self._sync_due = mono + SYNC_INTERVAL
+            self._synced, self._acks_seen = False, self.store.ack_ids()
             old_revision = self.store.settings.revision
             try:
                 request = self.store.prepare_request(self.health, self.live)
@@ -141,7 +149,7 @@ class SyncCoordinator:
                 if self._failures:
                     self._gate = None
                 self._failures = 0
-                self.last_error = None
+                self._synced, self.last_error = True, None
                 if self.store.settings.revision != old_revision:
                     self._summary_due = mono
                 self._send_revocations()

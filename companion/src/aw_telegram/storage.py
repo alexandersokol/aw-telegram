@@ -461,6 +461,10 @@ class LocalStore:
         return [kinds[a["kind"]].from_wire(a) for a in
                 (json.loads(r[0]) for r in self.connection.execute("select body from acks order by created_at,rowid"))]
 
+    def ack_ids(self) -> set[str]:
+        """IDs of queued receipts, cheap enough to check on every IO step."""
+        return {r[0] for r in self.connection.execute("select id from acks")}
+
     def prepare_request(self, health, live=None) -> SyncRequest:
         now = self.now()
         dates = retained_dates(parse_instant(now))

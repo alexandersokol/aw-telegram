@@ -288,13 +288,54 @@ def test_coordinator_pair_gate_cadence_backfill_and_auth_stop(tmp_path):
     network=Network();coordinator=SyncCoordinator(s,network,observe,summarize)
     coordinator.step(NOW,0)
     assert calls[0][0]=="sync" and s.collection_started_at==START
-    coordinator.step(NOW,10);coordinator.step(NOW,15);coordinator.step(NOW,30)
+    coordinator.step(NOW,10)  # the first response queued the settings receipt, which goes out at once
+    coordinator.step(NOW,15);coordinator.step(NOW,39.9)
+    assert len([c for c in calls if c[0]=="sync"])==2
+    coordinator.step(NOW,40)  # then every 30 s
     assert len([c for c in calls if c[0]=="aw"])==3
     assert len([c for c in calls if c[0]=="sync"])==3
-    network.fail=True;coordinator.step(NOW,45)
+    network.fail=True;coordinator.step(NOW,70)
     count=len([c for c in calls if c[0]=="sync"])
     coordinator.step(NOW,100)
     assert len([c for c in calls if c[0]=="sync"])==count and coordinator.auth_blocked
+
+def test_receipts_go_out_at_once_between_30_s_syncs_without_looping_or_skipping_backoff(tmp_path):
+    from aw_telegram.sync import SYNC_INTERVAL,SyncCoordinator,Observation
+    from aw_telegram.transport import SyncError
+    assert SYNC_INTERVAL==30
+    s=store(tmp_path);syncs=[]
+    class Network:
+        fail=False;acknowledge=True
+        def sync(self,request):
+            syncs.append(mono[0])
+            if self.fail:raise SyncError(retryable=True)
+            return models.SyncResponse.from_wire({**response(request),"acknowledgedAckIds":[a["id"] for a in request.acks] if self.acknowledge else []})
+    network=Network();mono=[0]
+    c=SyncCoordinator(s,network,lambda *a:Observation(None,HEALTH),lambda *a:day(),jitter=lambda:1)
+    def run(*times):
+        for t in times:mono[0]=t;c.step(NOW,t)
+    ack=lambda n:dict(id=f"00000000-0000-4000-8000-{n:012d}",kind="settings",revision=0,appliedAt=NOW)
+    run(0,1)  # pairing installs settings; its receipt goes at the next step
+    assert syncs==[0,1] and s.pending_acks()==[]
+    run(2,30.9,31)
+    assert syncs==[0,1,31]
+    s.queue_ack(ack(1));run(31.25)  # e.g. a message was shown or closed
+    assert syncs==[0,1,31,31.25]
+    network.acknowledge=False;s.queue_ack(ack(2));run(40,41,60)  # an unacknowledged receipt waits for the next sync
+    assert syncs==[0,1,31,31.25,40] and len(s.pending_acks())==1
+    network.fail=True;run(70)  # failures keep the 15 s backoff, even with a new receipt
+    s.queue_ack(ack(3));run(71,84.9,85,114.9,115)
+    assert syncs==[0,1,31,31.25,40,70,85,115]
+
+def test_status_counts_a_laptop_online_for_three_30_s_syncs():
+    from datetime import timedelta
+    from aw_telegram.clock import format_instant
+    from aw_telegram.status import StatusInput,status_lines
+    now=parse_instant(NOW)
+    def server(seconds):
+        return status_lines(StatusInput(now=now,enrolled=True,paired=False,settings=models.Settings(),used_ms=None,
+            partial=False,last_sync_at=format_instant(now-timedelta(seconds=seconds)),sync=None))[0].split(",")[0]
+    assert server(89)==server(0)!=server(91)==server(600)
 
 def test_reader_probe_does_not_claim_successful_activity_query():
     from aw_telegram.aw_reader import AWReader
@@ -348,14 +389,16 @@ def test_coordinator_transient_reconnect_recollects_and_backfill_is_bounded(tmp_
     c=SyncCoordinator(s,network,observe,summarize,jitter=lambda:1)
     c.step(NOW,0)
     assert work[0]=="sync" and len(work)==2
-    c.step(NOW,0.25)
-    assert len(work)==2, "backfill must not busy-loop between control ticks"
+    c.step(NOW,0.25)  # only the pairing's settings receipt goes out
+    assert work==["sync","2026-10-28","sync"]
+    c.step(NOW,0.5)
+    assert len(work)==3, "backfill must not busy-loop between control ticks"
     for mono in [10,15,20,30,40,45,50,60,70,80]:c.step(NOW,mono)
     assert set(d for d in work if d!="sync")==set(["2026-10-28","2026-10-27","2026-10-26","2026-10-25","2026-10-24","2026-10-23","2026-10-22"])
-    network.failed=True;c.step(NOW,90);c.step(NOW,95)
-    before=len(work);c.step(NOW,96)
+    network.failed=True;c.step(NOW,90);c.step(NOW,100)  # syncs at 0, 0.25, 40 and 70; this one fails
+    before=len(work);c.step(NOW,101)
     assert work[before:] == []
-    network.failed=False;c.step(NOW,110);c.step(NOW,120);c.step(NOW,130)
+    network.failed=False;c.step(NOW,115);c.step(NOW,125);c.step(NOW,135)
     assert work.count("2026-10-27")>=2, "reconnect must rescan retained historical reports"
 
 def test_adapter_omits_failed_synthetic_unknown_and_preserves_query_success():
@@ -495,7 +538,7 @@ def test_r1_network_poll_and_summary_completion_clocks_never_regress(tmp_path):
     c=SyncCoordinator(s,network,adapter.observe,adapter.summarize)
     c.step(now(),0)
     assert c.health["lastSuccessAt"]==completions[-1]==c.health["observedAt"]
-    clock[0]+=timedelta(seconds=15);c.step(now(),15)
+    clock[0]+=timedelta(seconds=30);c.step(now(),30)  # the next sync, 30 s later
     assert network.calls==2 and c.health["lastSuccessAt"]==completions[-1]
     assert s.last_activity_success_at==completions[-1]
 

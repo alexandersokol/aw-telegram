@@ -10,7 +10,7 @@ from .clock import KYIV, kyiv_date, parse_instant
 from .models import Settings
 from .policy import effective_limit_ms
 
-ONLINE = timedelta(seconds=60)  # sync runs every 15 s
+ONLINE = timedelta(seconds=90)  # three 30 s syncs, so one slow sync doesn't read as offline
 AW_STATE = dict(ready="працює", partial="неповні дані", stale="дані застаріли", unavailable="недоступний",
                 unsupported="категорії не налаштовано", unknown="невідомо")
 
