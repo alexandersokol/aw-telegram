@@ -105,7 +105,9 @@ laptop message statuses arrive today.
 
 ## 4. English language in the bot, chosen per Telegram user
 
-- **Status:** open
+- **Status:** designed — docs/superpowers/specs/2026-10-30-english-design.md (extended to the
+  laptop app: a language setting there, default from the Windows display language, otherwise
+  English)
 - **Found:** 2026-10-30, owner request during live acceptance.
 - **Area:** Telegram bot, all user-facing text.
 
