@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bot:
+    name: Bot (unit, build, emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install
+        run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Build and typecheck
+        run: npm run build
+      - name: Bundle check
+        run: npm run check:bundle
+      - name: Cache the Firestore emulator
+        uses: actions/cache@v4
+        with:
+          path: .firebase/emulators
+          key: firestore-emulator-${{ hashFiles('bot/package-lock.json') }}
+      - name: Emulator suites
+        run: npm run test:emulator -- auth pairing rules sync delivery purge cleanup
+
+  companion:
+    name: Companion (licenses, tests)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: companion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.6'
+          cache: pip
+          cache-dependency-path: companion/requirements.lock
+      - name: Install
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python.exe -m pip install --upgrade pip
+          .venv\Scripts\python.exe -m pip install -r requirements.lock
+      - name: License texts
+        run: .venv\Scripts\python.exe tools\licenses.py check
+      - name: Tests
+        run: .venv\Scripts\python.exe -m pytest -q
