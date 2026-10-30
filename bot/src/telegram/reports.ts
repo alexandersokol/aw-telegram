@@ -47,7 +47,8 @@ const OFFLINE_AFTER_MS = 2 * 60000;
 export async function laptopOffline(repository: FirestoreRepository, identity: ParentIdentity, now: Instant): Promise<boolean> {
   const sync = await repository.db.runTransaction(tx => tx.get(repository.db.doc(`devices/${identity.deviceId}/sync/current`)));
   const at = sync.data()?.serverReceivedAt;
-  return typeof at !== 'string' || Date.parse(now) - Date.parse(at) > OFFLINE_AFTER_MS;
+  const ms = typeof at === 'string' ? Date.parse(at) : NaN;  // absent or unparsable counts as offline
+  return !Number.isFinite(ms) || Date.parse(now) - ms > OFFLINE_AFTER_MS;
 }
 
 export {duration};

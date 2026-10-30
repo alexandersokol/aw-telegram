@@ -125,10 +125,13 @@ export const CLEARED_ALL = 'усі нагадування буде скасов�
 /** What a clear's "applied" message says (UX-03); settings changes reuse their coordination summary. */
 export const CLEAR_APPLIED = {manual: 'ручні нагадування скасовано', all: 'усі нагадування скасовано, попередження про ліміт вимкнено до опівночі'} as const;
 export const APPLIED_PREFIX = '✅ Ноутбук застосував: ';
-/** One outbox message per author per sync, the changes in order, within the outbox's 3500 characters. */
+/** One outbox message per author per sync, the changes in order, within the outbox's 3500 UTF-16 units; the cut never
+ * splits a surrogate pair (an emoji in a category name). */
 export const appliedText = (summaries: string[]): string => {
   const text = APPLIED_PREFIX + summaries.join('; ') + '.';
-  return text.length > 3500 ? text.slice(0, 3499) + '…' : text;
+  if (text.length <= 3500) return text;
+  const cut = text.slice(0, 3499);
+  return (/[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut) + '…';
 };
 export const LIMIT_LABELS = {
   today: 'Змінити на сьогодні', daily: 'Змінити щоденний ліміт', categories: 'Категорії', freeOn: 'Увімкнути вільний режим',

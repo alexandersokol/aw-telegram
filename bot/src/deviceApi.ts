@@ -148,20 +148,12 @@ export class DeviceApi {
         for(const write of await planEndtimeAck(this.repository,tx,identity.deviceId,ack,actions.policy,actions.parents,settings,now))
           endtimeWrites.set(write.ref.path,write);
       }
-      // UX-03: notices are read only when an acknowledgement advances or an earlier sync left some, so an idle sync
-      // reads nothing more. At most 50 deletions and three writes for each of at most ten active authors.
-      const due=current.noticesDue===true,settingsAck=next.settingsAckRevision??0,cancellationAck=next.cancellationAckRevision;
-      const notices=await planNotices(this.repository,tx,identity.deviceId,{
-        settings:settingsAck>(current.settingsAckRevision??0)||due&&settingsAck>0?settingsAck:null,
-        cancellation:cancellationAck>current.cancellationAckRevision||due&&cancellationAck>0?cancellationAck:null},device.activeParentIds,now);
-      if(notices.more)next.noticesDue=true;else delete next.noticesDue;
       let actionAcks=request.acks.filter(a=>a.kind==='action'),selectedAcks=request.acks.filter(a=>!deferred.has(a.id));
       let mandatoryWrites:number,actionWrites:PlannedWrite[];
       for(;;){
         const selectedIds=new Set(selectedAcks.map(a=>a.id));
         const newReceipts=receiptDocs.filter((doc,i)=>!doc.exists&&selectedIds.has(request.acks[i]!.id)).length;
-        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length+endtimeWrites.size+(migrateSettings?1:0)+
-          notices.writes.length+notices.deletes.length;
+        mandatoryWrites=dayWrites.length+newReceipts+(live?1:0)+(health?1:0)+1+alertWrites.length+endtimeWrites.size+(migrateSettings?1:0);
         response.acknowledgedAckIds=selectedAcks.map(a=>a.id);response.deliveryOffers=[];
         try{
           actionWrites=await planActionSync(this.repository,tx,actions,actionAcks,settings,cancellations,now,response,450-mandatoryWrites);
@@ -175,6 +167,14 @@ export class DeviceApi {
           selectedAcks=request.acks.filter(a=>!deferred.has(a.id)&&(a.kind!=='action'||retainedIds.has(a.id)));
         }
       }
+      // UX-03: notices are read only when an acknowledgement advances or an earlier sync left some, so an idle sync
+      // reads nothing more. They get only the write budget left after everything else; the rest wait (noticesDue).
+      const due=current.noticesDue===true,settingsAck=next.settingsAckRevision??0,cancellationAck=next.cancellationAckRevision;
+      const notices=await planNotices(this.repository,tx,identity.deviceId,{
+        settings:settingsAck>(current.settingsAckRevision??0)||due&&settingsAck>0?settingsAck:null,
+        cancellation:cancellationAck>current.cancellationAckRevision||due&&cancellationAck>0?cancellationAck:null},
+        device.activeParentIds,now,450-mandatoryWrites-actionWrites.length);
+      if(notices.more)next.noticesDue=true;else delete next.noticesDue;
       boundedResponse(response);
       // All reads, validation and response capacity checks precede any protected write.
       if(migrateSettings)tx.set(settingsRef,encodeSettings(settings));

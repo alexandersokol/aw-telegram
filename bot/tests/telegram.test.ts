@@ -63,6 +63,9 @@ describe('/endtime commands',()=>{
     expect((await s.bot.command(parent(),'/endtime set 21:00',52)).text).toBe(saved);
     s.advance(1);await s.bot.command(parent(),'/endtime off',53);
     expect((await s.bot.command(parent(),'/endtime set 21:00',54)).text).toBe(saved+'\n'+OFFLINE);
+    s.db.data.set(root+'/sync/current',{...s.db.data.get(root+'/sync/current'),serverReceivedAt:'not a time'});
+    await s.bot.command(parent(),'/endtime off',55);
+    expect((await s.bot.command(parent(),'/endtime set 21:00',56)).text).toBe(saved+'\n'+OFFLINE);
   });
   it('shows suppression and companion acknowledgement in status',async()=>{
     const s=await setup();await s.bot.command(parent(),'/endtime set 21:00',40);

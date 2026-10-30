@@ -1,12 +1,24 @@
 /** UX-03: the author of a settings change or clear is told once when the laptop applies it. */
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {fixture,parent,identity,root,request} from './delivery-fixture.js';
+
+/** Action planning that leaves only `spare` of its budget, standing in for a sync whose other writes are near 450. */
+const busy=vi.hoisted(()=>({spare:null as number|null}));
+vi.mock('../src/actions.js',async original=>{
+  const actual:any=await original();
+  return {...actual,planActionSync:async(...args:any[])=>{
+    const writes=await actual.planActionSync(...args),budget=args[8] as number;
+    if(busy.spare===null)return writes;
+    return [...writes,...Array.from({length:budget-busy.spare-writes.length},(_,i)=>({ref:args[0].db.doc('filler/'+i),value:{i}}))];
+  }};
+});
 import {DeviceApi} from '../src/deviceApi.js';
 import {SettingsService} from '../src/settings.js';
 import {ActionService} from '../src/actions.js';
 import {OutboxService,TelegramHttpAdapter} from '../src/outbox.js';
 import {cleanup} from '../src/cleanup.js';
+import {appliedText,APPLIED_PREFIX} from '../src/telegram/uk.js';
 
 function setup(){
   const f=fixture(),api=new DeviceApi(f.repo,f.clock);
@@ -101,6 +113,29 @@ describe('applied messages',()=>{
     expect(s.notices()).toEqual([]);
     await s.sync();
     expect(s.db.data.get(root+'/sync/current').noticesDue).toBeUndefined();expect(s.applied()).toHaveLength(3);
+  });
+  it('fits notices into the write budget the rest of the sync leaves and defers the others in order',async()=>{
+    const s=setup();
+    for(let i=1;i<=50;i++){await s.settings.updateSettings(parent(i<=30?'1':'2'),limit(i),'op'+i);s.advance(1);}
+    try{
+      busy.spare=10;  // the first author's event (3) and seven deletions fit; nothing else does
+      await s.sync({settings:50});
+      expect(s.applied().map(e=>[e.recipients[0].userId,e.text.split('; ').length])).toEqual([['1',7]]);
+      expect(s.notices()).toHaveLength(43);expect(s.db.data.get(root+'/sync/current').noticesDue).toBe(true);
+      busy.spare=0;  // no room at all: nothing read, nothing lost
+      await s.sync();
+      expect(s.applied()).toHaveLength(1);expect(s.notices()).toHaveLength(43);expect(s.db.data.get(root+'/sync/current').noticesDue).toBe(true);
+    }finally{busy.spare=null;}
+    await s.sync();
+    expect(s.applied().map(e=>[e.recipients[0].userId,e.text.split('; ').length])).toEqual([['1',7],['1',23],['2',20]]);
+    expect(s.applied().flatMap(e=>e.text.split('; ')).map(t=>Number(/(\d+) хв/.exec(t)![1]))).toEqual(Array.from({length:50},(_,i)=>i+1));
+    expect(s.notices()).toEqual([]);expect(s.db.data.get(root+'/sync/current').noticesDue).toBeUndefined();
+  });
+  it('cuts an overlong message on a code-point boundary',()=>{
+    const text=appliedText(['a'.repeat(3498-APPLIED_PREFIX.length)+'😀😀']);
+    expect(text).toBe(APPLIED_PREFIX+'a'.repeat(3498-APPLIED_PREFIX.length)+'…');
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(text)).toBe(false);
+    expect(appliedText(['b'.repeat(3497-APPLIED_PREFIX.length)+'😀😀']).endsWith('😀…')).toBe(true);
   });
   it('keeps a message with many long summaries within the outbox bound',async()=>{
     const s=setup();
