@@ -119,7 +119,7 @@ VSVersionInfo(
 
 def notes(version: str, previous: str, repo: str, cwd: Path = ROOT) -> str:
     commits = "\n".join("- " + line for line in git("log", "--format=%h %s", f"{previous}..HEAD", cwd=cwd).splitlines())
-    files = git("diff", "--stat", f"{previous}..HEAD", cwd=cwd).rstrip()
+    files = git("diff", "--stat=200", f"{previous}..HEAD", cwd=cwd).rstrip()
     since = previous[:7] if re.fullmatch(r"[0-9a-f]{40}", previous) else previous
     return (f"This build is not code-signed, so Windows SmartScreen will warn before it runs: choose More info, "
             f"then Run anyway.\n\n## Commits since {since}\n\n{commits}\n\n## Changed files\n\n```text\n{files}\n```\n\n"

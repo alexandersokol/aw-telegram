@@ -110,22 +110,24 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
-      # A draft release has no tag, so a failure before the last command leaves nothing but a draft, which the
-      # next step removes. Publishing it is what creates the tag v1.0.x on this commit.
+      # A draft release has no tag, so a failure, cancellation or timeout before the last command leaves nothing but
+      # a draft of this version, which the next step removes (never a published release). Publishing it is what creates the tag v1.0.x on this commit.
       - name: Publish
         id: publish
         if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           version="${{ steps.version.outputs.version }}"
           gh release create "v$version" --draft --target "$GITHUB_SHA" --title "$version" --notes-file dist/notes.md \
             "dist/aw-telegram-$version-windows.zip" "dist/changes-$version.patch"
           gh release edit "v$version" --draft=false --latest
       - name: Remove the unpublished draft
-        if: failure() && steps.publish.outcome == 'failure'
+        if: (failure() || cancelled()) && (steps.publish.outcome == 'failure' || steps.publish.outcome == 'cancelled')
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           tag="v${{ steps.version.outputs.version }}"
           if [ "$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then

@@ -61,7 +61,7 @@ def test_a_malformed_version_file_is_rejected(text):
 
 
 def test_the_repository_version_file_is_valid():
-    assert release.major_minor((Path(__file__).parents[2] / "VERSION").read_text(encoding="utf-8")) == "1.0"
+    release.major_minor((Path(__file__).parents[2] / "VERSION").read_text(encoding="utf-8"))  # any MAJOR.MINOR
 
 
 def test_tags_come_from_git_and_the_next_version_from_the_real_ones(repo):
@@ -146,6 +146,14 @@ def test_notes_list_commits_files_and_the_compare_link_after_the_unsigned_line(r
     assert "first" not in text and "old.txt" not in text
     assert "companion/a.py" in text and "contracts/b.json" in text
     assert "https://github.com/owner/repo/compare/v1.0.0...v1.0.1" in text
+
+
+def test_notes_do_not_truncate_long_paths(repo):
+    commit(repo, "old.txt")
+    git(repo, "tag", "v1.0.0")
+    name = "companion/" + "/".join(["a_rather_long_directory_name"] * 3) + "/the_changed_file_with_a_long_name.py"
+    commit(repo, name)
+    assert name in release.notes("1.0.1", "v1.0.0", "owner/repo", repo)
 
 
 def test_notes_for_the_first_release_start_at_the_first_commit(repo):

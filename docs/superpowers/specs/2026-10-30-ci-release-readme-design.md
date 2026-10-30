@@ -54,8 +54,9 @@ new reader.
      - Find the highest existing tag `v{MAJOR}.{MINOR}.{N}`. The patch is N+1, or 0 if there is
        none.
      - Bumping `VERSION` to `1.1` therefore starts at `1.1.0`.
-  4. **Stamp:** write `companion/src/aw_telegram/_version.py` with `VERSION = "1.0.x"`, and a
-     PyInstaller version-info file that the spec reads (section 3).
+  4. **Stamp:** write `companion/src/aw_telegram/_version.py` with `VERSION = "1.0.x"` (and
+     `pyproject.toml`'s version). The spec builds the Windows version resource from that file
+     (section 3), so there is no separate version-info file to keep in step.
   5. **Build:** `pyinstaller --clean --noconfirm aw-telegram.spec`.
   6. **Verify:** `dist\aw-telegram\aw-telegram.exe --self-check report.json`. Every entry must be
      `ok`, and `version` must equal the stamped version.
