@@ -2,7 +2,7 @@ import {describe,it,expect} from 'vitest';
 import {existsSync} from 'node:fs';
 import {createRouter} from '../src/index.js';
 import {fixture,identity,root} from './delivery-fixture.js';
-import {setup,events} from './bot-fixture.js';
+import {setup,events,type Bot} from './bot-fixture.js';
 
 const PAIRING='Щоб підключитися, створіть ключ у програмі на ноутбуці («Доступ батьків») і надішліть його сюди командою /pair КЛЮЧ.';
 
@@ -64,7 +64,7 @@ describe('paired navigation',()=>{
     expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['📊 Використання','💻 Стан ноутбука'],['💬 Нагадування','⏱ Ліміт часу'],['⚙️ Налаштування']]);
     await s.handle(s.press('1',s.button('Налаштування')));
     expect(s.last()).toMatchObject({kind:'edit',messageId:7});
-    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Щогодинні звіти: вимкнено'],['Час завершення: вимкнено'],['Допомога'],['← Назад']]);
+    expect(s.last().buttons!.map(r=>r.map(b=>b.text))).toEqual([['Щогодинні звіти: вимкнено'],['Час завершення: вимкнено'],['Допомога'],['🚪 Відключитися'],['← Назад']]);
     expect(s.calls.filter(c=>c.kind==='answer')).toHaveLength(1);
     await s.handle(s.press('1',s.button('Час завершення')));expect(s.last().text.startsWith('🌙 Час завершення')).toBe(true);
     await s.handle(s.press('1',s.button('Назад')));expect(s.last().buttons!.flat().map(b=>b.text)).toContain('Допомога');
@@ -150,6 +150,58 @@ describe('paired navigation',()=>{
     await s.handle(s.message('1','/help'));expect(s.last().text).toContain('/endtime');
     await s.handle(s.message('1','просто текст'));expect(s.last().text).toBe('Оберіть дію в меню: /start');
     await s.handle(s.message('1','/nonsense'));expect(s.last().text).toContain('Невідома команда');
+  });
+});
+
+describe('self-removal (ACCESS-09)',()=>{
+  const CONFIRM='Відключитися від цього ноутбука? Ви більше не отримуватимете звіти й сповіщення. Щоб повернутися, потрібен новий ключ із ноутбука.';
+  const LAST='Ви останній підключений дорослий. Після цього всі правила на ноутбуці зупиняться.';
+  const pairingId=(s:Bot,id:string)=>s.db.data.get(root+'/parents/'+id).pairingId;
+
+  it('confirms from Settings, removes access like the laptop does and tells nobody',async()=>{
+    const s=await setup(),before=events(s).length;
+    await s.say('/settings');await s.tap('Відключитися');
+    expect(s.last().text).toBe(CONFIRM);expect(s.labels()).toEqual([['Так, відключитися'],['Скасувати']]);
+    await s.tap('Так, відключитися');
+    expect(s.last().text).toBe('Вас відключено.\n\n'+PAIRING);expect(s.last().buttons).toEqual([]);
+    expect(s.db.data.get(root+'/parents/1').revokedAt).not.toBeNull();
+    expect(s.db.data.get('telegramUsers/1').revokedAt).not.toBeNull();
+    expect(s.db.data.get(root).activeParentIds).toEqual(['2']);
+    expect(events(s)).toHaveLength(before);
+    expect(s.calls.filter(c=>c.chatId==='2')).toEqual([]);
+    await s.say('/status');expect(s.last().text).toBe(PAIRING);
+    await s.say('/status','2');expect(s.last().text).not.toBe(PAIRING);
+  });
+  it('goes back to Settings on cancel and keeps access',async()=>{
+    const s=await setup();await s.say('/unpair');await s.tap('Скасувати');
+    expect(s.last().text).toBe('⚙️ Налаштування');
+    expect(s.db.data.get(root+'/parents/1').revokedAt).toBeNull();
+  });
+  it('warns the last caregiver that every rule will pause',async()=>{
+    const s=await setup();await s.repo.revokeAccess(identity,`parent:2:${pairingId(s,'2')}`);
+    await s.say('/unpair');expect(s.last().text).toBe(CONFIRM+'\n\n'+LAST);
+    await s.tap('Так, відключитися');expect(s.db.data.get(root).activeParentIds).toEqual([]);
+  });
+  it('answers /unpair from an unpaired user with the pairing hint',async()=>{
+    const s=await setup();await s.say('/unpair','3');expect(s.last().text).toBe(PAIRING);
+  });
+  it('treats a repeated confirm as coming from an unpaired user and changes nothing',async()=>{
+    const s=await setup();await s.say('/unpair');
+    const confirm=s.button('Так, відключитися');
+    await s.handle(s.press('1',confirm));const revokedAt=s.db.data.get(root+'/parents/1').revokedAt;
+    await s.handle(s.press('1',confirm));
+    expect(s.last().text).toBe(PAIRING);
+    expect(s.db.data.get(root+'/parents/1').revokedAt).toBe(revokedAt);
+    expect(s.db.data.get(root).activeParentIds).toEqual(['2']);
+  });
+  it('refuses a confirm button from an older leave screen',async()=>{
+    const s=await setup();await s.say('/unpair');const old=s.button('Так, відключитися');
+    await s.say('/unpair');await s.handle(s.press('1',old));
+    expect(s.calls.filter(c=>c.kind==='answer').at(-1)).toEqual({kind:'answer',text:'Це меню застаріло. Відкрийте /start знову.'});
+    expect(s.db.data.get(root+'/parents/1').revokedAt).toBeNull();
+  });
+  it('lists /unpair in /help',async()=>{
+    const s=await setup();await s.say('/help');expect(s.last().text).toContain('/unpair — відключитися від ноутбука');
   });
 });
 

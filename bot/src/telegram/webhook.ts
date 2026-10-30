@@ -196,6 +196,7 @@ export class TelegramBot {
         return this.navigation.openUsage(identity, period);
       }
       case 'settings': return this.navigation.openSettings(identity);
+      case 'unpair': return this.navigation.openLeave(identity);
       case 'help': return plain(HELP);
       case 'pair': return plain(ALREADY_PAIRED);
       case 'endtime': return this.endtime.command(identity, text, updateId);

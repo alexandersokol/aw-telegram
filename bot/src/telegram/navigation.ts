@@ -6,20 +6,21 @@ import type {EndtimeController} from './commands.js';
 import type {AllowanceController} from './allowance.js';
 import type {RemindersController} from './reminders.js';
 import {MenuSessions} from './sessions.js';
-import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,HELP,STALE_NAV,CHOOSE_PERIOD,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
+import {NAV_LABELS,MAIN_MENU,SETTINGS_MENU,HELP,STALE_NAV,CHOOSE_PERIOD,LEAVE_CONFIRM,LEAVE_LAST,LEFT,PAIRING,hourlyLabel,hourlySaved,endtimeLabel,type Button,type Reply} from './uk.js';
 import {loadReport,renderStatus,renderUsage,type UsagePeriod} from './reports.js';
 
 /** Limit and Reminders are separate menus that the main menu hands over to. */
-export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status';
+export type NavScreen = 'main' | 'settings' | 'help' | 'usage' | 'status' | 'leave';
 export interface NavState {screen: NavScreen; period?: UsagePeriod}
 export type NavAction = 'usage' | 'status' | 'reminders' | 'limit' | 'settings' | 'hourlyon' | 'hourlyoff' | 'endtime' | 'help' | 'back' |
-  UsagePeriod | 'refresh';
-/** A null state leaves this menu: openEndtime hands over to the Endtime submenu. */
-export interface NavResult {state: NavState | null; effect?: 'hourlyOn' | 'hourlyOff' | 'openEndtime' | 'openLimit' | 'openReminders'; error?: 'stale'}
+  UsagePeriod | 'refresh' | 'leave' | 'leaveyes' | 'leaveno';
+/** A null state leaves this menu: openEndtime hands over to the Endtime submenu; leave ends the caregiver's access. */
+export interface NavResult {state: NavState | null; effect?: 'hourlyOn' | 'hourlyOff' | 'openEndtime' | 'openLimit' | 'openReminders' | 'leave'; error?: 'stale'}
 
 const SECTIONS: readonly NavScreen[] = ['usage', 'status'];
 const PERIODS: readonly UsagePeriod[] = ['today', 'yesterday', 'week'];
-const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourlyon', 'hourlyoff', 'endtime', 'help', 'back', ...PERIODS, 'refresh'];
+const ACTIONS: readonly NavAction[] = ['usage', 'status', 'reminders', 'limit', 'settings', 'hourlyon', 'hourlyoff', 'endtime', 'help', 'back', ...PERIODS, 'refresh',
+  'leave', 'leaveyes', 'leaveno'];
 
 export function transitionNav(state: NavState, action: NavAction): NavResult {
   const to = (screen: NavScreen): NavResult => ({state: {screen}});
@@ -32,9 +33,13 @@ export function transitionNav(state: NavState, action: NavAction): NavResult {
     if (action === 'hourlyon' || action === 'hourlyoff') return {state, effect: action === 'hourlyon' ? 'hourlyOn' : 'hourlyOff'};
     if (action === 'endtime') return {state: null, effect: 'openEndtime'};
     if (action === 'help') return to('help');
+    if (action === 'leave') return to('leave');
     if (action === 'back') return to('main');
   } else if (state.screen === 'help') {
     if (action === 'back') return to('settings');
+  } else if (state.screen === 'leave') {
+    if (action === 'leaveno') return to('settings');
+    if (action === 'leaveyes') return {state: null, effect: 'leave'};
   } else if (state.screen === 'usage' && PERIODS.includes(action as UsagePeriod)) {
     return {state: {screen: 'usage', period: action as UsagePeriod}};
   } else if (state.screen === 'status' && action === 'refresh') {
@@ -65,6 +70,7 @@ export class NavigationController {
   openMain(identity: ParentIdentity, prefix?: string): Promise<Reply> {return this.open(identity, 'main', prefix);}
   openSettings(identity: ParentIdentity, prefix?: string): Promise<Reply> {return this.open(identity, 'settings', prefix);}
   openStatus(identity: ParentIdentity): Promise<Reply> {return this.open(identity, 'status');}
+  openLeave(identity: ParentIdentity): Promise<Reply> {return this.open(identity, 'leave');}
   async openUsage(identity: ParentIdentity, period: UsagePeriod): Promise<Reply> {
     const state = {screen: 'usage' as const, period};
     return this.render(identity, await this.sessions.open(identity, 'nav', state), state);
@@ -85,6 +91,11 @@ export class NavigationController {
       if (result.effect === 'openEndtime') return this.endtime.openMenu(identity);
       if (result.effect === 'openLimit') return this.allowance.openStatus(identity);
       if (result.effect === 'openReminders') return this.reminders.openHome(identity);
+      // The removal deletes the menu session, so nothing is advanced afterwards.
+      if (result.effect === 'leave') {
+        await this.repository.leaveDevice(identity);
+        return {text: LEFT + '\n\n' + PAIRING, buttons: []};
+      }
       let prefix: string | undefined;
       if (result.effect === 'hourlyOn' || result.effect === 'hourlyOff') {
         const enabled = result.effect === 'hourlyOn';
@@ -102,6 +113,13 @@ export class NavigationController {
     return this.repository.db.runTransaction(async tx => (await this.repository.requireParent(tx, identity)).hourlyEnabled);
   }
 
+  private lastCaregiver(identity: ParentIdentity): Promise<boolean> {
+    return this.repository.db.runTransaction(async tx => {
+      await this.repository.requireParent(tx, identity);
+      return (await tx.get(this.repository.db.doc(`devices/${identity.deviceId}`))).data()!.activeParentIds.length === 1;
+    });
+  }
+
   private async render(identity: ParentIdentity, guard: CallbackGuard, state: NavState, prefix?: string): Promise<Reply> {
     const button = (action: NavAction, text: string = NAV_LABELS[action as keyof typeof NAV_LABELS]): Button => ({text, data: encodeNav(guard, action)});
     let reply: Reply;
@@ -110,7 +128,10 @@ export class NavigationController {
     } else if (state.screen === 'settings') {
       const [hourly, {settings}] = await Promise.all([this.hourlyEnabled(identity), this.settings.status(identity)]);
       reply = {text: SETTINGS_MENU, buttons: [[button(hourly ? 'hourlyoff' : 'hourlyon', hourlyLabel(hourly))], [button('endtime', endtimeLabel(settings))],
-        [button('help')], [button('back')]]};
+        [button('help')], [button('leave')], [button('back')]]};
+    } else if (state.screen === 'leave') {
+      reply = {text: (await this.lastCaregiver(identity)) ? LEAVE_CONFIRM + '\n\n' + LEAVE_LAST : LEAVE_CONFIRM,
+        buttons: [[button('leaveyes')], [button('leaveno')]]};
     } else if (state.screen === 'help') {
       reply = {text: HELP, buttons: [[button('back')]]};
     } else if (state.screen === 'usage') {

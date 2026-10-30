@@ -42,6 +42,9 @@ export const PAIRED = 'Доступ підтверджено.';
 export const PAIR_FAILED = 'Не вдалося підключитися: ключ недійсний, використаний або прострочений.';
 export const PAIR_THROTTLED = 'Забагато спроб підключення. Спробуйте пізніше.';
 export const ALREADY_PAIRED = 'Цей обліковий запис уже підключено.';
+export const LEAVE_CONFIRM = 'Відключитися від цього ноутбука? Ви більше не отримуватимете звіти й сповіщення. Щоб повернутися, потрібен новий ключ із ноутбука.';
+export const LEAVE_LAST = 'Ви останній підключений дорослий. Після цього всі правила на ноутбуці зупиняться.';
+export const LEFT = 'Вас відключено.';
 export const STALE_NAV = 'Це меню застаріло. Відкрийте /start знову.';
 export const ACTION_CAPACITY = 'Забагато активних нагадувань. Очистьте їх через /clear і спробуйте знову.';
 export const DATA_CAPACITY = 'Зміну не збережено: перевищено допустимий обсяг даних. Спробуйте меншу зміну.';
@@ -72,11 +75,13 @@ export const HELP = [
   '/settings — налаштування',
   '/hourly on|off — ваші щогодинні звіти',
   '/endtime — час завершення (status, set ГГ:ХХ, on, off)',
+  '/unpair — відключитися від ноутбука',
   '/help — ця довідка',
 ].join('\n');
 export const NAV_LABELS = {
   usage: '📊 Використання', status: '💻 Стан ноутбука', reminders: '💬 Нагадування', limit: '⏱ Ліміт часу',
   settings: '⚙️ Налаштування', help: 'Допомога', back: LABELS.back,
+  leave: '🚪 Відключитися', leaveyes: 'Так, відключитися', leaveno: LABELS.cancel,
 } as const;
 export const NOTHING_TO_REMOVE = 'Для обліку нічого не вибрано.';
 export const hourlyLabel = (enabled: boolean): string => `Щогодинні звіти: ${enabled ? 'увімкнено' : 'вимкнено'}`;
