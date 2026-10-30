@@ -270,8 +270,12 @@ date the server reaches within 5 minutes, as may an endtime receipt's `date`); `
 Kyiv date the server reaches within 5 minutes. Beyond that the sync is refused (400
 `Invalid activity context` or `Invalid receipt`), as before. Accepted live and health
 times are clamped into [collection start, server time] before they are ordered or
-stored (`lastSuccessAt` to at most server time), so freshness, `/status` and the
-skip-unchanged rules behave as with a correct clock. Summary sources are stored as
+stored (`lastSuccessAt` to at most server time), so freshness, `/status`, the online
+window and the skip-unchanged rules work on server time. The tolerance only keeps sync
+working: the companion still times reminders on its own clock, so an offset makes
+immediate reminders and timers shorter than it expire, and the clock must be fixed
+(operations.md, troubleshooting). Each sync stores the offset as `clockSkewMs` (health
+time minus server time, ms) on `sync/current`. Summary sources are stored as
 sent, because their digest is their identity; reports and alerts show coverage up to
 server time at most. Receipts are likewise stored exactly as sent; where the backend
 compares a receipt time with a server time (a clear or free-use fence), it counts as

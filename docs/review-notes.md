@@ -287,7 +287,7 @@ Neither affects the running functions.
 
 ## 9. A laptop whose clock is ahead of the server never syncs
 
-- **Status:** fixed (55b8262, 7a5d0b9); deploy pending
+- **Status:** fixed (55b8262, 7a5d0b9, 27a07fb, a6bebe4, 1663ae8); deploy pending
 - **Found:** 2026-10-30, production incident.
 - **Area:** `bot/src/contracts.ts` (`validateActivityContext`), `bot/src/deviceApi.ts`.
 
@@ -300,8 +300,15 @@ observation even 1 ms after server time was refused (`Invalid activity context`)
 ahead of the server failed every sync for good. After pairing, live and coverage times outside
 [collection start, server time] were refused too, so a clock behind failed until real time caught up.
 
-**Fix.** Sync accepts a laptop clock up to 5 minutes off (`CLOCK_SKEW_MS`) and refuses beyond it as
+**Fix.** Sync tolerates a laptop clock up to 5 minutes off (`CLOCK_SKEW_MS`) and refuses beyond it as
 before. Accepted live and health times are clamped into the server's window before they are ordered or
-stored, so freshness, `/status` and the online window behave as with a correct clock; reports and alerts
-show coverage up to server time. The companion and the wire contract are unchanged. A refused sync now
-logs one `sync refused` warning with a fixed reason and the clock skew (operations.md, troubleshooting).
+stored, so freshness, `/status` and the online window work on server time; reports and alerts show
+coverage up to server time. Action, endtime, settings and cancellation receipt times get the same
+tolerance and are stored as sent. The companion and the wire contract are unchanged. A refused sync now
+logs one `sync refused` warning with a fixed reason and the clock skew, and every sync stores the
+laptop's offset as `clockSkewMs` on `sync/current` (operations.md, troubleshooting).
+
+**Still needed: fix the clock.** The tolerance keeps sync working, not reminders. The companion times
+reminders on its own clock: a laptop ahead makes immediate reminders and short timers expire as missed,
+and one behind shows them late. A laptop behind also waits after its first pairing until its clock
+passes collection start (companion-side, at most the offset).

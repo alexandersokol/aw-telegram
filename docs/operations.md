@@ -85,7 +85,8 @@ counts. Route boundary errors (4xx) are answers, not logged failures, with one e
 an authenticated laptop sync that is refused logs one warning, `sync refused`, with
 `route` (`POST /v2/sync`), `status`, a fixed `reason` (for example `health observation
 is in the future`) and `skewMs`: for a laptop time refused as too late, that time minus
-server time; as too early, that time minus collection start (negative); otherwise null.
+server time; as too early, that time minus collection start (negative); otherwise the
+request's health time minus server time, or null for a request that could not be read.
 It holds no body, device ID or user ID.
 
 Cloud Run's own request logs record method, full path, status and latency for 30 days.
@@ -143,12 +144,21 @@ it means removing the webhook and deleting or scaling down `api` (see Rollback).
   show `POST /v2/sync` 400s): read the `sync refused` warnings in Cloud Logging
   (`jsonPayload.message="sync refused"`). A reason about a future observation, coverage
   or live time, with `skewMs` beyond ±300000, means the laptop clock is more than 5
-  minutes off: turn on «Set time automatically» in Windows Settings → Time & language →
-  Date & time, or press «Sync now» there. The backend accepts and corrects a clock up
-  to 5 minutes off (api-contract.md, activity time validation). Before 2026-10-30 it
-  accepted none, so a laptop clock even 1 s ahead of the server failed every sync
+  minutes off: fix the clock (below). Before 2026-10-30 the backend tolerated no
+  offset, so a laptop clock even 1 s ahead of the server failed every sync
   (review-notes.md, note 9). A reason that does not name a time points at the
   companion or the request; compare the companion version with the deployed backend.
+- **Laptop clock offset.** Each sync stores the laptop's offset as `clockSkewMs` on
+  `devices/{deviceId}/sync/current` (Firestore console): its health time minus server
+  time, in ms, from the newest sync. Health is observed a few seconds before a sync, so
+  a small negative value is normal. Anything beyond about ±30000 (30 s) means fix the
+  clock, even though syncs work: the backend tolerates up to 5 minutes only so that
+  syncs, status and alerts keep working. Reminders are still timed on the laptop clock,
+  so a clock ahead makes immediate reminders (60 s to show) and timers shorter than the
+  offset count as expired or missed, and a clock behind shows them late. A clock off by
+  more than 5 minutes is refused and logs `sync refused` instead. To fix it, in Windows
+  Settings → Time & language → Date & time, turn on «Set time automatically» and press
+  «Sync now».
 
 ## Rotating secrets
 
