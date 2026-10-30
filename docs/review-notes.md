@@ -136,7 +136,7 @@ user and applies only to them.
 
 ## 5. CI/CD: build and release the companion on every commit to main
 
-- **Status:** open
+- **Status:** designed — docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
 - **Found:** 2026-10-30, owner request.
 - **Area:** new `.github/workflows/`, `companion/`.
 
@@ -186,7 +186,7 @@ The major and minor numbers are set by hand, and changing them restarts `x` at 0
 
 ## 6. A proper README for GitHub
 
-- **Status:** open
+- **Status:** designed — docs/superpowers/specs/2026-10-30-ci-release-readme-design.md
 - **Found:** 2026-10-30, owner request.
 - **Area:** `README.md` (repository root).
 
