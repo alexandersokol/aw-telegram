@@ -19,32 +19,44 @@ jobs:
     defaults:
       run:
         working-directory: bot
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: bot/package-lock.json
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
       - name: Install
         run: npm ci
+      # Job logs need a GitHub sign-in; on failure the tail of the output also goes to the public run summary.
       - name: Unit tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log || {
+            { echo "### Bot unit tests failed"; echo; echo '```text'; tail -n 150 test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
       - name: Build and typecheck
         run: npm run build
       - name: Bundle check
         run: npm run check:bundle
       - name: Cache the Firestore emulator
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .firebase/emulators
           key: firestore-emulator-${{ hashFiles('bot/package-lock.json') }}
       - name: Emulator suites
-        run: npm run test:emulator -- auth pairing rules sync delivery purge cleanup
+        run: |
+          set -o pipefail
+          npm run test:emulator -- auth pairing rules sync delivery purge cleanup 2>&1 | tee test.log || {
+            { echo "### Emulator suites failed"; echo; echo '```text'; tail -n 150 test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
 
   companion:
     name: Companion (licenses, tests)
@@ -54,8 +66,8 @@ jobs:
       run:
         working-directory: companion
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12.6'
           cache: pip
@@ -68,4 +80,11 @@ jobs:
       - name: License texts
         run: .venv\Scripts\python.exe tools\licenses.py check
       - name: Tests
-        run: .venv\Scripts\python.exe -m pytest -q
+        run: |
+          .venv\Scripts\python.exe -m pytest -q -rfE 2>&1 | Tee-Object -FilePath test.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $lines = @('### Companion tests failed', '', '```text') + (Get-Content test.log -Tail 150) + @('```')
+            $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          exit $code
