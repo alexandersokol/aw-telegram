@@ -225,3 +225,17 @@ explain the project to a new reader. `companion/README.md` has the same problem.
 - Trim `companion/README.md` to a short pointer, or rewrite it as the companion's developer notes.
 - The repository has no license file yet. Choosing one is the owner's decision and the README
   depends on it.
+
+## 7. Each laptop exceeds the Firestore free allowance
+
+- **Status:** designed — docs/superpowers/specs/2026-10-30-sync-cost-design.md
+- **Found:** 2026-10-30, measured during live acceptance (proposal A of the review session).
+- **Area:** companion sync, `bot/src/deviceApi.ts`.
+
+**What happens.** One laptop that stayed online cost 1,051 writes and 4,188 reads an hour. That
+is about 25,000 writes and 100,000 reads a day, against Firestore's free 20,000 and 50,000. The
+companion syncs every 15 s, and every sync rewrites health and live and reads all stored days and
+the alert state.
+
+**Wanted.** Sync every 30 s, skip unchanged writes and unneeded reads, and measure the result.
+The target is about 4,000 writes and 20,000 reads a day per laptop.
