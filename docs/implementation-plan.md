@@ -1052,6 +1052,246 @@ and requires explicit confirmation. Scheduler and task handlers use cloud identi
   deployment and sending real Telegram messages require the owner's deployment/test
   configuration and authorization; do not use guessed tokens/accounts.
 
+## Task 11: Post-acceptance improvements
+
+Source: docs/review-notes.md, notes 1–8, from the 2026-10-30 live acceptance and the review
+session that followed. Each subtask is one reviewed change with its own plan under
+`docs/superpowers/plans/`, written when the subtask starts. Do them in order 11a–11i unless
+the owner reorders. 11i is owner-run and can happen at any time.
+
+- [ ] **11a: CI checks**
+- [ ] **11b: Releases and the app version**
+- [ ] **11c: Notification border**
+- [ ] **11d: Sync cost**
+- [ ] **11e: Bot UX**
+- [ ] **11f: English in the bot**
+- [ ] **11g: English in the laptop app**
+- [ ] **11h: README and license**
+- [ ] **11i: Cloud hardening**
+
+### 11a: CI checks (note 5)
+
+- **Spec:** superpowers/specs/2026-10-30-ci-release-readme-design.md, section 1.
+- **Description:** add a GitHub Actions workflow, `.github/workflows/ci.yml`, that runs every
+  existing check on every push and pull request:
+  - **bot**, on Linux: unit tests, build/typecheck, the bundle check and all seven emulator
+    suites;
+  - **companion**, on Windows: the license check and the test suite, on python.org CPython
+    3.12.6.
+- **Goal:** no commit reaches `main` without the same checks the owner runs by hand today.
+  11b's release job can rely on the same steps.
+- **Acceptance criteria:**
+  - The `bot` job runs `npm ci`, `npm test`, `npm run build`, `npm run check:bundle` and
+    `npm run test:emulator -- auth pairing rules sync delivery purge cleanup` with Node 22 and
+    Java 21, and passes on `main`.
+  - The `companion` job installs python.org CPython 3.12.6 from its official installer, checking
+    a pinned SHA-256. It installs `requirements.lock` in a virtual environment, then runs
+    `tools/licenses.py check` and `python -m pytest -q` without `QT_QPA_PLATFORM=offscreen`, and
+    passes on `main`.
+  - Both jobs run on `push` (all branches) and `pull_request`, with `contents: read` and no
+    secrets.
+  - A deliberately failing test on a throwaway branch turns the run red; that branch is deleted
+    afterwards.
+  - Run times are recorded in the workflow summary. The emulator suites finish in under 10
+    minutes.
+
+### 11b: Releases and the app version (note 5, proposal D)
+
+- **Spec:** superpowers/specs/2026-10-30-ci-release-readme-design.md, sections 2 and 3.
+- **Description:** add `.github/workflows/release.yml` and a `VERSION` file holding `1.0`. On
+  pushes to `main` that touch `companion/**`, `contracts/**` or `VERSION`, the workflow:
+  - computes `1.0.x`;
+  - stamps it into the app;
+  - builds and self-checks the portable app;
+  - tags `v1.0.x`;
+  - publishes release `1.0.x` with the zip, a `.patch` file and generated notes.
+  The app shows its version.
+- **Goal:** every companion change becomes a numbered, downloadable and verifiable build, and
+  anyone can tell which build a laptop runs.
+- **Acceptance criteria:**
+  - The patch is one more than the highest `v{VERSION}.*` tag, or 0 if there is none. Changing
+    `VERSION` to `1.1` produces `1.1.0`. A `concurrency` group runs one release at a time.
+  - A `workflow_dispatch` dry run builds, verifies and uploads the zip as a workflow artifact,
+    and creates no tag or release.
+  - A real run creates tag `v1.0.x` and release `1.0.x` with:
+    - `aw-telegram-1.0.x-windows.zip`;
+    - `changes-1.0.x.patch`;
+    - notes listing the commits and the changed files since the previous tag, with a compare
+      link and a line saying the build is not code-signed.
+  - A docs-only or bot-only commit to `main` creates no release.
+  - The app reports its version in three places:
+    - `--self-check` reports `"version": "1.0.x"`, and the workflow fails if it differs;
+    - «Налаштування» shows «Версія 1.0.x»;
+    - File Explorer → Properties shows file and product version `1.0.x.0`.
+  - Local builds show `0.0.0-dev`. Companion unit tests cover the self-check field, the
+    Settings label and the default.
+  - A failed run leaves no tag or release behind.
+
+### 11c: Notification border (note 2)
+
+- **Spec:** docs/review-notes.md, note 2.
+- **Description:** remove the frame of the `QScrollArea` that holds the notification card's
+  text, in `companion/src/aw_telegram/ui/notification.py`.
+- **Goal:** the laptop notification shows its message without a box around it.
+- **Acceptance criteria:**
+  - The scroll area has `frameShape() == QFrame.Shape.NoFrame` and `frameWidth() == 0`, and a
+    unit test asserts both.
+  - The card's sizing still fits short, long and single-long-word messages; the existing
+    notification tests pass.
+  - The overlay and countdown surfaces are checked for the same look and changed only if they
+    have it.
+  - A released build (from 11b) shows a notification with no border on the owner's desktop.
+
+### 11d: Sync cost (note 7)
+
+- **Spec:** superpowers/specs/2026-10-30-sync-cost-design.md.
+- **Description:**
+  - **Companion:** sync every 30 s (a named constant), and widen the "online" window to 90 s.
+  - **Backend:** stop rewriting unchanged health and live documents. Stop reading days without
+    summaries, and alert state without summaries, acknowledgements or a settings change.
+- **Goal:** an always-online laptop costs about 4,000 Firestore writes and 20,000 reads a day,
+  instead of about 25,000 and 100,000, without losing any behaviour.
+- **Acceptance criteria:**
+  - An emulator test counts operations: an idle sync uses at most 7 reads and 2 writes, and a
+    sync with one summary still stores it.
+  - `sync/current` is still written on every sync, so the online status and the 11e offline line
+    stay correct.
+  - All existing bot unit, emulator and e2e tests and companion tests pass. Any assertion that
+    assumed a 15 s interval is updated deliberately.
+  - Endtime and limit alerts still fire with no new data arriving; a test covers the time-based
+    trigger.
+  - After deploying, one hour of Monitoring counts projects to at most 6,000 writes and 30,000
+    reads a day for one online laptop. The numbers go into hosting-cost-estimate.md.
+  - The sync contract is unchanged, so the backend and companion deploy independently.
+
+### 11e: Bot UX (notes 1 and 3, proposal B)
+
+- **Spec:** superpowers/specs/2026-10-30-bot-ux-design.md.
+- **Description:**
+  - **Menu button:** «🏠 Головне меню» on plain and save replies, through a stateless `nv:home`
+    callback.
+  - **Save replies:** no acknowledgement line; an offline line when the laptop hasn't synced for
+    2 minutes.
+  - **Applied messages:** one «✅ Ноутбук застосував: …» to the author per sync, built from stored
+    `appliedNotices`.
+  - **Command menu:** `webhook.ts set` registers the 8 core commands with `setMyCommands`.
+- **Goal:** caregivers can always get back to the menu, and they learn when the laptop applied
+  their change without re-checking.
+- **Acceptance criteria:**
+  - **Which replies get the button:**
+    - every reply without buttons gets it, except pop-up notices, the pairing hint and failures,
+      the farewell after `/unpair`, and everything sent through the outbox;
+    - one unit test per kind.
+  - A home tap opens the main menu and leaves another open menu's buttons working.
+  - **Applied messages:**
+    - one author with two changes gets one message listing both;
+    - two authors get one message each;
+    - a clear and a setting acknowledged together give one message;
+    - a repeated sync sends nothing;
+    - a removed author gets nothing;
+    - more than 50 notices spread over several syncs.
+  - The offline line appears only when `sync/current.serverReceivedAt` is older than 2 minutes,
+    or absent.
+  - Notices are removed by cleanup and purge, and an emulator test covers the bounded notice
+    query inside the sync transaction.
+  - `webhook.ts set` sends exactly the 8 commands with the spec's descriptions, and `info` shows
+    them.
+  - **E2E:** a limit change reaches the laptop, the author receives «✅ Ноутбук застосував: ліміт
+    на сьогодні …», and the second caregiver receives only the coordination message.
+  - user-requirements.md gains UX-02 and UX-03 and updates FREE-05.
+  - Backend-only deploy. The command menu is registered with `webhook.ts set` and verified in a
+    live chat.
+
+### 11f: English in the bot (note 4)
+
+- **Spec:** superpowers/specs/2026-10-30-english-design.md, part 1.
+- **Description:**
+  - move the copy to `i18n/uk.ts` and add `i18n/en.ts`, typed against it;
+  - resolve each caregiver's language: the stored `telegramUsers/{id}.lang`, otherwise the
+    Telegram `language_code` (`uk` or `ru` gives Ukrainian, anything else English);
+  - add a Settings choice and `/language uk|en`;
+  - write shared messages per recipient;
+  - render durations in both languages;
+  - register both command menus.
+- **Goal:** each caregiver uses the bot in their own language, and shared alerts reach every
+  recipient in theirs.
+- **Acceptance criteria:**
+  - The English catalogue fails to compile if a key is missing or its signature differs, and a
+    test checks every value is non-empty.
+  - The fallback from `language_code` works; a stored choice overrides it; unpaired users get
+    the pairing hint in the fallback language.
+  - `/language` and the Settings choice change only that caregiver, send no coordination
+    message, and survive re-pairing.
+  - An alert to two caregivers with different languages produces one outbox row in each
+    language. Old single-string events still deliver.
+  - Durations parse in both forms (`1 год 30 хв`, `1 h 30 min`, `90 хв`, `90 min`, `2:30`) and
+    render in the recipient's language.
+  - `setMyCommands` is registered in English by default and in Ukrainian for `language_code: uk`.
+  - **E2E:** a caregiver switches to English and receives the next alert in English while
+    another stays in Ukrainian.
+  - LANG-01 is updated in user-requirements.md. Backend-only deploy.
+
+### 11g: English in the laptop app (note 4, owner extension)
+
+- **Spec:** superpowers/specs/2026-10-30-english-design.md, part 2.
+- **Description:**
+  - route all laptop text through `aw_telegram/texts.py`, which holds Ukrainian and English;
+  - add «Мова / Language» to «Налаштування», with System, Українська and English;
+  - System means Ukrainian when the Windows display language is Ukrainian, otherwise English;
+  - load Qt's Ukrainian strings only for Ukrainian.
+- **Goal:** the laptop app speaks the language its user reads, with a sensible default.
+- **Acceptance criteria:**
+  - No user-facing Ukrainian literal remains outside `texts.py`; a test scans the UI modules.
+    Both dictionaries have the same keys, all non-empty.
+  - The system default is detected for `uk-UA` and for `en-US` and others, through a mocked
+    native call.
+  - The choice persists across a restart and applies immediately to open windows and the next
+    overlay or notification.
+  - Limit and endtime warnings and the status texts render in the chosen language. Caregiver
+    message text is shown unchanged.
+  - Qt's `qtbase_uk` translator is installed only when the effective language is Ukrainian.
+  - It ships as a release from 11b and is checked on the owner's desktop in both languages.
+
+### 11h: README and license (note 6)
+
+- **Spec:** superpowers/specs/2026-10-30-ci-release-readme-design.md, section 4.
+- **Description:**
+  - add `LICENSE` (MIT, `Copyright (c) 2026 alexandersokol`);
+  - rewrite `README.md` in English: title and badges, features, a Mermaid architecture diagram,
+    privacy, an owner setup guide, bot usage, a developer guide, contributing, security,
+    license and acknowledgements;
+  - turn `companion/README.md` into short developer notes.
+- **Goal:** a new reader understands what the project does, how to set it up and how to work
+  on it, without the task history.
+- **Acceptance criteria:**
+  - The README has the sections in the spec's order. Its badges point at the real CI and
+    release workflows from 11a and 11b, and the Mermaid diagram renders on GitHub.
+  - Every command in the setup and developer guides matches setup.md, operations.md and
+    package.json, and every link resolves.
+  - The README references no images that don't exist.
+  - It contains no task-progress text, which remains in implementation-plan.md.
+  - `LICENSE` is present, and `tools/licenses.py check` and CI still pass.
+
+### 11i: Cloud hardening (proposal C, owner-run)
+
+- **Spec:** docs/review-notes.md, note 8.
+- **Description:**
+  - function builds run with only the build roles they need, through a dedicated build account
+    if the Firebase CLI supports it, otherwise a narrowed default compute account;
+  - `roles/editor` is removed from the default compute account;
+  - the unused Firebase Extensions API is disabled.
+- **Goal:** no project-wide Editor grant exists for an account nobody needs it for, and only
+  used APIs are on.
+- **Acceptance criteria:**
+  - Before the change, a listing shows no Cloud Run service, function or scheduler job runs as
+    the default compute account.
+  - After the change, the default compute account holds no `roles/editor`, and the build
+    account's roles are exactly those in note 8.
+  - An unchanged functions redeploy succeeds, `/status` answers, and request logs show no
+    errors.
+  - `firebase ext:list` shows no extensions, and the API is disabled.
+  - setup.md and operations.md record the new state and the rollback.
+
 ## Completion and evidence
 
 A milestone is complete only with its specified tests and observed results. A
