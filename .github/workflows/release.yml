@@ -1,0 +1,133 @@
+name: Release
+
+# Every companion change on main becomes a numbered build: 1.0.x, where 1.0 is the VERSION file and x is one more
+# than the highest v1.0.* tag. Run it by hand with dry_run (the default) to build and verify without publishing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'companion/**'
+      - 'contracts/**'
+      - 'VERSION'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify only; upload the zip as a workflow artifact and create no tag or release
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+# One release at a time, so version numbers never collide.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # The spec (companion/aw-telegram.spec) refuses any base Python but a python.org build, so the release is built from
+  # the same installer as the owner's workstation build. The hash was checked against the MD5 python.org lists.
+  PYTHON_URL: https://www.python.org/ftp/python/3.12.6/python-3.12.6-amd64.exe
+  PYTHON_SHA256: 5914748e6580e70bedeb7c537a0832b3071de9e09a2e4e7e3d28060616045e0a
+  PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || !inputs.dry_run) }}
+
+jobs:
+  release:
+    name: Build and release the companion
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: companion
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # tags and history for the version number, the notes and the patch
+      # tests/test_e2e_simulated.py builds and serves the real bot backend.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+      - name: Install the bot for the end-to-end test
+        working-directory: bot
+        run: npm ci
+      - name: Install Python 3.12.6 from python.org
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'python-installer.exe'
+          Invoke-WebRequest -Uri $env:PYTHON_URL -OutFile $installer
+          $actual = (Get-FileHash -Algorithm SHA256 -Path $installer).Hash.ToLower()
+          if ($actual -ne $env:PYTHON_SHA256) { throw "python.org installer SHA-256 is $actual, expected $env:PYTHON_SHA256" }
+          $install = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList '/quiet', 'InstallAllUsers=0', 'PrependPath=0', 'Include_launcher=0', 'Include_test=0', 'Include_doc=0', 'TargetDir=C:\python-build'
+          if ($install.ExitCode -ne 0) { throw "Python installer exited with $($install.ExitCode)" }
+          & C:\python-build\python.exe --version
+      - name: Install
+        run: |
+          /c/python-build/python.exe -m venv .venv-build
+          .venv-build/Scripts/python.exe -m pip install --upgrade pip
+          .venv-build/Scripts/python.exe -m pip install -r requirements.lock
+      - name: License texts
+        run: .venv-build/Scripts/python.exe tools/licenses.py check
+      # Before stamping: the tests expect the dev version.
+      - name: Tests
+        run: .venv-build/Scripts/python.exe -m pytest -q -rfE
+      - name: Version
+        id: version
+        run: |
+          version=$(.venv-build/Scripts/python.exe tools/release.py next)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "### Companion $version" >> "$GITHUB_STEP_SUMMARY"
+      - name: Stamp
+        run: .venv-build/Scripts/python.exe tools/release.py stamp "${{ steps.version.outputs.version }}"
+      - name: Build
+        run: .venv-build/Scripts/pyinstaller.exe --clean --noconfirm aw-telegram.spec
+      - name: Self-check
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath dist\aw-telegram\aw-telegram.exe -ArgumentList '--self-check', 'report.json' -Wait -PassThru
+          if (Test-Path report.json) { Get-Content report.json }
+          if ($process.ExitCode -ne 0) { throw "--self-check exited with $($process.ExitCode)" }
+          .venv-build\Scripts\python.exe tools\release.py verify report.json "${{ steps.version.outputs.version }}"
+          if ($LASTEXITCODE -ne 0) { throw 'The self-check report does not match the stamped version' }
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path dist\aw-telegram -DestinationPath "dist\aw-telegram-${{ steps.version.outputs.version }}-windows.zip"
+      - name: Notes and patch
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          previous=$(.venv-build/Scripts/python.exe tools/release.py previous)
+          .venv-build/Scripts/python.exe tools/release.py notes "$version" "$previous" "$GITHUB_REPOSITORY" dist/notes.md
+          .venv-build/Scripts/python.exe tools/release.py patch "$previous" "dist/changes-$version.patch"
+          cat dist/notes.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the zip (no release)
+        if: env.PUBLISH != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: aw-telegram-${{ steps.version.outputs.version }}-windows
+          path: companion/dist/aw-telegram-${{ steps.version.outputs.version }}-windows.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      # A draft release has no tag, so a failure before the last command leaves nothing but a draft, which the
+      # next step removes. Publishing it is what creates the tag v1.0.x on this commit.
+      - name: Publish
+        id: publish
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          gh release create "v$version" --draft --target "$GITHUB_SHA" --title "$version" --notes-file dist/notes.md \
+            "dist/aw-telegram-$version-windows.zip" "dist/changes-$version.patch"
+          gh release edit "v$version" --draft=false --latest
+      - name: Remove the unpublished draft
+        if: failure() && steps.publish.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          if [ "$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
+            gh release delete "$tag" --yes
+          fi
